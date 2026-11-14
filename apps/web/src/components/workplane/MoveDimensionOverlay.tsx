@@ -1,5 +1,6 @@
 "use client";
 
+import { sceneDimensionAxis } from "@/lib/dimensionAxisColors";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import type { MoveDimensionAxis, MoveDimensionOverlayData } from "@/lib/moveDimensionLines";
 import { selectWholeValue } from "@/lib/numberField";
@@ -59,6 +60,7 @@ export function MoveDimensionOverlay({
             <input
               key={`edit-${line.axis}`}
               className="dimension-input move-dimension-input"
+              data-axis={sceneDimensionAxis(line.axis)}
               aria-label={t("aria.axisMovement", { axis: line.axis === "z" ? "Y" : "X" })}
               value={editing.value}
               autoFocus
@@ -91,6 +93,7 @@ export function MoveDimensionOverlay({
           <span
             key={line.axis}
             className="dimension-label move-dimension-value"
+            data-axis={sceneDimensionAxis(line.axis)}
             style={styleForLine(line)}
           >
             {line.label}
@@ -99,6 +102,7 @@ export function MoveDimensionOverlay({
           <button
             key={line.axis}
             className="dimension-label move-dimension-value"
+            data-axis={sceneDimensionAxis(line.axis)}
             type="button"
             aria-label={t("aria.axisMovement", { axis: line.axis === "z" ? "Y" : "X" })}
             style={styleForLine(line)}

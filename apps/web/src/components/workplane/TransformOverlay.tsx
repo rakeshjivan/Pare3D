@@ -1,4 +1,5 @@
 import { useRef, type CSSProperties } from "react";
+import { sizeDimensionAxis } from "@/lib/dimensionAxisColors";
 import { Lock } from "lucide-react";
 import { t } from "@/lib/i18n";
 import * as THREE from "three";
@@ -217,6 +218,7 @@ export function TransformOverlay({
         <button
           key={`${mark.key}-label`}
           className="dimension-label"
+          data-axis={sizeDimensionAxis(mark.axis)}
           type="button"
           style={overlayPoint(keepVisible, mark.labelX, mark.labelY)}
           disabled={locked}
@@ -229,6 +231,7 @@ export function TransformOverlay({
       {editingDimension ? (
         <input
           className="dimension-input"
+          data-axis={sizeDimensionAxis(editingDimension.axis)}
           style={overlayPoint(keepVisible, editingDimension.x, editingDimension.y)}
           value={editingDimension.value}
           autoFocus
@@ -255,6 +258,7 @@ export function TransformOverlay({
         <input
           key={entry.key}
           className="dimension-input"
+          data-axis={sizeDimensionAxis(entry.axis)}
           data-corner-input="true"
           style={overlayPoint(keepVisible, entry.x, entry.y)}
           value={entry.value}

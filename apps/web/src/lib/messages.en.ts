@@ -4990,6 +4990,9 @@ export const MESSAGES_EN = {
   "inspector.threadMakeTappedHole": "Make it a tapped hole",
   "inspector.threadNutShape": "Nut shape",
   "prop.headSpan": "Span",
+  // Ported from layerling 1.165.
+  "workspace.dimensionAxisColors": "Dimension boxes in axis colours",
+  "workspace.dimensionAxisColorsHint": "Each value box beside a selection takes the colour of its axis: red X, green Y, blue Z.",
 } as const;
 
 export type MessageKey = keyof typeof MESSAGES_EN;

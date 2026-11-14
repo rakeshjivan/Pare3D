@@ -1883,3 +1883,24 @@ html:has([aria-modal="true"]) .secondary-toolbar [role="menu"] { display: none; 
 /* Build 109: the folded groups at the right end open their menu leftwards, so it stays on the screen. */
 .toolbar-folded-section[data-fold="mesh"] .toolbar-fold-menu,
 .toolbar-folded-section[data-fold="arrange"] .toolbar-fold-menu { left: auto; right: 0; }
+
+/* Build 110: size boxes in axis colours (ported from layerling 1.165). */
+/* Workspace setting "Dimension boxes in axis colours" (#1279): each value box in the colour of its axis,
+   as the size handles: a light tint, a strong edge and dark text, the same in the dark theme so the number stays easy to read. */
+.workplane-wrap.dimension-axis-colors .dimension-label[data-axis],
+.workplane-wrap.dimension-axis-colors .dimension-input[data-axis] {
+  background: var(--dimension-axis-tint);
+  border: 1px solid var(--dimension-axis-edge);
+  color: var(--dimension-axis-text);
+  opacity: 1;
+}
+
+.workplane-wrap.dimension-axis-colors [data-axis="x"] { --dimension-axis-tint: #fde4e4; --dimension-axis-edge: #d6363c; --dimension-axis-text: #6e1418; }
+.workplane-wrap.dimension-axis-colors [data-axis="y"] { --dimension-axis-tint: #dff3e4; --dimension-axis-edge: #2f9a4b; --dimension-axis-text: #144a24; }
+.workplane-wrap.dimension-axis-colors [data-axis="z"] { --dimension-axis-tint: #e0eafc; --dimension-axis-edge: #2f6fe0; --dimension-axis-text: #12357a; }
+
+.workplane-wrap.dimension-axis-colors .dimension-label[data-axis].armed {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dimension-axis-edge) 30%, transparent), 0 1px 4px rgba(58, 40, 20, 0.09);
+}
+html[data-theme="dark"] .workplane-wrap.dimension-axis-colors .dimension-label[data-axis],
+html[data-theme="dark"] .workplane-wrap.dimension-axis-colors .dimension-input[data-axis] { background: var(--dimension-axis-tint); color: var(--dimension-axis-text); }
