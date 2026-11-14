@@ -88,6 +88,9 @@ import { concentricMotion, mateMotion, type FacePick, type MateMode } from "@/li
 import { roundFaceNear } from "@/lib/roundFaceAxis";
 import { carriedOntoFace } from "@/lib/carryOntoFace";
 import { HolePatternPanel } from "./workplane/HolePatternPanel";
+import { SupportRibPanel } from "./workplane/SupportRibPanel";
+import { buildSupportRib, normalizeSupportRib, readSupportRibSettings, supportRibFace, supportRibShape, writeSupportRibSettings, type SupportRibFace, type SupportRibPlan, type SupportRibSettings } from "@/lib/supportRib";
+import { isSupportRib } from "@/lib/supportRibMark";
 import { FaceToolPanel } from "./workplane/FaceToolPanel";
 import { DEFAULT_FACE_TOOL, FACE_TOOL_MIN_DEPTH, faceToolSettingsOn, normalizeFaceTool, type FaceToolSettings } from "@/lib/faceTool";
 import { pullToFaceTool } from "@/lib/facePull";
@@ -2179,6 +2182,16 @@ export function LayerlingEditor({
     busy: boolean;
   } | null>(null);
   const holePatternSettingsRef = useRef<HolePatternSettings>(DEFAULT_HOLE_PATTERN);
+  // "Support rib" (from layerling 1.148, Discussion #1385): the lower face of a tilted part, then a thin rib under it.
+  const [supportRibTool, setSupportRibTool] = useState<{
+    sourceId: string;
+    step: "pick" | "ready";
+    face: SupportRibFace | null;
+    settings: SupportRibSettings;
+    busy: boolean;
+  } | null>(null);
+  const [supportRibPreview, setSupportRibPreview] = useState<{ shape: WorkplaneShape | null; plan: SupportRibPlan | null; problem: string | null } | null>(null);
+  const supportRibPreviewRunRef = useRef(0);
   // "Face": a flat face of the selected body, pushed out or cut in as a pocket, with an inset from its edge (#404).
   const [faceTool, setFaceTool] = useState<{
     sourceId: string;
@@ -3196,6 +3209,8 @@ export function LayerlingEditor({
     () =>
       arrayPreview
         ? [...shapes, ...arrayPreview]
+        : supportRibPreview?.shape
+        ? [...shapes, supportRibPreview.shape]
         : holePatternPreview?.holes.length
         ? [...shapes, ...holePatternPreview.holes]
         : faceToolPreview?.shape
@@ -3211,7 +3226,7 @@ export function LayerlingEditor({
         : mirrorMode && mirrorPreviewAxis
           ? mirroredShapesForSelection(shapes, selectedIds, selectedShapes, mirrorPreviewAxis).nextShapes
           : shapes,
-    [alignAxes, alignMode, alignPreview, arrayPreview, blendPreview, blendTool?.edit, edgeModifier?.preview, effectiveAlignAnchorId, faceToolPreview, holePatternPreview, mirrorMode, mirrorPreviewAxis, selectedIds, selectedShapes, shapes],
+    [alignAxes, alignMode, alignPreview, arrayPreview, blendPreview, blendTool?.edit, edgeModifier?.preview, effectiveAlignAnchorId, faceToolPreview, holePatternPreview, mirrorMode, mirrorPreviewAxis, selectedIds, selectedShapes, shapes, supportRibPreview],
   );
   // The preview of an intersection (#372): the operands see-through, and what they share as a body of its own on top.
   const [intersectPreviewIds, setIntersectPreviewIds] = useState<string[] | null>(null);
@@ -8450,6 +8465,141 @@ export function LayerlingEditor({
     );
   }, [commitShapes, holePatternTool]);
 
+  // "Support rib" (layerling 1.148, Discussion #1385): a thin rib under the lower face of a part printed tilted.
+  const toggleSupportRib = useCallback(() => {
+    if (supportRibTool) {
+      setSupportRibTool(null);
+      setNotice(t("status.supportRibCancelled"));
+      return;
+    }
+    if (refuseLockedSelection()) return;
+    const source = selectedShapes.length === 1 ? selectedShapes[0] : null;
+    if (!source) {
+      setNotice(t("status.supportRibSelectOne"));
+      return;
+    }
+    if (source.hole || isNonSolidShapeKind(source.kind) || isSupportRib(source)) {
+      setNotice(t("status.supportRibNeedsSolid"));
+      return;
+    }
+    stopCruise();
+    setAlignMode(false);
+    setMirrorMode(false);
+    setPivotPickMode(false);
+    setLayFlatPickMode(false);
+    setMateTool(null);
+    setArrayTool(null);
+    setScalePercentTool(null);
+    setHolePatternTool(null);
+    setFaceTool(null);
+    setSupportRibTool({ sourceId: source.id, step: "pick", face: null, settings: readSupportRibSettings(), busy: false });
+    setNotice(t("status.supportRibStart"));
+  }, [refuseLockedSelection, selectedShapes, stopCruise, supportRibTool]);
+
+  const pickSupportRibFace = useCallback((pick: LayFlatPick | null) => {
+    if (!supportRibTool || supportRibTool.step !== "pick") return;
+    const source = shapesRef.current.find((shape) => shape.id === supportRibTool.sourceId);
+    if (!pick || !source || pick.shapeId !== source.id) {
+      setNotice(t("status.supportRibMissed"));
+      return;
+    }
+    const read = readPerforableFace(worldTrianglePositions(source), pick.point, pick.normal);
+    if (!read.ok) {
+      setNotice(t(read.reason === "curved" ? "status.supportRibCurved" : "status.supportRibMissed"));
+      return;
+    }
+    const face = supportRibFace(read.face);
+    if (!face.ok) {
+      setNotice(t(`supportRib.reason.${face.reason}`));
+      return;
+    }
+    setSupportRibTool({ ...supportRibTool, step: "ready", face: face.face, settings: { ...supportRibTool.settings, height: null } });
+    setNotice(t("status.supportRibReady"));
+  }, [supportRibTool]);
+
+  const changeSupportRibSettings = useCallback((patch: Partial<SupportRibSettings>) => {
+    setSupportRibTool((current) => {
+      if (!current) return current;
+      const settings = normalizeSupportRib({ ...current.settings, ...patch });
+      writeSupportRibSettings(settings);
+      return { ...current, settings };
+    });
+  }, []);
+
+  // The rib as it will stand, drawn while the numbers change.
+  useEffect(() => {
+    const run = ++supportRibPreviewRunRef.current;
+    const face = supportRibTool?.face;
+    const source = supportRibTool ? shapesRef.current.find((shape) => shape.id === supportRibTool.sourceId) : null;
+    if (!face || !supportRibTool || !source) {
+      setSupportRibPreview(null);
+      return;
+    }
+    const settings = supportRibTool.settings;
+    const timer = window.setTimeout(() => {
+      void getManifoldRuntime()
+        .then((runtime) => {
+          if (supportRibPreviewRunRef.current !== run) return;
+          const built = buildSupportRib(runtime, face, settings, source);
+          if (!built.ok) {
+            setSupportRibPreview({ shape: null, plan: null, problem: `supportRib.reason.${built.reason}` });
+            return;
+          }
+          setSupportRibPreview({ shape: supportRibShape("support-rib-preview", t("supportRib.name"), source.color, built.positions), plan: built.plan, problem: null });
+        })
+        .catch(() => {
+          if (supportRibPreviewRunRef.current === run) setSupportRibPreview({ shape: null, plan: null, problem: "supportRib.reason.failed" });
+        });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [supportRibTool?.face, supportRibTool?.settings, supportRibTool?.sourceId]);
+
+  const applySupportRib = useCallback(async () => {
+    const tool = supportRibTool;
+    if (!tool?.face || tool.busy) return;
+    const source = shapesRef.current.find((shape) => shape.id === tool.sourceId);
+    if (!source) return;
+    setSupportRibTool({ ...tool, busy: true });
+    const runtime = await getManifoldRuntime();
+    const built = buildSupportRib(runtime, tool.face, tool.settings, source);
+    if (!built.ok) {
+      setSupportRibTool((current) => (current ? { ...current, busy: false } : current));
+      setNotice(t(`supportRib.reason.${built.reason}`));
+      return;
+    }
+    const rib = supportRibShape(createLocalId("support-rib"), t("supportRib.name"), source.color, built.positions, source.id);
+    if (!rib) {
+      setSupportRibTool((current) => (current ? { ...current, busy: false } : current));
+      setNotice(t("supportRib.reason.failed"));
+      return;
+    }
+    const message = t("status.supportRibCreated", { count: built.plan.bridges.length });
+    setSupportRibTool(null);
+    if (tool.settings.bundle) {
+      // Bundled with the part: they move together and reach the slicer side by side, the bridges joining them there.
+      const group = groupedShape([source, rib]);
+      if (group) {
+        const bundle = canonicalizeShape({ ...group, name: source.name, groupOperation: "bundle" });
+        commitShapes([...shapesRef.current.filter((shape) => shape.id !== source.id), bundle], bundle.id, message);
+        return;
+      }
+    }
+    commitShapes([...shapesRef.current, rib], rib.id, message);
+  }, [commitShapes, supportRibTool]);
+
+  // The tool belongs to the body it was started for and gives way to the other tools.
+  useEffect(() => {
+    if (!supportRibTool) return;
+    if (
+      selectedIds.length !== 1
+      || selectedIds[0] !== supportRibTool.sourceId
+      || mateTool || layFlatPickMode || pivotPickMode || arrayTool || scalePercentTool
+      || shellTool || deleteFaceTool || edgeModifier || splitSession || simplifyToolId || holePatternTool || faceTool
+    ) {
+      setSupportRibTool(null);
+    }
+  }, [arrayTool, deleteFaceTool, edgeModifier, faceTool, holePatternTool, layFlatPickMode, mateTool, pivotPickMode, scalePercentTool, selectedIds, shellTool, simplifyToolId, splitSession, supportRibTool]);
+
   // The tool belongs to the body it was started for, and gives way to the tools that pick faces or open panels of their own.
   useEffect(() => {
     if (!holePatternTool) return;
@@ -10802,7 +10952,8 @@ export function LayerlingEditor({
     setFitBusy(true);
     const timer = window.setTimeout(async () => {
       const ids = fitCheck.ids ? new Set(fitCheck.ids) : null;
-      const parts = expandBundles(shapes).filter((shape) => !shape.hidden && !shape.hole && !isNonSolidShapeKind(shape.kind) && (!ids || ids.has(shape.id)));
+      // A support rib reaches into its part on purpose (Discussion #1385): left out of the fit check.
+      const parts = expandBundles(shapes).filter((shape) => !shape.hidden && !shape.hole && !isNonSolidShapeKind(shape.kind) && !isSupportRib(shape) && (!ids || ids.has(shape.id)));
       try {
         // Fork (build 37): in the background, so a big assembly keeps the window working.
         const report = await checkFitInBackground(parts, fitCheck.clearance);
@@ -15317,6 +15468,11 @@ export function LayerlingEditor({
           setNotice(t("status.holePatternCancelled"));
           return;
         }
+        if (supportRibTool) {
+          setSupportRibTool(null);
+          setNotice(t("status.supportRibCancelled"));
+          return;
+        }
         if (faceTool) {
           setFaceTool(null);
           setNotice(t("status.faceToolCancelled"));
@@ -15627,6 +15783,7 @@ export function LayerlingEditor({
     // they opened, or before a shape was added, closed nothing and missed new shapes.
     mateTool,
     holePatternTool,
+    supportRibTool,
     faceTool,
     deleteFaceTool,
     applyDeleteFaceTool,
@@ -15801,6 +15958,7 @@ export function LayerlingEditor({
       if (!single.hole && !isNonSolidShapeKind(single.kind)) {
         edges.push({ key: "faceTool", label: t("faceTool.title"), onSelect: toggleFaceTool });
         surface.push({ key: "holePattern", label: t("holePattern.title"), onSelect: toggleHolePattern });
+        if (!isSupportRib(single)) surface.push({ key: "supportRib", label: t("supportRib.title"), onSelect: toggleSupportRib });
       }
     }
     if (!selectionLocked && !allHoles) mesh.push({ key: "cutBelow", label: t("contextMenu.cutBelow"), onSelect: () => void cutPartsBelowBed(selectedShapes.map((shape) => shape.id)) });
@@ -15974,6 +16132,8 @@ export function LayerlingEditor({
         mateFacesActive={Boolean(mateTool)}
         onHolePattern={toggleHolePattern}
         holePatternActive={Boolean(holePatternTool)}
+        onSupportRib={toggleSupportRib}
+        supportRibActive={Boolean(supportRibTool)}
         canHolePattern={selectedShapes.length === 1 && Boolean(selectedShape && !selectedShape.locked && !selectedShape.hole && !isNonSolidShapeKind(selectedShape.kind))}
         onFaceTool={toggleFaceTool}
         faceToolActive={Boolean(faceTool)}
@@ -16352,6 +16512,8 @@ export function LayerlingEditor({
             ? { shapeIds: mateTool.step === "source" ? [mateTool.sourceId] : shapes.filter((shape) => shape.id !== mateTool.sourceId && !shape.hidden).map((shape) => shape.id), round: mateTool.mode === "concentric" }
             : holePatternTool?.step === "pick"
               ? { shapeIds: [holePatternTool.sourceId] }
+              : supportRibTool?.step === "pick"
+              ? { shapeIds: [supportRibTool.sourceId] }
               : faceTool && !faceTool.busy
                 ? { shapeIds: [faceTool.sourceId] }
                 : blendTool && !blendTool.busy
@@ -16387,7 +16549,7 @@ export function LayerlingEditor({
           onFacePullCancel={shellTool ? () => {
             shellPullFaceRef.current = null;
           } : cancelFacePull}
-          onMateFacePick={surfaceTextTool ? pickSurfaceText : mateTool ? pickMateFace : faceTool ? pickFaceToolFace : blendTool ? pickBlendFace : fillHoleTool ? pickFillHole : pickHolePatternFace}
+          onMateFacePick={surfaceTextTool ? pickSurfaceText : mateTool ? pickMateFace : faceTool ? pickFaceToolFace : blendTool ? pickBlendFace : fillHoleTool ? pickFillHole : supportRibTool ? pickSupportRibFace : pickHolePatternFace}
           cadFacePick={historyViewState ? null : cadFacePick}
           onCadFacePick={toggleDeleteFace}
           onNoteAdd={addNote}
@@ -16633,6 +16795,28 @@ export function LayerlingEditor({
           onCancel={() => {
             setHolePatternTool(null);
             setNotice(t("status.holePatternCancelled"));
+          }}
+        />
+      ) : null}
+      {supportRibTool && selectedShape?.id === supportRibTool.sourceId ? (
+        <SupportRibPanel
+          targetName={displayShapeName(selectedShape)}
+          step={supportRibTool.step}
+          settings={supportRibTool.settings}
+          workspace={workspaceSettings}
+          face={supportRibTool.face}
+          plan={supportRibPreview?.plan ?? null}
+          problem={supportRibPreview?.problem ?? null}
+          busy={supportRibTool.busy}
+          onChange={changeSupportRibSettings}
+          onRepick={() => {
+            setSupportRibTool({ ...supportRibTool, step: "pick", face: null });
+            setNotice(t("status.supportRibStart"));
+          }}
+          onApply={() => void applySupportRib()}
+          onCancel={() => {
+            setSupportRibTool(null);
+            setNotice(t("status.supportRibCancelled"));
           }}
         />
       ) : null}

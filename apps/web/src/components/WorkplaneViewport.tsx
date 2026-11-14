@@ -3,7 +3,7 @@
 import { EDITOR_WINDOW_EVENT } from "@/lib/editorShared";
 import { readViewLook, type ViewLook } from "@/lib/viewLook";
 import { markEscapeHandled } from "@/lib/escapeHandled";
-import { ArrowDownToLine, Check, ChevronLeft, ChevronRight, Crosshair, Cuboid, Download, Eye, EyeOff, FlipHorizontal, GripVertical, Home, Layers, Minus, MousePointer2, PanelsTopLeft, Plus, Rotate3d, RotateCcw, Ruler, RulerDimensionLine, Slice, Spline, Trash2, X } from "lucide-react";
+import { ArrowDownToLine, Check, Moon, ChevronLeft, ChevronRight, Crosshair, Cuboid, Download, Eye, EyeOff, FlipHorizontal, GripVertical, Home, Layers, Minus, MousePointer2, PanelsTopLeft, Plus, Rotate3d, RotateCcw, Ruler, RulerDimensionLine, Slice, Spline, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type MouseEvent as ReactMouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type WheelEvent as ReactWheelEvent } from "react";
 import { nearestObjectGap, objectSnapOffset, shiftSnapBox, type ObjectGap, type ObjectSnapGuide, type SnapBox } from "@/lib/objectSnap";
 import { dragReach } from "@/lib/dragReach";
@@ -129,7 +129,7 @@ import { toCreasedNormals } from "@/lib/creasedNormals";
 import { boundsInsideRect, marqueeMode } from "@/lib/marqueeSelection";
 import { canBeginShapeDrag, handleDimensionLimit, POSITION_TYPED_LIMIT, DEFAULT_SNAP_GRID, DEFAULT_WORKPLANE_WORKSPACE, effectiveViewSettings, viewPixelRatio, normalizeSnapGrid, normalizeWorkspaceSettings, orbitControlsZoomSpeed, readWorkspaceDefault, saveShapeDefaultsForNewDesigns, saveWorkspaceDefault, snapGridForUnits, snapGridStep as snapStep, workplaneSettingsFingerprint, workspaceForUnits, workspaceHydrationSyncDecision, zoomDistanceScale, ZOOM_STEP_IN, ZOOM_STEP_OUT } from "@/lib/workplaneSettings";
 import { withShapeDefaults } from "@/lib/shapeDefaults";
-import { workplaneGridBandWidths, AXIS_ARROW_COLORS, axisArrowLayout, DEFAULT_EDGE_LINE_COLOR, fillLightPosition, keyLightPosition, sceneLightLevels, shadowBlurRadius, workplaneGridLayout, workplaneGridLines, workplaneGridPalette, workplaneLabelLayout, workplaneThemePalette, WORKPLANE_LABEL_ASPECT, WORKPLANE_LINE_ELEVATION, type WorkplaneGridLayout } from "@/lib/workplaneGrid";
+import { workplaneGridBandWidths, AXIS_ARROW_COLORS, axisArrowLayout, DEFAULT_EDGE_LINE_COLOR, DEFAULT_WORKPLANE_GRID_COLOR, fillLightPosition, keyLightPosition, sceneLightLevels, shadowBlurRadius, workplaneGridLayout, workplaneGridLines, workplaneGridPalette, workplaneLabelLayout, workplaneThemePalette, WORKPLANE_LABEL_ASPECT, WORKPLANE_LINE_ELEVATION, type WorkplaneGridLayout } from "@/lib/workplaneGrid";
 import { cleanNearZero, deformsAboutOrigin, cleanRotationDegrees, isNonSolidShape, isNonSolidShapeKind, mirroredAxisCount, mirrorSign, preservesEdgeTreatmentSize, proportionalResizeScale, resizedImportedCoordinates, resizedImportedMeshPositions, resizedShapeSize, shapeDepth, shapeExtrudeDeformAt, shapeHasExtrudeDeform, shapeHasShapeDeform, shapeHasTaper, shapeSupportsTaper, shapeTaperDimensions, shapeTaperScaleAt, shapeWidth, shapeWithParametricSource } from "@/lib/workplaneShapes";
 import { sphereTessellation } from "@/lib/sphereTessellation";
 import { torusTessellation } from "@/lib/torusTessellation";
@@ -10513,6 +10513,18 @@ export function WorkplaneViewport({
               >
                 <GridEyeIcon size={25} strokeWidth={2.1} crossed={workplaneLayerHidden} aria-hidden="true" />
               </button>
+              {/* Pare 3D: Dark build plate - only the plate and its grid go dark; the light theme keeps the rest. */}
+              {resolvedTheme === "light" ? (
+                <button
+                  className={workspace.darkPlate ? "active" : ""}
+                  aria-label={t(workspace.darkPlate ? "camera.lightPlate" : "camera.darkPlate")}
+                  title={t(workspace.darkPlate ? "camera.lightPlate" : "camera.darkPlate")}
+                  aria-pressed={workspace.darkPlate === true}
+                  onClick={() => changeWorkspace((current) => ({ ...current, darkPlate: !current.darkPlate }))}
+                >
+                  <Moon size={22} strokeWidth={2.1} aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
             <div className="workplane-control-group">
               <button
@@ -11987,6 +11999,12 @@ function rebuildWorkplane(
   }
 
   const palette = workplaneThemePalette(theme, workspace.background, workspace.gridColor, state.palette, workspace.surfaceColor);
+  // Pare 3D: Dark build plate - in the light theme only the plate and its grid take Graphite's dark
+  // colours; the background and the rest of the app keep theirs.
+  const darkPlate = workspace.darkPlate === true && theme === "light";
+  const plateTheme: ResolvedAppTheme = darkPlate ? "dark" : theme;
+  const platePaletteName: AppThemePalette = darkPlate ? "graphite" : state.palette ?? "default";
+  const platePalette = darkPlate ? workplaneThemePalette("dark", workspace.background, workspace.gridColor, "graphite", workspace.surfaceColor) : palette;
   disposeChildren(state.workplaneLayer);
   state.scene.background = new THREE.Color(palette.sceneBackground);
   // Fast mode turns shadows, edge lines and camera inertia off together, and draws fewer pixels.
@@ -12029,10 +12047,10 @@ function rebuildWorkplane(
       round ? new THREE.CircleGeometry(workspace.width / 2, ROUND_PLATE_SEGMENTS) : new THREE.PlaneGeometry(workspace.width, workspace.depth),
       new THREE.MeshStandardMaterial({
         color: muted
-          ? theme === "dark" ? "#59646b" : "#b8c0c5"
-          : palette.surface.color,
+          ? plateTheme === "dark" ? "#59646b" : "#b8c0c5"
+          : platePalette.surface.color,
         transparent: true,
-        opacity: muted ? (theme === "dark" ? 0.17 : 0.22) : palette.surface.opacity,
+        opacity: muted ? (plateTheme === "dark" ? 0.17 : 0.22) : platePalette.surface.opacity,
         roughness: 0.92,
         side: THREE.DoubleSide,
         // A face-on orthographic view interpolates this large coplanar quad
@@ -12053,16 +12071,16 @@ function rebuildWorkplane(
     surface.receiveShadow = view.showShadows && !muted;
     group.add(surface);
 
-    const lineColor = muted ? theme === "dark" ? "#76828a" : "#99a3aa" : workspace.gridColor;
-    const majorLineColor = muted ? "" : workspace.gridMajorColor;
+    const lineColor = muted ? plateTheme === "dark" ? "#76828a" : "#99a3aa" : darkPlate ? DEFAULT_WORKPLANE_GRID_COLOR : workspace.gridColor;
+    const majorLineColor = muted || darkPlate ? "" : workspace.gridMajorColor;
     if (outlineOnly) {
       group.add(createGridLines(
         workspace.width,
         workspace.depth,
         workplaneGridLayout(workspace),
-        theme,
+        plateTheme,
         lineColor,
-        state.palette,
+        platePaletteName,
         true,
         majorLineColor,
         workspace.gridLinesGrow !== false,
@@ -12073,15 +12091,15 @@ function rebuildWorkplane(
         workspace.width,
         workspace.depth,
         workplaneGridLayout(workspace),
-        theme,
+        plateTheme,
         lineColor,
-        state.palette,
+        platePaletteName,
         false,
         majorLineColor,
         workspace.gridLinesGrow !== false,
         round,
       ));
-      const labelPalette = workplaneGridPalette(theme, lineColor, state.palette).major;
+      const labelPalette = workplaneGridPalette(plateTheme, lineColor, platePaletteName).major;
       // The design's name in the near left corner, so a screenshot of the scene
       // says what it shows - unless it was switched off as a distraction (#192).
       const label = workspace.showPlateLabels === false ? null : createWorkplaneLabel(
@@ -12091,7 +12109,7 @@ function rebuildWorkplane(
         muted ? labelPalette.opacity * 0.5 : labelPalette.opacity,
         projectName,
         "",
-        { outline: muted ? undefined : palette.surface.color },
+        { outline: muted ? undefined : platePalette.surface.color },
       );
       if (label) {
         group.add(label);
@@ -12106,7 +12124,7 @@ function rebuildWorkplane(
           labelPalette.opacity,
           `${printer.vendor} ${printer.model}`,
           printer.round ? `Ø ${printer.width} × ${printer.height} mm` : `${printer.width} × ${printer.depth} × ${printer.height} mm`,
-          { align: "right", outline: palette.surface.color },
+          { align: "right", outline: platePalette.surface.color },
         );
         if (printerLabel) {
           printerLabel.name = "WorkplanePrinterLabel";
@@ -12119,7 +12137,7 @@ function rebuildWorkplane(
     }
     if (showMarker) {
       const markerMaterial = new THREE.MeshBasicMaterial({
-        color: theme === "dark" ? "#d7f4ff" : "#17405c",
+        color: plateTheme === "dark" ? "#d7f4ff" : "#17405c",
         depthTest: false,
         transparent: true,
         opacity: 0.9,

@@ -405,6 +405,8 @@ export type WorkplaneWorkspaceSettings = {
   /** Overhangs steeper than this (degrees from vertical) show red when overhangs are shown. */
   overhangAngle: number;
   showGrid: boolean;
+  /** Pare 3D: in the light theme, the build plate and its grid drawn dark (Graphite's greys); everything else as it is. */
+  darkPlate?: boolean;
   clickToPlaceShapes: boolean;
   selectBeforeMove: boolean;
   /** The selection frame takes only what it encloses when dragged to the right, what it touches when dragged to the left (#430). */
@@ -1184,6 +1186,11 @@ export type WorkplaneShape = {
    * its own body.
    */
   groupOperation?: "group" | "intersection" | "bundle" | "loft";
+  /**
+   * A support rib (from layerling 1.148, Discussion #1385) keeps the id of the part it holds, as it was before any
+   * grouping (localIdBase): its bridges reach into that part and are thin on purpose, so the checks leave it out.
+   */
+  supportRibFor?: string;
   /**
    * The point this body turns about, kept with the body: a fraction of its
    * width, height and depth from its centre, in its own frame, so it moves,

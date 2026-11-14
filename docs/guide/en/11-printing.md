@@ -107,6 +107,18 @@ The button says what happens: {{ui:exportWindow.export}}, or "Export and open in
 
 Switch on {{ui:printCheck.menuItem}} in the same menu and {{ui:printCheck.title}} runs each time you send. If it finds something, you can fix it first or choose {{ui:printCheck.sendAnyway}}.
 
+## Support ribs for a tilted part
+
+A part printed tilted on one edge, at 45° say, often needs no supports: its faces are steep enough. But it stands on a thin edge and can fall over. The {{ui:supportRib.title}} holds it: a thin rib stands under its lower face a small gap away, on an oval foot, and tiny bridges hold the part to it. Turn the part onto its edge first and let it stand on the plate.
+
+1. Select the part and choose {{ui:supportRib.title}} under the Modify group's More button, right-click the part, or find it with [[Ctrl]]+[[K]].
+2. Click the lower face where the rib should stand. The face must look down, slope between 15° and 75° and reach down to the plate; the rib stands straight down the face from your click. If the part's bottom edge is rounded or chamfered, the face may stop up to 3 mm above the plate: click the flat face above the rounding.
+3. Set {{ui:supportRib.nozzle}}, {{ui:supportRib.layerHeight}} and {{ui:supportRib.firstLayer}} as in your slicer. The rib is two lines of the nozzle thick, the gap to the part half a line; each bridge is one line wide and exactly one layer high and lies on a layer of the print, so the slicer prints it as one thin line that breaks off cleanly. {{ui:supportRib.height}} is how high the rib reaches up the face (half way to start), {{ui:supportRib.bridgeSpacing}} how far apart the bridges are, in whole layers.
+4. Under {{ui:supportRib.more}} the thickness, the gap, the bridges' width and the foot's thickness can be set by hand (until then they follow the nozzle and the layers), as can the foot's width and the roundings where the rib meets the foot and at its top. With {{ui:supportRib.bridgeGap}} above 0 the bridges no longer reach into the part but stop that far before it: the slicer then prints each as a path of its own, which holds the part by the squash of its line and comes off without a mark (half a line, 0.2 mm for a 0.4 mm nozzle, is a good start). Make {{ui:supportRib.gap}} wider with it, so the bridges still cross part of it.
+5. {{ui:supportRib.apply}} adds the rib. With {{ui:supportRib.bundle}} (on to start) rib and part are bundled: they move together and go to the slicer as two bodies side by side, joined by the bridges in the print.
+
+The rib is a mesh body: to change it, delete it and make it again. Each click makes one rib; for more, click {{ui:supportRib.repick}}. The rib must not run into the part anywhere, and the part must stand on the plate - otherwise the window says why. Your settings are kept for the next rib. The fit check and the print check leave the rib out: that its bridges reach into the part, and that it is thin, is meant to be so.
+
 ## Wall thickness, clearance and chamfers
 
 - Walls should be at least two extrusion lines wide, so 0.8 mm with a 0.4 mm nozzle. Sturdy parts need 1.2 to 2 mm.

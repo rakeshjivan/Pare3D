@@ -143,6 +143,7 @@ export {
   ToolbarRotationPivotIcon,
   ToolbarPatternIcon,
   ToolbarHolePatternIcon,
+  ToolbarSupportRibIcon,
   ToolbarFaceToolIcon,
   ToolbarConstructionLineIcon,
   ToolbarMiddleLineIcon,

@@ -846,6 +846,12 @@ export function WorkspaceSettingsModal({
                     onChange={(nextSurface) => patchWorkspace({ surfaceColor: nextSurface })}
                   />
                   <WorkspaceToggle
+                    label={t("workspace.darkPlate")}
+                    description={t("workspace.darkPlateHint")}
+                    checked={workspace.darkPlate === true}
+                    onChange={(darkPlate) => patchWorkspace({ darkPlate })}
+                  />
+                  <WorkspaceToggle
                     label={t("workspace.showAxes")}
                     description={t("workspace.showAxesHint")}
                     checked={workspace.showAxes}

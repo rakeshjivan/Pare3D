@@ -42,6 +42,7 @@ import {
   ToolbarRotationPivotIcon,
   ToolbarPatternIcon,
   ToolbarHolePatternIcon,
+  ToolbarSupportRibIcon,
   ToolbarFaceToolIcon,
   ToolbarConstructionLineIcon,
   ToolbarMiddleLineIcon,
@@ -319,6 +320,8 @@ export function SecondaryToolbar({
   mateFacesActive,
   onHolePattern,
   holePatternActive,
+  onSupportRib,
+  supportRibActive,
   canHolePattern,
   onFaceTool,
   onBlendBodies,
@@ -482,6 +485,9 @@ export function SecondaryToolbar({
   mateFacesActive: boolean;
   onHolePattern: () => void;
   holePatternActive: boolean;
+  /** Support rib (from layerling 1.148): a thin rib under the lower face of a part printed tilted. */
+  onSupportRib: () => void;
+  supportRibActive: boolean;
   canHolePattern: boolean;
   onFaceTool: () => void;
   onBlendBodies: () => void;
@@ -901,6 +907,7 @@ export function SecondaryToolbar({
     { id: "pivot", label: t("editor.tool.rotationPivot"), icon: ToolbarRotationPivotIcon, action: onRotationPivot, enabled: canModifySelection, active: rotationPivotActive },
     { id: "array", label: t("editor.tool.array"), icon: ToolbarPatternIcon, action: onArray, enabled: canModifySelection, active: arrayActive },
     { id: "holePattern", label: t("holePattern.title"), icon: ToolbarHolePatternIcon, action: onHolePattern, enabled: canHolePattern, active: holePatternActive },
+    { id: "supportRib", label: t("supportRib.title"), icon: ToolbarSupportRibIcon, action: onSupportRib, enabled: canHolePattern || supportRibActive, active: supportRibActive },
     { id: "faceTool", label: t("faceTool.title"), icon: ToolbarFaceToolIcon, action: onFaceTool, enabled: canFaceTool, active: faceToolActive },
     { id: "split", label: t("editor.tool.split"), icon: ToolbarSplitIcon, action: onSplit, enabled: splitMode || canSplit, active: splitMode },
     { id: "flexi", label: t("editor.tool.flexi"), icon: Worm, action: onFlexi, enabled: canFlexi || flexiActive, active: flexiActive },

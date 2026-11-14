@@ -379,6 +379,7 @@ export const FORK_SHORT_LABELS_EN: Readonly<Record<string, string>> = {
   pivot: "Pivot",
   array: "Pattern",
   holePattern: "Holes",
+  supportRib: "Rib",
   faceTool: "Push/pull",
   split: "Split",
   chamfer: "Chamfer",
@@ -409,7 +410,7 @@ export const FORK_SHORT_LABELS_EN: Readonly<Record<string, string>> = {
  * tool is listed here again.
  */
 // Build 104: the tools ported from layerling 1.112-1.125 sit under Modify's "More", so the row stays as it was.
-export const FORK_OVERFLOW_TOOLS: ReadonlySet<string> = new Set<string>(["offset", "cutOut", "cookieCutter", "loftSketches", "flexi", "lid"]);
+export const FORK_OVERFLOW_TOOLS: ReadonlySet<string> = new Set<string>(["offset", "cutOut", "cookieCutter", "loftSketches", "flexi", "lid", "supportRib"]);
 
 /** The advanced tools shown in the toolbar's "More" menu rather than on the row itself. */
 export const FORK_MORE_TOOLS: ReadonlySet<string> = new Set([
@@ -457,6 +458,7 @@ export const FORK_TOOL_HINTS_EN: Readonly<Record<string, string>> = {
   pivot: "choose the point a part turns around",
   array: "repeat a part in a row, grid or circle",
   holePattern: "a pattern of holes or slots, such as a vent",
+  supportRib: "a thin rib that holds up a part printed tilted on its edge",
   faceTool: "thicken a flat face, or sink a pocket into it",
   split: "cut a part in two with a plane",
   chamfer: "cut an edge at an angle",

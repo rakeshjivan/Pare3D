@@ -50,6 +50,7 @@ export const GUIDE_SECTIONS = {
   objectList: { chapter: "select", en: "the-object-list" },
   pattern: { chapter: "select", en: "patterns-row-grid-and-circle" },
   holePattern: { chapter: "select", en: "hole-pattern-on-a-face" },
+  supportRib: { chapter: "printing", en: "support-ribs-for-a-tilted-part" },
   faceTool: { chapter: "select", en: "pushing-a-face-out-or-in" },
   scaleByPercent: { chapter: "select", en: "scaling-by-percent" },
   selectionProperties: { chapter: "select", en: "changing-several-parts-at-once" },

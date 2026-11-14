@@ -85,6 +85,7 @@ export const DEFAULT_WORKPLANE_WORKSPACE: WorkplaneWorkspaceSettings = {
   sketchPlateColor: DEFAULT_SKETCH_PLATE_COLOR,
   overhangAngle: DEFAULT_OVERHANG_ANGLE,
   showGrid: true,
+  darkPlate: false,
   clickToPlaceShapes: true,
   selectBeforeMove: false,
   frameByDirection: false,
@@ -741,6 +742,7 @@ export function normalizeWorkspaceSettings(value: unknown, fallback: WorkplaneWo
     sketchPlateColor: colorOrDefault(candidate.sketchPlateColor, fallback.sketchPlateColor),
     overhangAngle: normalizeOverhangAngle(candidate.overhangAngle, fallback.overhangAngle),
     showGrid: booleanOrDefault(candidate.showGrid, fallback.showGrid),
+    darkPlate: booleanOrDefault(candidate.darkPlate, fallback.darkPlate ?? false),
     // "gridFromOrigin" (1.34.0) switched the grid back to the plate's corner;
     // it went again in 1.34.1 and is ignored: the grid always meets the axes.
     // Earlier names are ignored on purpose: "cruiseShapes" (until 1.18.6) was on

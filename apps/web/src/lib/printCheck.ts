@@ -1,3 +1,4 @@
+import { isSupportRib } from "@/lib/supportRibMark";
 import { bedOverhangs, shapeBedFootprint, shapeVerticalExtent } from "@/lib/printBed";
 import { overhangDownwardLimit } from "@/lib/overhangLimits";
 import { shapeBelowBed } from "@/lib/cutBelowBed";
@@ -101,12 +102,13 @@ export function checkForPrinting(shapes: readonly WorkplaneShape[], options: Opt
   const looseHoles = visible.filter((shape) => shape.hole && !shape.hidden);
   if (looseHoles.length) issues.push({ kind: "looseHole", level: "problem", ...named(looseHoles) });
 
-  const thin = printed.filter((shape) => Math.min(shapeWidth(shape), shapeDepth(shape)) < THIN_WALL_MM);
+  // A support rib is two lines thick and its bridges overhang on purpose (Discussion #1385).
+  const thin = printed.filter((shape) => !isSupportRib(shape) && Math.min(shapeWidth(shape), shapeDepth(shape)) < THIN_WALL_MM);
   if (thin.length) issues.push({ kind: "thin", level: "advice", ...named(thin), amount: THIN_WALL_MM });
 
   const overhanging: WorkplaneShape[] = [];
   let worst = 0;
-  for (const shape of printed) {
+  for (const shape of printed.filter((entry) => !isSupportRib(entry))) {
     try {
       const area = overhangArea(options.meshFor(shape), base, options.overhangAngle);
       if (area >= OVERHANG_AREA_MM2) {
