@@ -12,7 +12,7 @@ export const SHAPE_MENU_MIN_HEIGHT = 180;
 export const SHAPE_MENU_MAX_HEIGHT = 2400;
 
 /**
- * Below this width the names are left off and only the pictures stay, as in Tinkercad. At 300 px a column with
+ * Below this width the names are left off and only the pictures stay. At 300 px a column with
  * its picture and a name still fits; narrower, the names would be cut off.
  */
 export const SHAPE_MENU_ICONS_ONLY_BELOW = 300;

@@ -1738,7 +1738,7 @@ export function SecondaryToolbar({
                 <button className="action-icon-button" aria-label={t("palette.open")} title={t("palette.open")} aria-haspopup="dialog" data-layerling-tool="command-search" onClick={openPalette}>
                   <Search className="toolbar-search-icon" aria-hidden="true" />
                 </button>
-                {/* Fork: the quick guide, shortcuts, Interactive Help and the Tinkercad guide in one menu. */}
+                {/* Fork: the quick guide, shortcuts, and Interactive Help in one menu. */}
                 <HelpMenu interactiveHelpActive={interactiveHelpActive} onGuide={onGuide} onShortcuts={onShortcuts} onInteractiveHelp={onInteractiveHelp} />
               </div>
             </div>
@@ -1843,7 +1843,7 @@ export function SecondaryToolbar({
                 <button className="action-icon-button" aria-label={t("palette.open")} title={t("palette.open")} aria-haspopup="dialog" data-layerling-tool="command-search" onClick={openPalette}>
                   <Search className="title-icon" aria-hidden="true" />
                 </button>
-                {/* Fork: the quick guide, shortcuts, Interactive Help and the Tinkercad guide in one menu. */}
+                {/* Fork: the quick guide, shortcuts, and Interactive Help in one menu. */}
                 <HelpMenu interactiveHelpActive={interactiveHelpActive} onGuide={onGuide} onShortcuts={onShortcuts} onInteractiveHelp={onInteractiveHelp} />
               </div>
             </div>

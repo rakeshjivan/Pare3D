@@ -503,7 +503,7 @@ export function tapeSegmentWorldPoints(state: ThreeState, model: TapeModel, segm
 }
 
 /**
- * The body a typed length moves: the one at the second point, as in Tinkercad, unless only the
+ * The body a typed length moves: the one at the second point, unless only the
  * body at the first point is selected. A whole edge, or both ends on the same body, moves nothing (#823).
  */
 export function tapeMovableShapeId(model: TapeModel, segmentId: string, selectedIds: readonly string[]) {

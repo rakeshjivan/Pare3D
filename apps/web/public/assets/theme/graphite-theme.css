@@ -1070,16 +1070,6 @@ html[data-theme="dark"]:where([data-palette="graphite"]) .whats-new-earlier:hove
   color: #414141;
 }
 
-:where(html[data-theme="dark"][data-palette="graphite"]) .dashboard-welcome-switch {
-  color: #565656;
-  background: #f0f0f0;
-  border-left: 3px solid #e8a865;
-}
-
-:where(html[data-theme="dark"][data-palette="graphite"]) .dashboard-welcome-switch strong {
-  color: #9a5a06;
-}
-
 :where(html[data-theme="dark"][data-palette="graphite"]) .dashboard-welcome-more h3 {
   color: #414141;
 }
@@ -5399,16 +5389,6 @@ html[data-theme="dark"]:where([data-palette="graphite"]) .dashboard-welcome li::
   color: #f3a452;
   background: #2d2d2d;
   border-color: #4a4a4a;
-}
-
-html[data-theme="dark"]:where([data-palette="graphite"]) .dashboard-welcome-switch {
-  color: #b6b6b6;
-  background: #2b2b2b;
-  border-left-color: #b9762c;
-}
-
-html[data-theme="dark"]:where([data-palette="graphite"]) .dashboard-welcome-switch strong {
-  color: #f3a452;
 }
 
 html[data-theme="dark"]:where([data-palette="graphite"]) .dashboard-welcome-videos a {

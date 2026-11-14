@@ -38,6 +38,6 @@ Pare 3D is free software (AGPL-3.0); see [Licences and credits](chapter:licences
 
 ## Help and feedback
 
-- **Help** at the top of the editor opens the quick guide, **Coming from Tinkercad?**, the keyboard shortcuts, this guide and **What's new**. **Interactive Help** explains any button you click.
+- **Help** at the top of the editor opens the quick guide, the keyboard shortcuts, this guide and **What's new**. **Interactive Help** explains any button you click.
 - **Help › Send feedback** opens a page on GitHub where you can say what is hard, broken or missing. A screenshot helps.
 - Each tool window has a question mark that opens the part of this guide that explains it.

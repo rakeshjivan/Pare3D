@@ -1,5 +1,5 @@
 /*
- * Fork: spacing parts out - the part of arranging Tinkercad never had.
+ * Fork: spacing parts out - even gaps between parts.
  *
  * - Space evenly: the two outer parts stay where they are; the ones between move so every gap is equal.
  * - Exact gap: the first part stays; each next one follows the one before at that gap, edge to edge.

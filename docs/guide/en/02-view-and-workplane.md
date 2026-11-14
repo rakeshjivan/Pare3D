@@ -89,7 +89,7 @@ An imported STL comes in light grey and a little glossy, as in Meshmixer, so the
 
 ## Box or gimbal
 
-Beside {{ui:inspector.snapGrid}} at the bottom of the properties window, the switch **{{ui:handleStyle.box}} | {{ui:handleStyle.gimbal}}** sets how a selected part is moved and turned; the right-click menu switches it too (**{{ui:contextMenu.useGimbal}}** or **{{ui:contextMenu.useBox}}**). **{{ui:handleStyle.box}}** is Tinkercad's way: resize corners, sizes on the part, the lift arrow and three turning arrows. **{{ui:handleStyle.gimbal}}** is the way of Meshmixer and Bambu Studio: three arrows to move the part along - red and blue across the plate, green up - and three rings to turn it on, all about its middle, with no box, sizes or distances on the part. Drag an arrow and the part moves along it by the snap step, the distance shown as it goes; drag a ring and it turns, the angle shown. The arrows and rings stand on the part's own axes, so they turn with it. Sizes are typed in the properties window. The choice is kept on this computer.
+Beside {{ui:inspector.snapGrid}} at the bottom of the properties window, the switch **{{ui:handleStyle.box}} | {{ui:handleStyle.gimbal}}** sets how a selected part is moved and turned; the right-click menu switches it too (**{{ui:contextMenu.useGimbal}}** or **{{ui:contextMenu.useBox}}**). **{{ui:handleStyle.box}}**: resize corners, sizes on the part, the lift arrow and three turning arrows. **{{ui:handleStyle.gimbal}}**: three arrows to move the part along - red and blue across the plate, green up - and three rings to turn it on, all about its middle, with no box, sizes or distances on the part. Drag an arrow and the part moves along it by the snap step, the distance shown as it goes; drag a ring and it turns, the angle shown. The arrows and rings stand on the part's own axes, so they turn with it. Sizes are typed in the properties window. The choice is kept on this computer.
 
 ## Grid and snapping
 
@@ -121,7 +121,7 @@ The colours of the work area are set under {{ui:workspace.appearance}}: {{ui:wor
 
 The sketch view has its own colours: {{ui:workspace.sketchBackground}} for the window round the sheet, {{ui:workspace.sketchPlateColor}} for the sheet under the grid, and {{ui:workspace.sketchGridColor}}, all for the light theme. {{ui:workspace.sketchMatch}} takes over the work area's three colours in one click.
 
-{{ui:workspace.classicLook}} sets the work area up as Tinkercad shows it: white ground, a pale blue millimetre grid with a darker line every centimetre, black edge lines, light from above with soft shadows. Every value can still be changed on its own afterwards. All of them start as Pare 3D always looked, and what suits you depends on your monitor.
+{{ui:workspace.classicLook}} sets the work area up: white ground, a pale blue millimetre grid with a darker line every centimetre, black edge lines, light from above with soft shadows. Every value can still be changed on its own afterwards. All of them start as Pare 3D always looked, and what suits you depends on your monitor.
 
 ![The settings under Appearance: background and workplane colours for the light theme, and the switch for edge lines on all bodies.](shot:settings-appearance)
 
@@ -129,9 +129,9 @@ The sketch view has its own colours: {{ui:workspace.sketchBackground}} for the w
 
 ### Appearance: axis arrows and edge lines
 
-{{ui:workspace.showAxes}} (on by default) draws three arrows at the back left corner of the plate: **X** in red to the right, **Y** in green to the back and **Z** in blue upwards, the way the position fields count. That is the right-hand rule Tinkercad, CAD programs and the slicers use too. With the workplane on a face they follow it. Switch them off here if they are in your way.
+{{ui:workspace.showAxes}} (on by default) draws three arrows at the back left corner of the plate: **X** in red to the right, **Y** in green to the back and **Z** in blue upwards, the way the position fields count. That is the right-hand rule CAD programs and the slicers use too. With the workplane on a face they follow it. Switch them off here if they are in your way.
 
-{{ui:workspace.edgeLines}} draws an outline on every body, in the colour of {{ui:workspace.edgeColor}} (black to begin with, as in Tinkercad): it helps when dark colours run into each other. It is off by default, and very large imported meshes are left out.
+{{ui:workspace.edgeLines}} draws an outline on every body, in the colour of {{ui:workspace.edgeColor}} (black to begin with): it helps when dark colours run into each other. It is off by default, and very large imported meshes are left out.
 
 ![Three dark bodies with edge lines switched on: the outlines keep them apart.](shot:edge-lines)
 
@@ -139,7 +139,7 @@ The sketch view has its own colours: {{ui:workspace.sketchBackground}} for the w
 
 ### Appearance: light and shadows
 
-{{ui:workspace.showShadows}} switches the cast shadows on and off. Two sliders set how the bodies are lit. {{ui:workspace.shadowStrength}} says how dark the cast shadows are, and {{ui:workspace.shadeContrast}} moves light from the even ambient light to the main light: towards "punchy" the shaded sides get darker and the shadows show more, towards "soft" everything gets flatter. At the top end the contrast gets very strong, so shaded sides and shadows turn really dark. {{ui:workspace.shadowSoftness}} makes the edges of the shadows soft instead of crisp. {{ui:workspace.lightAzimuth}} turns the main light round the plate (0° from the front, 90° from the right), and {{ui:workspace.lightElevation}} lifts it; at 90° it stands straight above the plate as in Tinkercad, and the shadows fall right under the bodies. {{ui:workspace.lightReset}} puts everything back.
+{{ui:workspace.showShadows}} switches the cast shadows on and off. Two sliders set how the bodies are lit. {{ui:workspace.shadowStrength}} says how dark the cast shadows are, and {{ui:workspace.shadeContrast}} moves light from the even ambient light to the main light: towards "punchy" the shaded sides get darker and the shadows show more, towards "soft" everything gets flatter. At the top end the contrast gets very strong, so shaded sides and shadows turn really dark. {{ui:workspace.shadowSoftness}} makes the edges of the shadows soft instead of crisp. {{ui:workspace.lightAzimuth}} turns the main light round the plate (0° from the front, 90° from the right), and {{ui:workspace.lightElevation}} lifts it; at 90° it stands straight above the plate, and the shadows fall right under the bodies. {{ui:workspace.lightReset}} puts everything back.
 
 ### Appearance: measures on the workplane
 
@@ -151,9 +151,9 @@ The sketch view has its own colours: {{ui:workspace.sketchBackground}} for the w
 
 {{ui:workspace.frameByDirection}}: a frame dragged to the right selects only what lies completely inside it, one dragged to the left everything it touches (drawn dashed), as in SketchUp.
 
-{{ui:workspace.doubleClickOpensSketch}} decides whether a double click on an extruded sketch opens the sketch again, as in Tinkercad, and {{ui:workspace.doubleClickOpensGroup}} whether a double click on a group or a bundle opens it for editing.
+{{ui:workspace.doubleClickOpensSketch}} decides whether a double click on an extruded sketch opens the sketch again, and {{ui:workspace.doubleClickOpensGroup}} whether a double click on a group or a bundle opens it for editing.
 
-{{ui:workspace.objectSnap}} lets the edges and the centre of a shape snap to other shapes while you drag it; the grid menu at the bottom right has the same switch. {{ui:workspace.cruise}} makes a new shape hang on the mouse pointer and land on the face under it, like Cruise in Tinkercad; switched off, a new shape appears in the middle of the plate. More in [Selecting and arranging](chapter:select-and-arrange).
+{{ui:workspace.objectSnap}} lets the edges and the centre of a shape snap to other shapes while you drag it; the grid menu at the bottom right has the same switch. {{ui:workspace.cruise}} makes a new shape hang on the mouse pointer and land on the face under it; switched off, a new shape appears in the middle of the plate. More in [Selecting and arranging](chapter:select-and-arrange).
 
 ### Appearance: the view
 
@@ -161,7 +161,7 @@ The sketch view has its own colours: {{ui:workspace.sketchBackground}} for the w
 
 {{ui:workspace.startView}} sets the angle a new design opens in and {{ui:camera.home}} goes back to. Turn and zoom the view the way you like it, then click {{ui:workspace.startViewUseCurrent}}; {{ui:workspace.startViewStandard}} brings back the usual view from the front right. It holds for every design in this browser. A design you open again still opens the way you left it.
 
-{{ui:workspace.zoomSpeed}} is a slider from slow to fast: how fast the wheel and the trackpad zoom; the zoom buttons and keys keep their own small steps. {{ui:workspace.cameraInertia}}: after you let go of the mouse the view turns on for a moment and slows down gently. Switched off, it stops at once, as in Tinkercad and Fusion 360.
+{{ui:workspace.zoomSpeed}} is a slider from slow to fast: how fast the wheel and the trackpad zoom; the zoom buttons and keys keep their own small steps. {{ui:workspace.cameraInertia}}: after you let go of the mouse the view turns on for a moment and slows down gently. Switched off, it stops at once and Fusion 360.
 
 {{ui:workspace.overhangAngle}} is the angle from which a face counts as an overhang when you switch on Show overhangs in the visibility menu: those faces are hatched red and white. 30° is careful, 70° counts on good cooling of the print; 45° is the usual start.
 
@@ -171,7 +171,7 @@ The sketch view has its own colours: {{ui:workspace.sketchBackground}} for the w
 
 Under {{ui:workspace.measurement}} you set the {{ui:workspace.units}}, the unit that measures are shown in ({{ui:workspace.scale}}: millimetres, centimetres or metres in metric, inches or feet in imperial), how many decimal places a number shows ({{ui:workspace.accuracy}}), the {{ui:workspace.snapGrid}} that moving and resizing snap to and your own snap steps under {{ui:workspace.customSnapGrids}}.
 
-Under {{ui:workspace.measurement}} in the settings you set the {{ui:workspace.units}}. With {{ui:units.imperial}}, Pare 3D shows every measure in inches, on the shape, in the properties panel, on the tape measure and the ruler. The snap grid then offers steps from 1/64 to 1 inch, and the grid on the plate is drawn in inches (1/8 to 1 inch, 1/4 inch by default) with a stronger line on every whole inch. Under {{ui:workspace.inchFormat}} you choose whether inches appear as fractions like in Tinkercad (1 5/8, rounded to 1/64 inch) or as decimals (1.625) with as many decimal places as set under {{ui:workspace.accuracy}}. You can type either, "1 5/8" included. A quick way between millimetres and inches is the small switch **mm | in** beside the {{ui:inspector.snapGrid}} at the bottom of the properties window: it changes the unit, the plate's grid and the snap step as the settings do, for this design.
+Under {{ui:workspace.measurement}} in the settings you set the {{ui:workspace.units}}. With {{ui:units.imperial}}, Pare 3D shows every measure in inches, on the shape, in the properties panel, on the tape measure and the ruler. The snap grid then offers steps from 1/64 to 1 inch, and the grid on the plate is drawn in inches (1/8 to 1 inch, 1/4 inch by default) with a stronger line on every whole inch. Under {{ui:workspace.inchFormat}} you choose whether inches appear as fractions (1 5/8, rounded to 1/64 inch) or as decimals (1.625) with as many decimal places as set under {{ui:workspace.accuracy}}. You can type either, "1 5/8" included. A quick way between millimetres and inches is the small switch **mm | in** beside the {{ui:inspector.snapGrid}} at the bottom of the properties window: it changes the unit, the plate's grid and the snap step as the settings do, for this design.
 
 Under {{ui:workspace.customSnapGrids}} in the same place you add snap steps of your own: a name and a size in millimetres, for example "Pin pitch 2.54 mm" for the spacing of DIP chips, pin headers and perfboard holes, or "MX Key Unit" with 19.05 mm for the spacing of keyboard keys. The snap step menu then offers that measure whole, halved and quartered (1 ×, ½ × and ¼ ×), so shapes can be moved by one pitch, half a pitch or a quarter pitch. If you want just the measure itself, untick {{ui:workspace.customSnapGridParts}} beside it; the menu then has only that one step. Custom steps are kept with the design and go along with {{ui:workspace.makeDefault}}.
 
@@ -185,7 +185,7 @@ Under {{ui:workspace.customSnapGrids}} in the same place you add snap steps of y
 
 {{ui:workspace.showGrid}} shows or hides the grid on the plate. {{ui:workspace.gridBlockSize}} sets the spacing of its lines, and {{ui:workspace.gridMajorEvery}} whether the darker line comes every 5 or every 10 grid steps; {{ui:workspace.gridMajorColor}} gives that line a colour of its own, and the centre cross and the plate border take it too. {{ui:workspace.gridColor}} is the colour of the ordinary lines.
 
-Every line of the grid grows wider as you zoom in, as in Tinkercad, and stays visible as you zoom out. If that is too much for you, switch off {{ui:workspace.gridLinesGrow}} and the lines stay one pixel wide at every zoom, as in the sketch.
+Every line of the grid grows wider as you zoom in, and stays visible as you zoom out. If that is too much for you, switch off {{ui:workspace.gridLinesGrow}} and the lines stay one pixel wide at every zoom, as in the sketch.
 
 If the grid has disappeared, say because a colour was set to that of the plate, {{ui:workspace.resetGrid}} at the end of the {{ui:workspace.workplane}} area brings its visibility, colours, spacing and line weight back to the standard, here and in the default saved with {{ui:workspace.makeDefault}}.
 
@@ -202,7 +202,7 @@ Under {{ui:workspace.history}} the slider {{ui:workspace.savedHistory}} sets how
 Pare 3D calculates and draws everything in your browser. On an older computer, with a weak graphics card or on several large screens the view can therefore feel sluggish. This helps:
 
 - **{{ui:workspace.fastMode}}** under {{ui:workspace.appearance}} turns off at once everything that costs the view a lot: shadows, edge lines on all bodies and the camera's inertia. It also draws the view at the screen's own resolution only, which on high-resolution screens is up to four times fewer pixels. Your own settings are kept and apply again as soon as you turn it off.
-- **The camera keeps turning:** When you let go of the mouse after turning, the view turns on for a moment and slows down gently. That is on purpose, not stutter. If you are used to Tinkercad or Fusion 360, turn off {{ui:workspace.cameraInertia}} under {{ui:workspace.appearance}}, and the view stops at once.
+- **The camera keeps turning:** When you let go of the mouse after turning, the view turns on for a moment and slows down gently. That is on purpose, not stutter. If you prefer it to stop, turn off {{ui:workspace.cameraInertia}} under {{ui:workspace.appearance}}, and the view stops at once.
 - **Single switches:** Without fast mode you can also turn off just {{ui:workspace.showShadows}} or {{ui:workspace.edgeLines}}.
 - **Use the graphics card:** In Chrome open `chrome://gpu` (in Edge `edge://gpu`). Next to "WebGL" it should say "Hardware accelerated". If it says "Software only", hardware acceleration is off in the browser's settings. On Windows you can also pick "High performance" for the browser under Settings → System → Display → Graphics, so it uses the real graphics card and not the weaker one in the processor.
 - **Simplify large imported meshes:** A model of many hundred thousand triangles slows any view down. How to thin it out is in the chapter on files, under "Simplifying an imported mesh".

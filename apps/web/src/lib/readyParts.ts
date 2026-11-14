@@ -7,7 +7,7 @@ import type { WorkplaneShape } from "@/types/layerling";
  * Fork: ready-made parts for 3D printing, built from the editor's own shapes so they save,
  * export, undo and edit like anything else:
  *
- * - Paraboloid: a smooth dome with a flat base (a Tinkercad basic shape), as a mesh.
+ * - Paraboloid: a smooth dome with a flat base, as a mesh.
  * - Heat-set insert hole: a round hole sized for a brass insert (M2 to M5).
  * - Nut trap: a hexagonal pocket for a nut with the bolt's clearance hole through it.
  * - Box with lid: a box with even walls and a lift-off lid whose lip fits inside it.

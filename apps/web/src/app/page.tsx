@@ -4,7 +4,7 @@ import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { requestPersistentStorage } from "@/lib/persistentStorage";
 import { designDiskAvailable, designDiskDelete, designDiskGet, designDiskId, designDiskList, designDiskPut } from "@/lib/designDiskStore";
 import { PareBuildBadge, PareVersionStatus } from "@/components/PareVersionStatus";
-import { ArrowLeft, Check, CheckSquare, Clock3, Copy, Download, EllipsisVertical, Folder, FolderInput, FolderKanban, FolderPlus, FolderUp, GraduationCap, Grid3X3, List, Pencil, Plus, RefreshCw, Search, Server, ShieldAlert, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, CheckSquare, Clock3, Copy, Download, EllipsisVertical, Folder, FolderInput, FolderKanban, FolderPlus, FolderUp, Grid3X3, List, Pencil, Plus, RefreshCw, Search, Server, ShieldAlert, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type DragEvent } from "react";
 import { SOURCE_CODE_URL } from "@/components/AppFooter";
 import { openFeedback } from "@/lib/feedback";
@@ -15,7 +15,6 @@ import { OPEN_WHATS_NEW_EVENT, WhatsNew } from "@/components/WhatsNew";
 import { starterParts, type StarterId } from "@/lib/starterDesigns";
 import { buildReadyPart } from "@/lib/readyPartsBuild";
 import { placeCustomShape } from "@/lib/customShapePackage";
-import { OPEN_TINKERCAD_GUIDE_EVENT, TinkercadGuide } from "@/components/TinkercadGuide";
 import { AUTO_BACKUP_INTERVAL_MS, getAutoBackupStatus, initAutoBackup, subscribeAutoBackup, writeAutoBackup } from "@/lib/autoBackup";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { useAppUpdate } from "@/lib/useAppUpdate";
@@ -2838,7 +2837,6 @@ export default function Home() {
 
   return (
     <>
-      <TinkercadGuide />
       <pre data-codex-projects hidden>
         {JSON.stringify(projectDebugSummary)}
       </pre>
@@ -3561,7 +3559,6 @@ function Dashboard({
             <div className="home-menu-title">{t("home.learn")}</div>
             <a href="/guide/index.html" target="_blank" rel="noreferrer" onClick={close}>{t("home.userGuide")}</a>
             <a href="/guide/shortcuts.html" target="_blank" rel="noreferrer" onClick={close}>{t("home.shortcutsGuide")}</a>
-            <button type="button" onClick={() => { close(); window.dispatchEvent(new Event(OPEN_TINKERCAD_GUIDE_EVENT)); }}>{t("home.fromTinkercad")}</button>
             <button type="button" onClick={() => { close(); window.dispatchEvent(new Event(OPEN_WHATS_NEW_EVENT)); }}>{t("helpMenu.whatsNew")}</button>
             {/* Build 108: what the footer held, here - the start pages end with their content. The source stays a click away, as AGPL-3.0 section 13 asks. */}
             <hr className="home-menu-rule" />
@@ -3898,12 +3895,6 @@ function Dashboard({
                 onHome={() => onPlace("home")}
                 onNew={() => onCreateIn(pageStudio)}
                 onImport={onImportFile}
-                extra={(
-                  <button type="button" className="studio-head-link" onClick={() => window.dispatchEvent(new Event(OPEN_TINKERCAD_GUIDE_EVENT))}>
-                    <GraduationCap size={16} aria-hidden="true" />
-                    {t("home.fromTinkercadLong")}
-                  </button>
-                )}
               />
               {dashboardNotice ? (
                 <div className="dashboard-import-notice" role="status">

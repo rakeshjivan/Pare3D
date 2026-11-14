@@ -72,13 +72,13 @@ describe("OBJ import with colours (Discussion #79)", () => {
 
   it("takes the colours from the .mtl", () => {
     const mtl = "newmtl color_15277357\nKd 0.9 0.4 0.1\nnewmtl color_16777215\nKd 1 1 1\n";
-    const result = importedShapesFromObj("tinker.obj", MATERIAL_OBJ, [mtl]);
+    const result = importedShapesFromObj("model.obj", MATERIAL_OBJ, [mtl]);
     expect(result.shapes.map((shape) => shape.color)).toEqual(["#e6661a", "#ffffff"]);
     expect(result.shapes[1].elevation).toBeCloseTo(3, 6);
   });
 
   it("reads the colour from the material name when the .mtl is missing", () => {
-    const result = importedShapesFromObj("tinker.obj", MATERIAL_OBJ);
+    const result = importedShapesFromObj("model.obj", MATERIAL_OBJ);
     expect(result.shapes.map((shape) => shape.color)).toEqual(["#e91d2d", "#ffffff"]);
     expect(result.missingMaterialColors).toBe(false);
   });

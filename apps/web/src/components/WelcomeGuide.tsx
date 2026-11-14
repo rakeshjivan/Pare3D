@@ -64,9 +64,6 @@ export function WelcomeGuideBody({ tr, offline = true }: { tr: Translate; offlin
   return (
     <>
       <p>{tr("welcome.lead")}</p>
-      <p className="dashboard-welcome-switch">
-        <strong>{tr("welcome.switchTitle")}</strong> {tr("welcome.switchBody")}
-      </p>
       <div className="dashboard-welcome-more">
         <h3>{tr("welcome.gapTitle")}</h3>
         <ul>

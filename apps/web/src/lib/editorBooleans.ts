@@ -1705,7 +1705,7 @@ function isBundleWithHole(shape: WorkplaneShape) {
 }
 
 /**
- * A bundle with a hole in it, grouped with other parts, cuts them but not its own solids, as in Tinkercad (#646):
+ * A bundle with a hole in it, grouped with other parts, cuts them but not its own solids (#646):
  * a peg in a bundle with the hole beside it used to lose the part of it the hole overlaps. The hole of a bundle
  * cuts as itself less the bundle's solids; the rest is one cut as before, so the bundle's solids still take the
  * other holes.

@@ -2,7 +2,7 @@
 
 **3D design for 3D printing.**
 
-Pare 3D is a free, open-source design program that runs on your own computer. Put shapes on a plate, cut holes, round edges and print, the way Tinkercad works. It also has Sculpt tools for editing scans and meshes.
+Pare 3D is a free, open-source design program that runs on your own computer. Put shapes on a plate, cut holes, round edges and print. It also has Sculpt tools for editing scans and meshes.
 
 Nothing is uploaded: designs stay on the computer they were opened on, with no account, no cloud and no subscription.
 
@@ -18,8 +18,8 @@ Nothing is uploaded: designs stay on the computer they were opened on, with no a
 
 ### Designing
 
-- **Shapes, solids and holes, group and ungroup**, as in Tinkercad, plus chamfer and fillet on any edge, hollowing to an even wall, splitting with a plane, sketches extruded or revolved into exact bodies, threads, gears, patterns and text.
-- **Box or gimbal.** Move and turn parts with Tinkercad's box and handles, or with a gimbal like Meshmixer's and Bambu Studio's (arrows to move along, rings to turn on). You choose with the switch beside Snap Grid.
+- **Shapes, solids and holes, group and ungroup**, plus chamfer and fillet on any edge, hollowing to an even wall, splitting with a plane, sketches extruded or revolved into exact bodies, threads, gears, patterns and text.
+- **Box or gimbal.** Move and turn parts with the box and handles, or with a gimbal like Meshmixer's and Bambu Studio's (arrows to move along, rings to turn on). You choose with the switch beside Snap Grid.
 - **Import and export:** STL, OBJ, 3MF (with colours), STEP and SVG in; STL, 3MF, OBJ, STEP, PNG and PDF or SVG drawings out.
 - **Your printer's plate**, with more than 220 printers to choose from, and sending to a Bambu Lab printer's slicer in one step.
 
@@ -69,7 +69,7 @@ Pare 3D is free software, licensed under the **GNU Affero General Public License
 
 **Libraries.** three.js, Manifold, OpenCascade (through occt-wasm and brepjs), meshoptimizer, three-mesh-bvh, three-bvh-csg, opentype.js, fflate, qrcode-generator, React, Next.js and Lucide. Each keeps its own licence; see `package.json`.
 
-**Trademarks.** Tinkercad and Meshmixer are trademarks of Autodesk, Inc.; Bambu Lab and Bambu Studio of Bambu Lab. Pare 3D is an independent project and is not affiliated with, endorsed or sponsored by any of them.
+**Trademarks.** Meshmixer is a trademark of Autodesk, Inc.; Bambu Lab and Bambu Studio of Bambu Lab. Pare 3D is an independent project and is not affiliated with, endorsed or sponsored by any of them.
 
 ## Feedback
 

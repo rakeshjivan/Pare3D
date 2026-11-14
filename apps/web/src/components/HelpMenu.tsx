@@ -1,11 +1,10 @@
 "use client";
 
-import { BookOpen, CircleHelp, Code2, ScrollText, GraduationCap, Keyboard, LibraryBig, MessageSquareHeart, MousePointerClick, Sparkles, Tags } from "lucide-react";
+import { BookOpen, CircleHelp, Code2, ScrollText, Keyboard, LibraryBig, MessageSquareHeart, MousePointerClick, Sparkles, Tags } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
 import { useLanguage } from "@/lib/useLanguage";
 import { guideHref } from "@/lib/guideLinks";
-import { OPEN_TINKERCAD_GUIDE_EVENT } from "@/components/TinkercadGuide";
 import { readToolNames, setToolNames } from "@/lib/toolNames";
 import { OPEN_WHATS_NEW_EVENT } from "@/components/WhatsNew";
 import { openFeedback } from "@/lib/feedback";
@@ -14,7 +13,7 @@ import { SOURCE_CODE_URL } from "@/lib/appUpdate";
 
 /**
  * Fork: one Help button for everything that explains the app, instead of five icons side by side
- * (the audit's #4): the quick guide, keyboard shortcuts, Interactive Help, the Tinkercad guide and
+ * (the audit's #4): the quick guide, keyboard shortcuts, Interactive Help and
  * the full user guide.
  */
 export function HelpMenu({
@@ -72,10 +71,6 @@ export function HelpMenu({
           <button type="button" role="menuitem" onClick={pick(onGuide)}>
             <BookOpen size={17} aria-hidden="true" />
             <span><strong>{t("editor.guide")}</strong><small>{t("helpMenu.guideHint")}</small></span>
-          </button>
-          <button type="button" role="menuitem" onClick={pick(() => window.dispatchEvent(new Event(OPEN_TINKERCAD_GUIDE_EVENT)))}>
-            <GraduationCap size={17} aria-hidden="true" />
-            <span><strong>{t("helpMenu.tinkercad")}</strong><small>{t("helpMenu.tinkercadHint")}</small></span>
           </button>
           <button type="button" role="menuitem" data-help-exempt onClick={pick(onInteractiveHelp)}>
             <MousePointerClick size={17} aria-hidden="true" />

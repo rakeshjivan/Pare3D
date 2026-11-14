@@ -82,7 +82,7 @@ A helical gear adds the {{ui:prop.helixAngle}}. With involute teeth it is the tr
 
 The bevel gear takes the involute teeth and makes them smaller towards its top. That is an approximation, not an exactly worked out bevel pair.
 
-{{ui:gear.profileRound}} are round teeth made of arcs, like Tinkercad's Useful gear: tip and gap run into each other without a corner. Small gears print more forgivingly that way and turn more easily, and on a knob the teeth make a pleasant grip. Round teeth are set by {{ui:prop.teeth}}, {{ui:prop.gearModule}} and {{ui:prop.gearBacklash}} too; they have no pressure angle. They stand lower than involute teeth, so the outside diameter is module × (teeth + 1.2). Round gears with the same module mesh, at the same centre distance as involute ones; with an involute gear they do not fit.
+{{ui:gear.profileRound}} are round teeth made of arcs: tip and gap run into each other without a corner. Small gears print more forgivingly that way and turn more easily, and on a knob the teeth make a pleasant grip. Round teeth are set by {{ui:prop.teeth}}, {{ui:prop.gearModule}} and {{ui:prop.gearBacklash}} too; they have no pressure angle. They stand lower than involute teeth, so the outside diameter is module × (teeth + 1.2). Round gears with the same module mesh, at the same centre distance as involute ones; with an involute gear they do not fit.
 
 {{ui:gear.profileSimple}} are the straight teeth every gear had so far. There you set {{ui:prop.toothSize}} and {{ui:prop.toothWidth}} by hand. Older designs keep them until you change the tooth shape. All three tooth shapes have the {{ui:prop.centerHole}}.
 

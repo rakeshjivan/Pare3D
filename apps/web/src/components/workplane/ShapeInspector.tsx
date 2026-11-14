@@ -4897,7 +4897,7 @@ export function SnapGridControl({
   onObjectSnapChange?: (enabled: boolean) => void;
 }) {
   const label = (size: GridSize) => customSnapGridLabel(size, customGrids) ?? measurementOptionLabel(size);
-  // Build 99: the box (Tinkercad) or the gimbal (Meshmixer), in the 3D editor.
+  // Build 99: the box or the gimbal, in the 3D editor.
   const style = useHandleStyle();
   // The menu goes onto the page itself: the corner of the 3D view lies under the toolbar and its pinned Shapes
   // panel, so no z-index within it could bring the menu over them (#616, still behind it after 1.93.0).
@@ -5157,7 +5157,7 @@ function RangeProperty({
     onChange(clamp(toModelValue(next), min, max));
     setDraft(formatShown(next));
   };
-  // Fork (build 32): Tinkercad's compact row - the name above, and the value box riding on the slider as its
+  // Fork (build 32): the compact row - the name above, and the value box riding on the slider as its
   // handle. Dragging it slides; a click on it without moving opens it for typing.
   const bubbleRef = useRef<HTMLSpanElement>(null);
   const pressRef = useRef<{ x: number; onBubble: boolean } | null>(null);

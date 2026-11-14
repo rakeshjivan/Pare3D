@@ -1031,7 +1031,7 @@ export type WorkplaneShape = {
   textSilhouette?: boolean;
   /**
    * Straight text only (#382): the letters are stretched to fill the box in both directions, so a
-   * capital can be made lower or narrower as in Tinkercad. Without it the letters keep their
+   * capital can be made lower or narrower. Without it the letters keep their
    * proportions and are fitted into the box, centred.
    */
   textStretch?: boolean;

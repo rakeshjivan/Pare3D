@@ -269,7 +269,7 @@ export async function cadShapeFromSketchLoft(bottom: SketchLoftSection & { fille
  */
 /**
  * What a revolve turns: the sketch as drawn, or, with a stroke, the band the line makes - an open
- * line of a width turns into a thin wall, as a vase is drawn in Tinkercad (#347). The band is
+ * line of a width turns into a thin wall, as a vase wall is drawn (#347). The band is
  * cut off at the axis. The body keeps the drawn line, as an extruded stroke does.
  */
 export function revolveBuildProfile(runtime: ManifoldToplevel, profile: SketchProfile): SketchProfile {

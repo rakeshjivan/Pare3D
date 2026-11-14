@@ -260,10 +260,10 @@ function parseObjParts(source: string, materialColors: ReadonlyMap<string, strin
   // `legacyAxes` haelt diese alte Lesart fuer Projekte, die ihr Netz aus der
   // mitgespeicherten Datei neu bauen - sonst kippte dort ein Koerper um.
   const layerlingZUpExport = isLayerlingObj(source) && (legacyAxes || /^#.*\bZ-up\b/m.test(source));
-  // Tinkercad writes its OBJ with Z up and says so in the first line (#599). A project that stored
+  // Some web design tools write their OBJ with Z up and say so in the first line (#599). A project that stored
   // such a file never rebuilds it from the file (see `importedShapesFromObj`), so `legacyAxes`
   // leaves it alone.
-  const zUp = layerlingZUpExport || (!legacyAxes && isTinkercadObj(source));
+  const zUp = layerlingZUpExport || (!legacyAxes && isZUpServerObj(source));
   const vertices: THREE.Vector3[] = [];
   const vertexColors: Array<string | undefined> = [];
   const normals: THREE.Vector3[] = [];
@@ -380,8 +380,9 @@ function isLayerlingObj(source: string) {
   return /^# Layerling OBJ export\b/m.test(source);
 }
 
-function isTinkercadObj(source: string) {
-  return /^# Object Export From Tinkercad\b/m.test(source);
+/** "# Object Export From <name> Server": the header of an OBJ that a web design tool wrote with Z up. */
+function isZUpServerObj(source: string) {
+  return /^# Object Export From \S+ Server\b/m.test(source);
 }
 
 export function importedShapeFromObj(fileName: string, source: string, legacyAxes = false): WorkplaneShape {
@@ -420,7 +421,7 @@ export function importedShapesFromObj(fileName: string, source: string, mtlSourc
     const color = parts[0]?.color;
     // Eine eigene OBJ traegt ihr Netz selbst: die .lyl baut OBJ-Quellen in der
     // alten Achsen-Lesart nach (siehe `legacyAxes`).
-    const own = isLayerlingObj(source) || isTinkercadObj(source) ? { ...whole, importedMesh: { ...whole.importedMesh!, sourceFormat: "json" as const } } : whole;
+    const own = isLayerlingObj(source) || isZUpServerObj(source) ? { ...whole, importedMesh: { ...whole.importedMesh!, sourceFormat: "json" as const } } : whole;
     return { shapes: [color ? { ...own, color } : own], split: false, missingMaterialColors, droppedVertexColors };
   }
 

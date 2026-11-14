@@ -662,7 +662,7 @@ function readOriginDimensionsEnabled() {
     return false;
   }
   // Fork: off unless turned on in Settings - a bare distance on every selected part puzzled
-  // newcomers (as in Tinkercad, which has none).
+  // newcomers (which has none).
   return window.localStorage.getItem(ORIGIN_DIMENSIONS_ENABLED_STORAGE_KEY) === "true";
 }
 
@@ -1257,7 +1257,7 @@ export function tapeShapeTopologyKey(shape: WorkplaneShape): string {
 /**
  * The signatures of a group's parts, appended to the group's own as they are. They used to be put into the group's
  * JSON as strings, and every level of nesting then escaped the quotes of the level below it again: a group nested
- * 19 deep (a Tinkercad import) made a signature of 346 MB and the tab ran out of memory (#683).
+ * 19 deep (an imported design) made a signature of 346 MB and the tab ran out of memory (#683).
  */
 function nestedSignatures(children: WorkplaneShape[] | undefined, own: (child: WorkplaneShape) => unknown[], signature: (child: WorkplaneShape) => string): string {
   if (!children?.length) return "";
@@ -3088,7 +3088,7 @@ function resizeShapeFromFrameHandle(
   const localDelta = transform.scaleStartPoint ? frameLocalDelta(frame, transform.scaleStartPoint, point) : new THREE.Vector3();
 
   const signs = transform.scaleSigns ?? resizeSignsForHandle(handleKey);
-  // A handle dragged past the opposite side keeps growing there, as in Tinkercad: the size is the
+  // A handle dragged past the opposite side keeps growing there: the size is the
   // distance from that side and the body stands on the other side of it.
   const axisResize = (current: number, delta: number, sign: number) => {
     if (!sign) {
@@ -6547,7 +6547,7 @@ export function WorkplaneViewport({
         transform.rotationWheelAppliedPointerAngle = undefined;
       }
       // Build 104 (gimbal 2): a gimbal ring turns in 15° steps near the ring and freely further out (as
-      // Tinkercad's arc does), Shift in 5° steps; a typed number turns it exactly.
+      // the usual arc does), Shift in 5° steps; a typed number turns it exactly.
       const gimbalTurn = transform.handleKey.startsWith("gimbal-rotate");
       const gimbalFar = gimbalTurn && Math.hypot(localClientX - rotationCenter.x, localClientY - rotationCenter.y) > (transform.handleKey === "gimbal-rotate-view" ? GIMBAL_VIEW_RING * 1.35 : GIMBAL_RING * 1.55);
       const gimbalSnap: "snap" | "fine" | "free" = gimbalCtrlHeld || gimbalFar ? "free" : shiftKey ? "fine" : "snap";
@@ -8687,7 +8687,7 @@ export function WorkplaneViewport({
       const additive = event.shiftKey || multiSelectRef.current;
       if (event.pointerType === "touch" && !event.shiftKey) beginLongPress(event);
       if (!id && event.pointerType === "touch" && !event.shiftKey) {
-        // A finger on empty space turns the view, as in Tinkercad, so a tablet needs no switch for it;
+        // A finger on empty space turns the view, so a tablet needs no switch for it;
         // the selection box stays with the mouse and Shift. A tap that does not move still clears the
         // selection (finishDrag).
         touchEmptyTapRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
@@ -9561,7 +9561,7 @@ export function WorkplaneViewport({
       }
 
       // constrainCamera keeps the orbit target on the plate on every frame, as far out as this
-      // part: one parked beyond the plate edge is centred too, as in Tinkercad (#352). The house
+      // part: one parked beyond the plate edge is centred too (#352). The house
       // button takes the allowance back.
       state.focusReach = bounds.clone();
       state.controls.target.copy(center);
@@ -10393,7 +10393,7 @@ export function WorkplaneViewport({
           togglePlacementWorkplane();
         }
       } else if (key === "r" && selectedIdsRef.current.length === 0 && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
-        // Fork: R adds a ruler, as in Tinkercad, while nothing is selected; with a selection the
+        // Fork: R adds a ruler, while nothing is selected; with a selection the
         // editor's R turns the shapes instead.
         event.preventDefault();
         toggleCornerRulerTool();
@@ -10401,7 +10401,7 @@ export function WorkplaneViewport({
         event.preventDefault();
         focusSelection();
       } else if (key === "f") {
-        // As in Tinkercad: F looks at what is selected, and at everything when nothing is (#465).
+        // F looks at what is selected, and at everything when nothing is (#465).
         event.preventDefault();
         if (!focusSelection()) resetView();
       } else if (event.key === "Home") {
@@ -11936,7 +11936,7 @@ let viewLook: ViewLook = "plate";
 let viewFastMode = false;
 /** Build 90: the selection's handles, sizes and lines put away (right-click menu), so a mesh is not resized by accident. */
 let transformHandlesHidden = false;
-/** Build 99: the box (Tinkercad) or the gimbal (Meshmixer) - set from the switch beside Snap Grid. */
+/** Build 99: the box or the gimbal - set from the switch beside Snap Grid. */
 let handleStyleNow: HandleStyle = "box";
 /** Build 87: Sculpt's per-frame stroke work, run at the start of the render loop's frame. */
 let beforeFrame: (() => void) | null = null;

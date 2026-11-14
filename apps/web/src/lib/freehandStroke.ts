@@ -3,12 +3,12 @@ import { withSmoothSketchHandles } from "@/lib/sketchSmoothHandles";
 import type { SketchPoint, SketchProfile, SketchSegment } from "@/types/layerling";
 
 /*
- * Fork: Scribble - freehand drawing in the Sketch tab, as in Tinkercad. The pointer's path is
+ * Fork: Scribble - freehand drawing in the Sketch tab. The pointer's path is
  * thinned to the few points that carry its shape (Ramer-Douglas-Peucker), and those become an
  * ordinary smooth curve: its points can be dragged, deleted or refined like any other.
  *
  * A stroke that ends near where it began closes into a shape. One that does not closes too - the
- * way Tinkercad's Scribble makes a shape - unless the sketch is drawn as a stroke (then an open line
+ * way a scribble makes a shape - unless the sketch is drawn as a stroke (then an open line
  * is a line of that width), as construction lines (a path for a sweep), or closing it would make
  * the outline cross itself (then it stays a line, built once Stroke is on).
  */

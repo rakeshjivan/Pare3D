@@ -1,7 +1,7 @@
 /**
  * The centre of the flat face a triangle belongs to: every triangle in the same plane that is
  * connected to it, weighted by area. A shape dropped on the top of a box or a cylinder lands
- * in the middle of that top, as in Tinkercad (#823). Works in the mesh's own coordinates.
+ * in the middle of that top (#823). Works in the mesh's own coordinates.
  */
 export function planarFaceCentre(
   positions: ArrayLike<number>,

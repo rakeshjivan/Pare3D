@@ -19,4 +19,4 @@ Pare 3D is built with, among others: [three.js](https://threejs.org) (MIT), [Man
 
 ## Trademarks
 
-Tinkercad is a trademark of Autodesk, Inc.; Meshmixer of Autodesk, Inc.; Bambu Lab and Bambu Studio of Bambu Lab. Pare 3D is an independent project and is not affiliated with, endorsed or sponsored by any of them; their names are used only to describe how Pare 3D compares or works with their products.
+Meshmixer is a trademark of Autodesk, Inc.; Bambu Lab and Bambu Studio of Bambu Lab. Pare 3D is an independent project and is not affiliated with, endorsed or sponsored by any of them; their names are used only to describe how Pare 3D compares or works with their products.

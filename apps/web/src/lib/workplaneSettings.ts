@@ -12,7 +12,7 @@ import type { PortProfile } from "@/types/layerling";
 export const DEFAULT_SNAP_GRID: GridSize = "1.0 mm";
 export const BRICK_SNAP_STEP = 8;
 // Used only when the snap grid is off: fine steps, since that is why the grid is switched off (#293).
-// An arrow moves 0.01 mm (#370, as in Tinkercad); Shift as many times that as with a grid.
+// An arrow moves 0.01 mm (#370); Shift as many times that as with a grid.
 export const KEYBOARD_NUDGE_FALLBACK_STEP = 0.01;
 // Shift has always moved five times as far as a plain arrow press.
 export const KEYBOARD_NUDGE_COARSE_FACTOR = 5;

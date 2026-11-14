@@ -3,7 +3,7 @@ title: Getting started
 summary: From a blank sheet to your first part for the 3D printer, in five minutes, with no account.
 ---
 
-Pare 3D is a free design program for 3D printing, for Mac and Windows. You build a part from simple shapes, cut holes into it, round the edges and send it to your slicer. If you have used Tinkercad you will feel at home; if you have used Fusion you will find its push/pull, fillet, shell, pattern and loft moves. There is nothing to sign up for, and what you build stays on your computer. How to install it is in [Installing, updates and where things are saved](chapter:offline-and-install).
+Pare 3D is a free design program for 3D printing, for Mac and Windows. You build a part from simple shapes, cut holes into it, round the edges and send it to your slicer. It is simple to start with, and has push/pull, fillet, shell, pattern and loft when you need them. There is nothing to sign up for, and what you build stays on your computer. How to install it is in [Installing, updates and where things are saved](chapter:offline-and-install).
 
 ![The Home page of Pare 3D with CAD Studio's card.](shot:start-page)
 
@@ -13,7 +13,7 @@ Open Pare 3D. The Home page shows **{{ui:home.cadStudio}}**, for parts, enclosur
 
 The bar across the top takes you between {{ui:home.tabHome}} and {{ui:home.cadStudio}}, and holds the search field ([[Ctrl]]+[[K]], or [[⌘]]+[[K]] on a Mac), the guides (the book), notifications - updates and backups - (the bell) and the settings (the cog). CAD Studio's page lists your designs and folders.
 
-The first time, CAD Studio's page asks **New to 3D design?**. {{ui:firstRun.beginner}} starts in Simple mode: fewer tools, each with its name under it. {{ui:firstRun.tinkercad}} opens a page that shows where everything you know from Tinkercad is. {{ui:firstRun.experienced}} shows every tool. You can switch at any time with **Simple mode** at the top right.
+The first time, CAD Studio's page asks **New to 3D design?**. {{ui:firstRun.beginner}} starts in Simple mode: fewer tools, each with its name under it. {{ui:firstRun.experienced}} shows every tool. You can switch at any time with **Simple mode** at the top right.
 
 If you already have a file to continue with, use {{ui:home.importCad}} on CAD Studio's page. That works for Pare 3D designs (`.lyl`) as well as STL, OBJ, 3MF, STEP or SVG files.
 
@@ -114,4 +114,4 @@ After Pare 3D has updated itself, a **What's new** card on the start page lists 
 
 When your part is done, click the blue **{{ui:editor.export}}** button at the top. Its window asks where the file opens - Bambu Studio, OrcaSlicer, PrusaSlicer, PreForm, CHITUBOX, Lychee Slicer, or nowhere ({{ui:exportWindow.justSave}}) - the file type, and the name and folder; then click {{ui:exportWindow.export}}. Pare 3D first checks the design ({{ui:printCheck.title}}). If you choose your printer in the settings, you see while building whether the part fits on the print bed. More in [Printing](chapter:printing).
 
-> **Tip:** If you come from Tinkercad you will find your way quickly: plate, shapes, solid and hole, group, align and mirror work almost the same, and most keyboard shortcuts too. **Help › Coming from Tinkercad?** shows where everything is. What is new is mostly chamfer and fillet, hollowing, push/pull, blending, threads and sketches.
+> **Tip:** If you have used another beginner design program you will find your way quickly: plate, shapes, solid and hole, group, align and mirror work the way you expect. Beyond those, Pare 3D adds chamfer and fillet, hollowing, push/pull, blending, threads and sketches.

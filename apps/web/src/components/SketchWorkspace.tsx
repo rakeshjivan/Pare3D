@@ -103,7 +103,7 @@ type SketchWorkspaceProps = {
   onToggleOutlineLock?: () => void;
   onTransformPoints: (points: SketchPoint[], message?: string, keyRunKey?: string) => void;
   onMoveHandle: (id: string, handle: "in" | "out", point: { x: number; z: number }, keyRunKey?: string) => void;
-  /** The keys 1 to 4 pick Line, Bezier, Smooth Curve and Add or Remove Points, as in Tinkercad (#347). */
+  /** The keys 1 to 4 pick Line, Bezier, Smooth Curve and Add or Remove Points (#347). */
   onSelectTool?: (tool: SketchTool) => void;
   onInsertPoint: (segmentId: string, point: { x: number; z: number }, amount: number) => void;
   /** Fork (build 36): sets the sketch's rules (lib/sketchConstraints); the editor solves the sketch to them. */
@@ -1711,7 +1711,7 @@ export function SketchWorkspace({
       } else if (!activePoint && !pointerAction && SKETCH_EDIT_KEYS[event.key] && editSelectionByKey(SKETCH_EDIT_KEYS[event.key])) {
         event.preventDefault();
       } else if (onSelectTool && !activePoint && !pointerAction && SKETCH_TOOL_KEYS[event.key]) {
-        // 1 to 4 pick the drawing tools, as in Tinkercad (#347). While a line is being drawn the digits
+        // 1 to 4 pick the drawing tools (#347). While a line is being drawn the digits
         // are its length (above), so they only come here when no line is in progress.
         event.preventDefault();
         onSelectTool(SKETCH_TOOL_KEYS[event.key]);

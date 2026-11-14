@@ -118,10 +118,10 @@ describe("importedShapeFromObj", () => {
     expect(dot).toBeGreaterThan(0);
     expect(shape.importedMesh?.triangleCount).toBe(1);
   });
-  it("turns an OBJ from Tinkercad upright: it writes Z up (#599)", () => {
-    // 4 wide, 2 deep, 1 high, lying flat as Tinkercad writes it.
+  it("turns a Z-up OBJ from a web design tool upright (#599)", () => {
+    // 4 wide, 2 deep, 1 high, lying flat as such a tool writes it.
     const source = [
-      "# Object Export From Tinkercad Server 2015",
+      "# Object Export From Example Server 2015",
       "v 0 0 0", "v 4 0 0", "v 4 2 0", "v 0 2 0",
       "v 0 0 1", "v 4 0 1", "v 4 2 1", "v 0 2 1",
       "f 1 3 2", "f 1 4 3", "f 5 6 7", "f 5 7 8",

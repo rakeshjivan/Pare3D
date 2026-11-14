@@ -2943,17 +2943,7 @@ html[data-theme="dark"] .whats-new-earlier:hover {
 
 /* The one emphasised thing in the panel, because it is the sentence this
    project exists for: people arriving from other tools. */
-.dashboard-welcome-switch {
-  padding: 13px 16px;
-  color: #6c5640;
-  background: #fdf4e3;
-  border-left: 3px solid #e8a865;
-  border-radius: 0 7px 7px 0;
-}
 
-.dashboard-welcome-switch strong {
-  color: #9a5a06;
-}
 
 /* Everything beyond the first steps: a plain list, so it does not compete
    with the numbered steps above it. The step rules match any li in the panel,
@@ -4881,7 +4871,7 @@ html[data-toolbar-size="large"] .shape-menu-dropdown:not(.sketch-shape-menu-drop
   max-height: calc(var(--shape-menu-height) - 46px);
 }
 
-/* Narrow: only the pictures stay, as in Tinkercad. The name is in each tile's tooltip. */
+/* Narrow: only the pictures stay. The name is in each tile's tooltip. */
 .shape-menu-dropdown.shape-menu-icons-only .shape-menu-list {
   grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
   gap: 2px;
@@ -12785,15 +12775,7 @@ html[data-theme="dark"] .dashboard-welcome li::before {
   border-color: #6b5326;
 }
 
-html[data-theme="dark"] .dashboard-welcome-switch {
-  color: #cdb99f;
-  background: #332619;
-  border-left-color: #b9762c;
-}
 
-html[data-theme="dark"] .dashboard-welcome-switch strong {
-  color: #f3a452;
-}
 
 html[data-theme="dark"] .dashboard-welcome-videos a {
   color: #f3a452;

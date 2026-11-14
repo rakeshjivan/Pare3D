@@ -189,8 +189,8 @@
       },
       {
         "title": {
-          "de": "Bündel mit Aussparung schneiden wie in Tinkercad",
-          "en": "Bundles with a hole cut as in Tinkercad"
+          "de": "Bündel mit Aussparung schneiden",
+          "en": "Bundles with a hole cut"
         },
         "body": {
           "de": "Gruppierst du ein Bündel aus Körper und Aussparung mit anderen Teilen, schneidet die Aussparung nur diese Teile. Die Körper des Bündels bleiben ganz, so lässt sich etwa ein Zapfen mit seiner Bohrung daneben immer wieder verwenden.",
@@ -354,12 +354,12 @@
     "items": [
       {
         "title": {
-          "de": "OBJ aus Tinkercad liegt richtig herum",
-          "en": "An OBJ from Tinkercad comes in the right way up"
+          "de": "Z-oben-OBJ liegt richtig herum",
+          "en": "A Z-up OBJ comes in the right way up"
         },
         "body": {
-          "de": "Tinkercad schreibt seine OBJ-Dateien mit Z nach oben. layerling las sie bisher mit Y nach oben, sodass ein Teil auf der Kante stand. Jetzt erkennt layerling die Tinkercad-Datei und stellt sie richtig hin: ein flaches Teil liegt flach.",
-          "en": "Tinkercad writes its OBJ files with Z up. layerling used to read them with Y up, so a part stood on its edge. layerling now recognises a Tinkercad file and sets it down the right way: a flat part lies flat."
+          "de": "Manche Web-Programme schreiben ihre OBJ-Dateien mit Z nach oben. layerling las sie bisher mit Y nach oben, sodass ein Teil auf der Kante stand. Jetzt erkennt layerling solche Dateien und stellt sie richtig hin: ein flaches Teil liegt flach.",
+          "en": "Some web design tools write their OBJ files with Z up. layerling used to read them with Y up, so a part stood on its edge. layerling now recognises such a file and sets it down the right way: a flat part lies flat."
         }
       },
       {
@@ -946,9 +946,9 @@
           "ar": "أصبح layerling يتحدث اليابانية"
         },
         "body": {
-          "de": "Die ganze Oberfläche ist auf Japanisch da, geschrieben für Kinder der oberen Grundschule und ihre Lehrer, mit den japanischen Wörtern von Tinkercad, wo es welche gibt. Die Kapitel der Anleitung sind noch auf Englisch. Du wählst die Sprache im Sprachmenü.",
-          "en": "The whole interface is there in Japanese, written for upper primary school children and their teachers, with Tinkercad's Japanese terms where it has them. The guide chapters are still in English. You choose the language in the language menu.",
-          "ar": "الواجهة كلها متوفرة الآن باليابانية، مكتوبة لتلاميذ الصفوف العليا من المرحلة الابتدائية ومعلميهم، مع مصطلحات Tinkercad اليابانية حيثما وُجدت. أما فصول الدليل فما زالت بالإنجليزية. وتختار اللغة من قائمة اللغات."
+          "de": "Die ganze Oberfläche ist auf Japanisch da, geschrieben für Kinder der oberen Grundschule und ihre Lehrer. Die Kapitel der Anleitung sind noch auf Englisch. Du wählst die Sprache im Sprachmenü.",
+          "en": "The whole interface is there in Japanese, written for upper primary school children and their teachers. The guide chapters are still in English. You choose the language in the language menu.",
+          "ar": "الواجهة كلها متوفرة الآن باليابانية، مكتوبة لتلاميذ الصفوف العليا من المرحلة الابتدائية ومعلميهم. أما فصول الدليل فما زالت بالإنجليزية. وتختار اللغة من قائمة اللغات."
         }
       },
       {
@@ -1662,9 +1662,9 @@
       },
       {
         "title": {
-          "de": "F zoomt auf die Auswahl, wie in Tinkercad",
-          "en": "F zooms to the selection, as in Tinkercad",
-          "ar": "المفتاح F يقرّب إلى التحديد، كما في Tinkercad"
+          "de": "F zoomt auf die Auswahl",
+          "en": "F zooms to the selection",
+          "ar": "المفتاح F يقرّب إلى التحديد"
         },
         "body": {
           "de": "Die Taste F zoomt jetzt auf das, was ausgewählt ist, und holt die ganze Szene ins Bild, wenn nichts ausgewählt ist. Bisher zeigte F immer die ganze Szene, und für die Auswahl brauchte man Umschalt+F, das weiterhin geht. Die ganze Szene zeigt auch jetzt immer die Taste Pos1 und der Haus-Knopf. In der Skizze gilt dasselbe.",
@@ -1792,9 +1792,9 @@
           "ar": "عرض لملفات SVG والصور عند الاستيراد"
         },
         "body": {
-          "de": "Im Importfenster gibt es jetzt das Feld „SVG und Bild: Breite in mm“. Tippe die Breite ein, wähle die Datei, und die Zeichnung kommt in dieser Größe auf die Arbeitsfläche, wie in Tinkercad. Leer bleibt die eigene Größe. Die Breite gilt nur für den nächsten Import.",
-          "en": "The import window has a new field “SVG and picture: width in mm”. Type the width, choose the file, and the drawing lands on the plate at that size, as in Tinkercad. Empty keeps its own size. The width counts for the next import only.",
-          "ar": "في نافذة الاستيراد حقل جديد «SVG وصورة: العرض بالمليمتر». اكتب العرض، واختر الملف، فيقع الرسم على اللوحة بذلك الحجم، كما في Tinkercad. وإذا تُرك فارغًا يحتفظ الرسم بحجمه. ولا يُعتمد العرض إلا للاستيراد التالي."
+          "de": "Im Importfenster gibt es jetzt das Feld „SVG und Bild: Breite in mm“. Tippe die Breite ein, wähle die Datei, und die Zeichnung kommt in dieser Größe auf die Arbeitsfläche. Leer bleibt die eigene Größe. Die Breite gilt nur für den nächsten Import.",
+          "en": "The import window has a new field “SVG and picture: width in mm”. Type the width, choose the file, and the drawing lands on the plate at that size. Empty keeps its own size. The width counts for the next import only.",
+          "ar": "في نافذة الاستيراد حقل جديد «SVG وصورة: العرض بالمليمتر». اكتب العرض، واختر الملف، فيقع الرسم على اللوحة بذلك الحجم. وإذا تُرك فارغًا يحتفظ الرسم بحجمه. ولا يُعتمد العرض إلا للاستيراد التالي."
         }
       }
     ]
@@ -2319,9 +2319,9 @@
           "ar": "الرسم التخطيطي: المفاتيح من 1 إلى 4 ومفاتيح الأسهم على المقبض"
         },
         "body": {
-          "de": "In der Skizze und der Dreh-Skizze wählen die Tasten 1, 2, 3 und 4 Linie, Bézier-Kurve, Weiche Kurve und Punkte setzen oder entfernen, wie in Tinkercad. Wird gerade eine Linie gezeichnet, bleiben die Ziffern ihre Länge. Ein angeklickter Kurvengriff leuchtet auf, und die Pfeiltasten verschieben ihn um einen Rasterschritt (Umschalt: größer), bei einem weichen Punkt zieht der Gegengriff mit. So lässt sich eine Kurve genau einstellen.",
-          "en": "In the sketch and the revolve sketch the keys 1, 2, 3 and 4 pick Line, Bezier Curve, Smooth Curve and Add or Remove Points, as in Tinkercad. While a line is being drawn the digits stay its length. A curve handle that you click lights up, and the arrow keys move it by one grid step (Shift: a larger step), a smooth point's other handle with it. That way a curve can be set precisely.",
-          "ar": "في الرسم التخطيطي ورسم الدوران تختار المفاتيح 1 و2 و3 و4 «خط» و«منحنى بيزيه» و«منحنى سلس» و«إضافة أو إزالة نقاط»، كما في Tinkercad. وأثناء رسم خط تبقى الأرقام طولًا له. ومقبض المنحنى الذي تنقر عليه يضيء، وتحرّكه مفاتيح الأسهم خطوة شبكة واحدة (ومع Shift خطوة أكبر)، ومعه المقبض الآخر للنقطة السلسة. وبهذا يمكن ضبط المنحنى بدقة."
+          "de": "In der Skizze und der Dreh-Skizze wählen die Tasten 1, 2, 3 und 4 Linie, Bézier-Kurve, Weiche Kurve und Punkte setzen oder entfernen. Wird gerade eine Linie gezeichnet, bleiben die Ziffern ihre Länge. Ein angeklickter Kurvengriff leuchtet auf, und die Pfeiltasten verschieben ihn um einen Rasterschritt (Umschalt: größer), bei einem weichen Punkt zieht der Gegengriff mit. So lässt sich eine Kurve genau einstellen.",
+          "en": "In the sketch and the revolve sketch the keys 1, 2, 3 and 4 pick Line, Bezier Curve, Smooth Curve and Add or Remove Points. While a line is being drawn the digits stay its length. A curve handle that you click lights up, and the arrow keys move it by one grid step (Shift: a larger step), a smooth point's other handle with it. That way a curve can be set precisely.",
+          "ar": "في الرسم التخطيطي ورسم الدوران تختار المفاتيح 1 و2 و3 و4 «خط» و«منحنى بيزيه» و«منحنى سلس» و«إضافة أو إزالة نقاط». وأثناء رسم خط تبقى الأرقام طولًا له. ومقبض المنحنى الذي تنقر عليه يضيء، وتحرّكه مفاتيح الأسهم خطوة شبكة واحدة (ومع Shift خطوة أكبر)، ومعه المقبض الآخر للنقطة السلسة. وبهذا يمكن ضبط المنحنى بدقة."
         }
       },
       {
@@ -2398,9 +2398,9 @@
           "ar": "مط الحروف لتملأ الإطار"
         },
         "body": {
-          "de": "Eine gerade Schrift hielt bisher die Proportionen ihrer Buchstaben und blieb in der Mitte des Rahmens, auch wenn der Rahmen breiter oder tiefer gezogen war. Der neue Schalter „Buchstaben auf den Rahmen strecken“ in den Einstellungen des Textes füllt den ganzen Rahmen in beide Richtungen: Ein Großbuchstabe lässt sich niedriger oder schmaler machen, wie in Tinkercad. Die Umrisse für das Kantenwerkzeug und die Füllarten folgen.",
-          "en": "A straight text used to keep the proportions of its letters and stay in the middle of its frame, even when the frame was pulled wider or deeper. The new switch \"Stretch letters to the frame\" in the text's settings fills the whole frame in both directions: a capital can be made lower or narrower, as in Tinkercad. The outlines for the edge tool and the fill modes follow.",
-          "ar": "كان النص المستقيم يحتفظ بنسب حروفه ويبقى في وسط إطاره، حتى عندما يُسحب الإطار أعرض أو أعمق. والمفتاح الجديد «مط الحروف لتملأ الإطار» في إعدادات النص يملأ الإطار كله في الاتجاهين: فيمكن جعل الحرف الكبير أقصر أو أضيق، كما في Tinkercad. وتتبعه الحدود الخارجية لأداة الحواف وأوضاع التعبئة."
+          "de": "Eine gerade Schrift hielt bisher die Proportionen ihrer Buchstaben und blieb in der Mitte des Rahmens, auch wenn der Rahmen breiter oder tiefer gezogen war. Der neue Schalter „Buchstaben auf den Rahmen strecken“ in den Einstellungen des Textes füllt den ganzen Rahmen in beide Richtungen: Ein Großbuchstabe lässt sich niedriger oder schmaler machen. Die Umrisse für das Kantenwerkzeug und die Füllarten folgen.",
+          "en": "A straight text used to keep the proportions of its letters and stay in the middle of its frame, even when the frame was pulled wider or deeper. The new switch \"Stretch letters to the frame\" in the text's settings fills the whole frame in both directions: a capital can be made lower or narrower. The outlines for the edge tool and the fill modes follow.",
+          "ar": "كان النص المستقيم يحتفظ بنسب حروفه ويبقى في وسط إطاره، حتى عندما يُسحب الإطار أعرض أو أعمق. والمفتاح الجديد «مط الحروف لتملأ الإطار» في إعدادات النص يملأ الإطار كله في الاتجاهين: فيمكن جعل الحرف الكبير أقصر أو أضيق. وتتبعه الحدود الخارجية لأداة الحواف وأوضاع التعبئة."
         }
       },
       {
@@ -2439,9 +2439,9 @@
           "ar": "سحب المقبض إلى ما بعد الجانب الآخر"
         },
         "body": {
-          "de": "Zieht man einen Seiten- oder Eckgriff einer Form oder Auswahl, oder den Pfeil oben, über die gegenüberliegende Seite hinaus, bleibt die Größe nicht mehr stehen: Die Form wächst auf der anderen Seite der Kante weiter, wie bei Tinkercad. Eine Auswahl wird dabei gespiegelt. Körper aus einem Netz bleiben bei der Höhe an der kleinsten Größe.",
-          "en": "Drag a side or corner handle of a shape or a selection, or the arrow on top, past the opposite side and the size no longer stops there: the shape keeps growing on the other side of that edge, as in Tinkercad. A selection is mirrored as it goes. A body made of a mesh still stops at the smallest height.",
-          "ar": "اسحب مقبضًا جانبيًا أو مقبض زاوية لشكل أو لتحديد، أو السهم في الأعلى، إلى ما بعد الجانب المقابل، فلن يتوقف الحجم هناك بعد الآن: يستمر الشكل في النمو على الجانب الآخر من تلك الحافة، كما في Tinkercad. ويُعكس التحديد أثناء ذلك. أما الجسم المصنوع من شبكة مثلثات فما زال يتوقف عند أصغر ارتفاع."
+          "de": "Zieht man einen Seiten- oder Eckgriff einer Form oder Auswahl, oder den Pfeil oben, über die gegenüberliegende Seite hinaus, bleibt die Größe nicht mehr stehen: Die Form wächst auf der anderen Seite der Kante weiter. Eine Auswahl wird dabei gespiegelt. Körper aus einem Netz bleiben bei der Höhe an der kleinsten Größe.",
+          "en": "Drag a side or corner handle of a shape or a selection, or the arrow on top, past the opposite side and the size no longer stops there: the shape keeps growing on the other side of that edge. A selection is mirrored as it goes. A body made of a mesh still stops at the smallest height.",
+          "ar": "اسحب مقبضًا جانبيًا أو مقبض زاوية لشكل أو لتحديد، أو السهم في الأعلى، إلى ما بعد الجانب المقابل، فلن يتوقف الحجم هناك بعد الآن: يستمر الشكل في النمو على الجانب الآخر من تلك الحافة. ويُعكس التحديد أثناء ذلك. أما الجسم المصنوع من شبكة مثلثات فما زال يتوقف عند أصغر ارتفاع."
         }
       },
       {
@@ -2693,10 +2693,10 @@
           "ar": "الدوران من خط بعرض"
         },
         "body": {
-          "de": "In einer Rotationsskizze gibt es den Knopf Kontur wieder. Zeichne die Wand einer Vase oder eines Bechers als eine offene Linie links von der Achse, setze das Häkchen bei Kontur und stelle die Breite ein: Die Rotation dreht dieses Band zu einer dünnen Wand, wie in Tinkercad. Was über die Achse hinausreicht, wird abgeschnitten. Der Körper behält die gezeichnete Linie, mit „Skizze bearbeiten“ machst du dort weiter.",
-          "en": "A revolve sketch has the Stroke button again. Draw the wall of a vase or a cup as one open line to the left of the axis, tick the stroke and set the width: the revolve turns that band into a thin wall, as in Tinkercad. What reaches across the axis is cut off. The body keeps the drawn line, so Edit sketch goes on from there.",
-          "cs": "Náčrt pro rotaci znovu nabízí rozšíření čáry. Nakreslete stěnu nádoby či vázy jako jednu otevřenou čáru nalevo od osy, zapněte rozšíření a nastavte šířku. Rotací pásu vznikne tenká stěna jako v Tinkercadu. Přesah přes osu se ořízne. Těleso si původní čáru zachová pro další úpravy náčrtu.",
-          "ar": "عاد زر «خط بعرض» إلى رسم الدوران. ارسم جدار مزهرية أو كوب كخط واحد مفتوح على يسار المحور، وفعّل الخط بعرض واضبط العرض: فيحوّل الدوران ذلك الشريط إلى جدار رفيع، كما في Tinkercad. وما يتجاوز المحور يُقطع. ويحتفظ الجسم بالخط المرسوم، فيتابع «تعديل الرسم التخطيطي» من هناك."
+          "de": "In einer Rotationsskizze gibt es den Knopf Kontur wieder. Zeichne die Wand einer Vase oder eines Bechers als eine offene Linie links von der Achse, setze das Häkchen bei Kontur und stelle die Breite ein: Die Rotation dreht dieses Band zu einer dünnen Wand. Was über die Achse hinausreicht, wird abgeschnitten. Der Körper behält die gezeichnete Linie, mit „Skizze bearbeiten“ machst du dort weiter.",
+          "en": "A revolve sketch has the Stroke button again. Draw the wall of a vase or a cup as one open line to the left of the axis, tick the stroke and set the width: the revolve turns that band into a thin wall. What reaches across the axis is cut off. The body keeps the drawn line, so Edit sketch goes on from there.",
+          "cs": "Náčrt pro rotaci znovu nabízí rozšíření čáry. Nakreslete stěnu nádoby či vázy jako jednu otevřenou čáru nalevo od osy, zapněte rozšíření a nastavte šířku. Rotací pásu vznikne tenká stěna. Přesah přes osu se ořízne. Těleso si původní čáru zachová pro další úpravy náčrtu.",
+          "ar": "عاد زر «خط بعرض» إلى رسم الدوران. ارسم جدار مزهرية أو كوب كخط واحد مفتوح على يسار المحور، وفعّل الخط بعرض واضبط العرض: فيحوّل الدوران ذلك الشريط إلى جدار رفيع. وما يتجاوز المحور يُقطع. ويحتفظ الجسم بالخط المرسوم، فيتابع «تعديل الرسم التخطيطي» من هناك."
         }
       },
       {
@@ -3279,8 +3279,8 @@
           "cs": "Import SVG ze společné stránky se zachováním polohy"
         },
         "body": {
-          "de": "Im Importfenster gibt es ein neues Feld, „SVG: Lage auf der Zeichenfläche beibehalten“. Damit behält jede Zeichnung ihren Platz auf der Seite, auf der sie gezeichnet wurde. Exportierst du die Ebenen eines Dokuments als einzelne SVG-Dateien, liegen sie nach dem Import wieder genau übereinander, so wie du es von Tinkercad kennst.",
-          "en": "The import window has a new box, “SVG: keep the place on the drawing page”. With it each drawing keeps the place it has on the page it was drawn on. Export the layers of a document as separate SVG files and they line up exactly again after the import, as you know it from Tinkercad.",
+          "de": "Im Importfenster gibt es ein neues Feld, „SVG: Lage auf der Zeichenfläche beibehalten“. Damit behält jede Zeichnung ihren Platz auf der Seite, auf der sie gezeichnet wurde. Exportierst du die Ebenen eines Dokuments als einzelne SVG-Dateien, liegen sie nach dem Import wieder genau übereinander.",
+          "en": "The import window has a new box, “SVG: keep the place on the drawing page”. With it each drawing keeps the place it has on the page it was drawn on. Export the layers of a document as separate SVG files and they line up exactly again after the import.",
           "cs": "V importu přibyla volba „SVG: zachovat polohu na stránce výkresu“. Každý výkres ponechá na místě, kde byl nakreslen. Vrstvy dokumentu vyexportované do samostatných SVG se po importu opět přesně překryjí."
         }
       }
@@ -3945,9 +3945,9 @@
           "cs": "Zarovnání sleduje pracovní rovinu"
         },
         "body": {
-          "de": "Eine um 45° gedrehte Form wurde am Kasten um sie herum ausgerichtet. Setze eine Arbeitsebene auf eine ihrer Flächen: Die Punkte des Ausrichtens stehen dann auf den Achsen dieser Ebene, und die Formen richten sich an den echten Kanten aus, wie in Tinkercad.",
-          "en": "A shape turned by 45° was aligned by the box round it. Set a workplane on one of its faces: the points of Align then stand on that plane's axes and the shapes line up with the true edges, as in Tinkercad.",
-          "cs": "U natočeného tvaru nastavte rovinu na jeho ploše. Body zarovnání potom sledují osy této roviny a skutečné hrany místo obalového kvádru, podobně jako v Tinkercadu."
+          "de": "Eine um 45° gedrehte Form wurde am Kasten um sie herum ausgerichtet. Setze eine Arbeitsebene auf eine ihrer Flächen: Die Punkte des Ausrichtens stehen dann auf den Achsen dieser Ebene, und die Formen richten sich an den echten Kanten aus.",
+          "en": "A shape turned by 45° was aligned by the box round it. Set a workplane on one of its faces: the points of Align then stand on that plane's axes and the shapes line up with the true edges.",
+          "cs": "U natočeného tvaru nastavte rovinu na jeho ploše. Body zarovnání potom sledují osy této roviny a skutečné hrany místo obalového kvádru."
         }
       },
       {
@@ -3957,9 +3957,9 @@
           "cs": "Shift se šipkou sleduje hlavní mřížku"
         },
         "body": {
-          "de": "Umschalt und Pfeiltaste schieben jetzt so viele Rasterschritte, wie die Einstellung „Dunklere Rasterlinie alle“ sagt: 5 wie bisher oder 10 wie in Tinkercad.",
-          "en": "Shift and an arrow key now move as many grid steps as the setting \"Darker grid line every\" says: 5 as before or 10 as in Tinkercad.",
-          "cs": "Shift se šipkou posouvá o počet kroků podle volby Tmavší čára mřížky po, například 5 nebo 10 jako v Tinkercadu."
+          "de": "Umschalt und Pfeiltaste schieben jetzt so viele Rasterschritte, wie die Einstellung „Dunklere Rasterlinie alle“ sagt: 5 wie bisher oder 10.",
+          "en": "Shift and an arrow key now move as many grid steps as the setting \"Darker grid line every\" says: 5 as before or 10.",
+          "cs": "Shift se šipkou posouvá o počet kroků podle volby Tmavší čára mřížky po, například 5 nebo 10."
         }
       }
     ]
@@ -4220,9 +4220,9 @@
           "cs": "Mřížka se zvětšuje s pohledem"
         },
         "body": {
-          "de": "Alle Rasterlinien werden beim Hineinzoomen breiter, wie in Tinkercad, und verblassen nicht mehr.",
-          "en": "Every grid line grows wider as you zoom in, as in Tinkercad, and no longer fades away.",
-          "cs": "Čáry mřížky při přiblížení zesilují jako v Tinkercadu a nemizí."
+          "de": "Alle Rasterlinien werden beim Hineinzoomen breiter, und verblassen nicht mehr.",
+          "en": "Every grid line grows wider as you zoom in, and no longer fades away.",
+          "cs": "Čáry mřížky při přiblížení zesilují a nemizí."
         }
       }
     ]
@@ -4268,14 +4268,14 @@
       },
       {
         "title": {
-          "de": "Wie Tinkercad",
-          "en": "Tinkercad look",
-          "cs": "Vzhled jako Tinkercad"
+          "de": "Klassisch",
+          "en": "Classic look",
+          "cs": "Klasický vzhled"
         },
         "body": {
-          "de": "Ein Knopf unter Einstellungen → Darstellung stellt den Arbeitsbereich so ein, wie Tinkercad ihn zeigt. Die kräftige Rasterlinie kann jetzt alle 10 Schritte kommen und eine eigene Farbe haben. Auch die Fläche unter dem Skizzenraster hat jetzt eine eigene Farbe.",
-          "en": "A button under Settings → Appearance sets the work area up as Tinkercad shows it. The darker grid line can now come every 10 steps and have a colour of its own. The sketch's area under the grid has a colour of its own now too.",
-          "cs": "Tlačítko v Nastavení → Vzhled přizpůsobí pracovní plochu Tinkercadu. Tmavší čára mřížky může být po 10 krocích s vlastní barvou. Vlastní barvu má i plocha pod mřížkou náčrtu."
+          "de": "Ein Knopf unter Einstellungen → Darstellung stellt den Arbeitsbereich klassisch ein: weißer Grund, blassblaues Raster. Die kräftige Rasterlinie kann jetzt alle 10 Schritte kommen und eine eigene Farbe haben. Auch die Fläche unter dem Skizzenraster hat jetzt eine eigene Farbe.",
+          "en": "A button under Settings → Appearance sets the work area up the classic way: white ground, pale blue grid. The darker grid line can now come every 10 steps and have a colour of its own. The sketch's area under the grid has a colour of its own now too.",
+          "cs": "Tlačítko v Nastavení → Vzhled nastaví klasický vzhled pracovní plochy. Tmavší čára mřížky může být po 10 krocích s vlastní barvou. Vlastní barvu má i plocha pod mřížkou náčrtu."
         }
       },
       {
@@ -4471,9 +4471,9 @@
           "cs": "Pokládání na plochy"
         },
         "body": {
-          "de": "Wie Cruise in Tinkercad: Eine neue Form legt sich auf die Fläche unter dem Zeiger, auch auf eine schräge. Mit C nimmst du die Auswahl auf und setzt sie so auf eine andere Fläche.",
-          "en": "Like Cruise in Tinkercad: a new shape lies down on the face under the pointer, sloped ones too. C picks up the selection and sets it down on another face the same way.",
-          "cs": "Nový tvar se položí na plochu pod ukazatelem, i šikmou. C zvedne výběr a stejným způsobem jej umístí na jinou plochu, jako Cruise v Tinkercadu."
+          "de": "Eine neue Form legt sich auf die Fläche unter dem Zeiger, auch auf eine schräge. Mit C nimmst du die Auswahl auf und setzt sie so auf eine andere Fläche.",
+          "en": "A new shape lies down on the face under the pointer, sloped ones too. C picks up the selection and sets it down on another face the same way.",
+          "cs": "Nový tvar se položí na plochu pod ukazatelem, i šikmou. C zvedne výběr a stejným způsobem jej umístí na jinou plochu."
         }
       },
       {
@@ -4700,9 +4700,9 @@
           "cs": "Osa Y nyní směřuje dozadu"
         },
         "body": {
-          "de": "Die Achsen folgen jetzt der Rechte-Hand-Regel wie Tinkercad und CAD-Programme: X nach rechts, Y nach hinten, Z nach oben. Deine Teile bleiben, wo sie sind – nur das Vorzeichen der Y-Zahl und des Winkels um Y dreht sich um.",
-          "en": "The axes now follow the right-hand rule like Tinkercad and CAD programs: X to the right, Y towards the back, Z up. Your parts stay where they are – only the sign of the Y number and of the turn about Y flips.",
-          "cs": "Osy používají pravidlo pravé ruky jako CAD a Tinkercad: X doprava, Y dozadu, Z nahoru. Díly zůstávají na místě; obrátí se jen znaménko Y a otáčení kolem Y."
+          "de": "Die Achsen folgen jetzt der Rechte-Hand-Regel wie CAD-Programme: X nach rechts, Y nach hinten, Z nach oben. Deine Teile bleiben, wo sie sind – nur das Vorzeichen der Y-Zahl und des Winkels um Y dreht sich um.",
+          "en": "The axes now follow the right-hand rule like CAD programs: X to the right, Y towards the back, Z up. Your parts stay where they are – only the sign of the Y number and of the turn about Y flips.",
+          "cs": "Osy používají pravidlo pravé ruky jako CAD: X doprava, Y dozadu, Z nahoru. Díly zůstávají na místě; obrátí se jen znaménko Y a otáčení kolem Y."
         }
       },
       {
@@ -4823,8 +4823,8 @@
           "cs": "Zakřivení přímé strany"
         },
         "body": {
-          "de": "Wähle in der Skizze eine gerade Linie und klicke auf „Linie krümmen“: Die Seite wölbt sich wie bei Tinkercad zu einer Kurve und zeigt zwei Griffe, an denen du sie formst. „Linie gerade“ macht sie wieder gerade.",
-          "en": "Select a straight line in the sketch and click Curve line: the side bows out into a curve, as in Tinkercad, and shows two handles to shape it. Straight line makes it straight again.",
+          "de": "Wähle in der Skizze eine gerade Linie und klicke auf „Linie krümmen“: Die Seite wölbt sich zu einer Kurve und zeigt zwei Griffe, an denen du sie formst. „Linie gerade“ macht sie wieder gerade.",
+          "en": "Select a straight line in the sketch and click Curve line: the side bows out into a curve, and shows two handles to shape it. Straight line makes it straight again.",
           "cs": "Vyberte úsečku a zvolte Zakřivit úsečku. Dvěma ovládacími body upravte tvar. Narovnat křivku ji vrátí zpět."
         }
       },
@@ -4965,9 +4965,9 @@
           "cs": "Otevření náčrtu dvojklikem"
         },
         "body": {
-          "de": "Ein Doppelklick auf einen Körper, der aus einer Skizze entstand, öffnet seine Skizze wieder, wie bei Tinkercad.",
-          "en": "A double click on a body made from a sketch opens its sketch again, as in Tinkercad.",
-          "cs": "Dvojklik na těleso z náčrtu znovu otevře jeho náčrt jako v Tinkercadu."
+          "de": "Ein Doppelklick auf einen Körper, der aus einer Skizze entstand, öffnet seine Skizze wieder.",
+          "en": "A double click on a body made from a sketch opens its sketch again.",
+          "cs": "Dvojklik na těleso z náčrtu znovu otevře jeho náčrt."
         }
       },
       {

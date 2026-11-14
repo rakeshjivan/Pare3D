@@ -51,7 +51,7 @@ export function SketchRevolvePreview({ positions }: { positions: number[] | null
     camera.far = radius * 20;
     const controls = new OrbitControls(camera, canvas);
     controls.target.copy(center);
-    // Left and right drag both turn the shape; the wheel button drags it sideways or up and down (as in Tinkercad).
+    // Left and right drag both turn the shape; the wheel button drags it sideways or up and down.
     controls.enablePan = true;
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
     controls.minDistance = radius * 0.8;

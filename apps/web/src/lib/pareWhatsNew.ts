@@ -45,13 +45,13 @@ export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] 
       "STEP files with several solids come in as one body each, in their colours; STEP import and export run off the page. Shading of round bodies is several times faster, the edge tool's preview is about a third quicker, large filleted bodies respond sooner, and the offline copy downloads about 10 MB less. The CAD kernel is updated (occt-wasm 5.11, brepjs 20) and the shared-folder server script has layerling's latest hardening.",
       "Start page: the ⋮ menu is smaller and no longer cut off, and Select lets you tick several designs and delete them together.",
       "Home welcomes you back after a week or more away, and shows a tip of the day (Next tip for another, × to hide them).",
-      "CAD Studio always opens with Tinkercad's box and handles. The gimbal is on the right-click menu (Use the gimbal).",
+      "CAD Studio always opens with the box and handles. The gimbal is on the right-click menu (Use the gimbal).",
     ],
   },
   {
     build: 99,
     items: [
-      "A gimbal, as in Meshmixer and Bambu Studio: switch Box / Gimbal beside Snap Grid. Gimbal gives three arrows to move a part along (red, green up, blue) and three rings to turn it on, about its middle - no box, sizes or distances on the part. Box keeps Tinkercad's handles. Your choice is remembered.",
+      "A gimbal: switch Box / Gimbal beside Snap Grid. Gimbal gives three arrows to move a part along (red, green up, blue) and three rings to turn it on, about its middle - no box, sizes or distances on the part. Box keeps the usual handles. Your choice is remembered.",
     ],
   },
   {
@@ -424,7 +424,7 @@ export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] 
       "Saving no longer runs out of room in the Mac and Windows app: designs are now kept as files on your disk, and those saved before are moved there by themselves. (This needs the new download once - the auto-update cannot replace the part that stores them.)",
       "Fillet and chamfer in one window: switch between Round, Chamfer and Chamfillet at the top; click a size (0.5 to 5 mm) or Largest that fits; pick Outside edges or Inside edges in one click. The last size you used comes back next time.",
       "For fine work, under More options: a chamfer with two different distances (and Swap sides), and a fillet whose radius changes along the edge.",
-      "Tinkercad-style property rows: the value box rides on its slider - drag it, or click it and type. Length, width, height and the rest take half the room.",
+      "property rows: the value box rides on its slider - drag it, or click it and type. Length, width, height and the rest take half the room.",
       "One Make button: ready-made parts in groups (fixings, containers, moving parts, print helpers), with Lithophane, Photo to outline and Voronoi in the same window.",
       "A Mesh group appears in the toolbar while an imported model is selected: Make solid, Fill hole, Simplify and Cut below.",
       "Blend, Hollow and Pattern show the main settings first; the rest is under More options.",

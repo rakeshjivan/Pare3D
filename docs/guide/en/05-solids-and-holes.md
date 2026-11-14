@@ -41,10 +41,10 @@ A whole group can also be a solid or a hole. A simple rule applies:
 
 ## Bundling
 
-Sometimes parts should only stay together without becoming one - a white logo on a black plate for a multicolour print, say. That is what {{ui:editor.tool.bundle}} ([[Ctrl]]+[[B]]) is for, as in Tinkercad. A bundle moves, turns and resizes like a shape, but nothing is merged:
+Sometimes parts should only stay together without becoming one - a white logo on a black plate for a multicolour print, say. That is what {{ui:editor.tool.bundle}} ([[Ctrl]]+[[B]]) is for. A bundle moves, turns and resizes like a shape, but nothing is merged:
 
 - Every part keeps its colour and stays a solid or a hole.
-- Holes cut nothing. When you group the bundle with other parts, its holes cut those parts but still not the bundle's own solids, as in Tinkercad. So a peg with its hole beside it, say, can be used again and again as a bundle.
+- Holes cut nothing. When you group the bundle with other parts, its holes cut those parts but still not the bundle's own solids. So a peg with its hole beside it, say, can be used again and again as a bundle.
 - In an STL, 3MF or OBJ export every part is a body of its own; in 3MF and OBJ with its colour.
 
 {{ui:editor.tool.ungroup}} ([[Ctrl]]+[[Shift]]+[[G]]) takes a bundle apart again, [[E]] opens it for editing like a group. Chamfer, fillet and hollowing do not work on a bundle, because it is not one body: group it for that, or work on its parts one by one. If a hole in the bundle should cut the bundle's own solids too, take the bundle apart and group its parts ([[Ctrl]]+[[G]]).
@@ -91,7 +91,7 @@ For parts that have to fit, a shaft in a collar, a bolt in a case, you make the 
 
 ## Editing a group
 
-If a bore turned out too small, you do not have to dissolve the group and rebuild. Select the group and click {{ui:group.edit}} in its settings, the folder icon in the object list, or press [[E]]. A double click on the group does the same, as in Tinkercad, on a bundle too; if you would rather not, switch off {{ui:workspace.doubleClickOpensGroup}} in the settings. A part only starts to move once the pointer has been dragged a few pixels, so a shaky click or double click does not nudge it. The parts now lie separately and you change them with every tool: make a hole larger, move a body, add a hole.
+If a bore turned out too small, you do not have to dissolve the group and rebuild. Select the group and click {{ui:group.edit}} in its settings, the folder icon in the object list, or press [[E]]. A double click on the group does the same, on a bundle too; if you would rather not, switch off {{ui:workspace.doubleClickOpensGroup}} in the settings. A part only starts to move once the pointer has been dragged a few pixels, so a shaky click or double click does not nudge it. The parts now lie separately and you change them with every tool: make a hole larger, move a body, add a hole.
 
 ![The group being edited: the bar at the bottom holds Cancel and Done, and the object list shows the parts.](shot:open-group)
 

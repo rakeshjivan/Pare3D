@@ -2046,7 +2046,7 @@ export function LayerlingEditor({
   useEffect(() => {
     if (editorOpen) setViewLook("plate");
   }, [editorOpen]);
-  // Build 104: CAD Studio opens with Tinkercad's box handles every time; the gimbal is on the right-click menu.
+  // Build 104: CAD Studio opens with the box handles every time; the gimbal is on the right-click menu.
   useEffect(() => {
     if (editorOpen) resetHandleStyle();
   }, [editorOpen]);
@@ -9347,7 +9347,7 @@ export function LayerlingEditor({
       return;
     }
     const selected = new Set(selectedIds);
-    // Fork: as in Tinkercad, a new group takes one colour - the sign it worked. Multicolor (Shift+M) brings the parts' own back.
+    // Fork:, a new group takes one colour - the sign it worked. Multicolor (Shift+M) brings the parts' own back.
     const editableGroup = canonicalizeShape({ ...group, groupOperation: "group", multicolor: false });
     commitShapes(
       [...shapesRef.current.filter((shape) => !selected.has(shape.id)), editableGroup],
@@ -15639,7 +15639,7 @@ export function LayerlingEditor({
         return;
       }
 
-      // Fork: Ctrl+I intersects, as in Tinkercad; Import moved to Ctrl+Shift+I.
+      // Fork: Ctrl+I intersects; Import moved to Ctrl+Shift+I.
       if (shortcut && key === "i" && !event.shiftKey && !event.altKey) {
         event.preventDefault();
         intersectSelectedRef.current();

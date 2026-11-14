@@ -58,7 +58,7 @@ describe("zipHoldsDesigns", () => {
     const { zipSync, strToU8 } = await import("fflate");
     const { zipHoldsDesigns } = await import("@/lib/projectBackup");
     expect(zipHoldsDesigns(zipSync({ "Entwurf.lyl": strToU8("x") }))).toBe(true);
-    expect(zipHoldsDesigns(zipSync({ "tinker.obj": strToU8("v 0 0 0"), "obj.mtl": strToU8("newmtl a") }))).toBe(false);
+    expect(zipHoldsDesigns(zipSync({ "model.obj": strToU8("v 0 0 0"), "obj.mtl": strToU8("newmtl a") }))).toBe(false);
     expect(zipHoldsDesigns(strToU8("kein zip"))).toBe(false);
   });
 });

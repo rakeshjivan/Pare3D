@@ -118,7 +118,7 @@ describe("a revolved sketch as an exact solid, with the real OCCT kernel", () =>
     expect(kernel.getVolume(hollow)).toBeCloseTo(outerVolume - cavity, 0);
   });
 
-  // A line with a width turns into a wall (#347): the vase of a Tinkercad video, drawn as one line.
+  // A line with a width turns into a wall (#347): a vase, drawn as one line.
   it("turns an open line with a width into a thin wall", async () => {
     const manifold = await manifoldModule();
     manifold.setup();

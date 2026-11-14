@@ -8,7 +8,7 @@ import type { WorkplaneShape } from "@/types/layerling";
 type Axis = "width" | "depth" | "height";
 
 /**
- * Fork (build 19): the overall size of several selected parts, as Tinkercad shows it. Typing a
+ * Fork (build 19): the overall size of several selected parts. Typing a
  * new length, width or height scales all of them together, keeping their proportions and the
  * gaps between them in step (the same scaling as "Scale by percent"), in one undo step.
  */
