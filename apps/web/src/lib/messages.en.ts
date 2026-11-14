@@ -4993,6 +4993,29 @@ export const MESSAGES_EN = {
   // Ported from layerling 1.165.
   "workspace.dimensionAxisColors": "Dimension boxes in axis colours",
   "workspace.dimensionAxisColorsHint": "Each value box beside a selection takes the colour of its axis: red X, green Y, blue Z.",
+  // Ported from layerling 1.165.
+  "editor.tool.punch": "Punch",
+  "punch.title": "Punch an outline through a body",
+  "punch.subtitle": "The punch's outline goes straight through, the punch stays",
+  "punch.help": "Seen along the direction, the outline of the punch is cut straight through the other body, wherever the punch stands. Move or turn the punch and punch again for another opening.",
+  "punch.punch": "Punch (stays)",
+  "punch.target": "Body to punch",
+  "punch.swap": "Swap the two",
+  "punch.axis": "Direction",
+  "punch.axisHint": "X runs left to right, Y front to back, Z up. Pare 3D starts with the one along which the punch stands furthest from the body.",
+  "punch.clearance": "Clearance",
+  "punch.clearanceHint": "How much larger the opening is than the outline on every side. 0 follows it exactly; 0.2 mm lets a printed part pass through.",
+  "punch.apply": "Punch",
+  "punch.working": "Punching…",
+  "punch.cancel": "Cancel punching",
+  "punch.holeName": "Outline of {name}",
+  "status.punchSelectTwo": "Select two solids: first the punch, then the body to punch",
+  "status.punchDone": "Punched the outline of {punch} through {target}",
+  "status.punchMcp": "MCP punched the outline of {punch} through {target}",
+  "status.punchMiss": "Seen along {axis}, the outline of {punch} does not reach {target}. Move the punch in front of it or choose another direction.",
+  "status.punchEmpty": "{punch} has no outline seen along {axis}",
+  "status.punchTooMany": "The outline of {punch} has more than {count} lines and curves, too many for a sketch. Simplify the punch first.",
+  "status.punchChanged": "The scene changed while punching; run the command again",
 } as const;
 
 export type MessageKey = keyof typeof MESSAGES_EN;

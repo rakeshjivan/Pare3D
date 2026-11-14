@@ -410,7 +410,7 @@ export const FORK_SHORT_LABELS_EN: Readonly<Record<string, string>> = {
  * tool is listed here again.
  */
 // Build 104: the tools ported from layerling 1.112-1.125 sit under Modify's "More", so the row stays as it was.
-export const FORK_OVERFLOW_TOOLS: ReadonlySet<string> = new Set<string>(["offset", "cutOut", "cookieCutter", "loftSketches", "flexi", "lid", "supportRib"]);
+export const FORK_OVERFLOW_TOOLS: ReadonlySet<string> = new Set<string>(["offset", "cutOut", "punch", "cookieCutter", "loftSketches", "flexi", "lid", "supportRib"]);
 
 /** The advanced tools shown in the toolbar's "More" menu rather than on the row itself. */
 export const FORK_MORE_TOOLS: ReadonlySet<string> = new Set([
@@ -450,6 +450,7 @@ export const FORK_TOOL_HINTS_EN: Readonly<Record<string, string>> = {
   "intersect-preview": "see where the parts overlap, without changing them",
   offset: "grow or shrink a body by one distance, e.g. for a press-fit clearance",
   cutOut: "cut one body out of another, with a clearance",
+  punch: "cut one body's outline straight through another",
   cookieCutter: "turn a shape or sketch into a cookie cutter",
   loftSketches: "join two sketches into one body",
   flexi: "cut a flat body into links with joints printed in place",

@@ -60,6 +60,7 @@ import {
   ToolbarUndoIcon,
   ToolbarVectorExportIcon,
   ToolbarCutOutIcon,
+  ToolbarPunchIcon,
   ToolbarLoftSketchesIcon
 } from "./icons";
 import { type SketchPrimitive, type SketchTool } from "./SketchWorkspace";
@@ -349,6 +350,8 @@ export function SecondaryToolbar({
   onCutOut,
   canCutOut,
   cutOutActive,
+  onPunch,
+  punchActive,
   onDeleteFace,
   deleteFaceActive,
   canSimplify,
@@ -516,6 +519,9 @@ export function SecondaryToolbar({
   onCutOut: () => void;
   canCutOut: boolean;
   cutOutActive: boolean;
+  /** Punch: the first body's outline straight through the second; enabled like Cut out, for two solids. */
+  onPunch: () => void;
+  punchActive: boolean;
   onDeleteFace: () => void;
   deleteFaceActive: boolean;
   canSimplify: boolean;
@@ -948,6 +954,7 @@ export function SecondaryToolbar({
     // Fork (build 55): a pattern pressed into or raised out of the surface.
     { id: "texture", label: t("texture.title"), icon: Grip, action: build33.onTexture, enabled: build33.canRound || build33.textureActive, active: build33.textureActive },
     { id: "cutOut", label: t("editor.tool.cutOut"), icon: ToolbarCutOutIcon, action: onCutOut, enabled: canCutOut || cutOutActive, active: cutOutActive },
+    { id: "punch", label: t("editor.tool.punch"), icon: ToolbarPunchIcon, action: onPunch, enabled: canCutOut || punchActive, active: punchActive },
     { id: "cookieCutter", label: t("editor.tool.cookieCutter"), icon: Cookie, action: onCookieCutter, enabled: canCookieCutter },
     { id: "loftSketches", label: t("editor.tool.loftSketches"), icon: ToolbarLoftSketchesIcon, action: onLoftSketches, enabled: canLoftSketches },
   ];

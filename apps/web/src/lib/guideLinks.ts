@@ -63,6 +63,7 @@ export const GUIDE_SECTIONS = {
   hollowing: { chapter: "edges", en: "hollowing-bodies" },
   offset: { chapter: "edges", en: "offsetting-bodies" },
   cutOut: { chapter: "solids", en: "cutting-one-body-out-of-another" },
+  punch: { chapter: "solids", en: "punching-an-outline-through-a-body" },
   flexi: { chapter: "threads", en: "flexi-joints" },
   lid: { chapter: "edges", en: "a-lid-for-an-open-body" },
   vase: { chapter: "shapes", en: "a-vase" },
