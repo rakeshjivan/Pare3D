@@ -25,11 +25,13 @@ function readParts(): ExportParts {
  * Build 71: the blue Export button's window - where the file opens (a slicer, or nowhere), its
  * type, its name and folder, then Export. Prefilled from the defaults, so it is two clicks.
  */
-export function ExportWindow({ projectName, shapeCount, selectionLeavesOut, onSelectAll, onExport, onMoreFormats, onClose }: {
+export function ExportWindow({ projectName, shapeCount, selectionLeavesOut, plateScope = null, onSelectAll, onExport, onMoreFormats, onClose }: {
   projectName: string;
   shapeCount: number;
   /** Something is selected and visible parts are left out: only the selection is exported. */
   selectionLeavesOut: { selected: number; total: number } | null;
+  /** With several build plates: export all of them, or one plate set where the first plate is. */
+  plateScope?: { plates: string[]; value: "all" | number; onChange: (value: "all" | number) => void } | null;
   onSelectAll: () => void;
   onExport: (choice: ExportChoice) => void;
   onMoreFormats: () => void;
@@ -149,6 +151,24 @@ export function ExportWindow({ projectName, shapeCount, selectionLeavesOut, onSe
             </span>
             <button type="button" className="export-select-all-button" onClick={onSelectAll}>{t("export.selectAll")}</button>
           </div>
+        ) : null}
+        {plateScope ? (
+          <fieldset className="export-window-section export-window-plates">
+            <legend>{t("export.plates")}</legend>
+            <div className="export-window-formats">
+              <label className={`export-window-option ${plateScope.value === "all" ? "active" : ""}`}>
+                <input type="radio" name="export-plates" checked={plateScope.value === "all"} onChange={() => plateScope.onChange("all")} />
+                <span><strong>{t("export.platesAll", { count: plateScope.plates.length })}</strong></span>
+              </label>
+              {plateScope.plates.map((label, index) => (
+                <label key={index} className={`export-window-option ${plateScope.value === index ? "active" : ""}`}>
+                  <input type="radio" name="export-plates" checked={plateScope.value === index} onChange={() => plateScope.onChange(index)} />
+                  <span><strong>{label}</strong></span>
+                </label>
+              ))}
+            </div>
+            <p className="export-window-note">{t("export.platesHint")}</p>
+          </fieldset>
         ) : null}
         <fieldset className="export-window-section">
           <legend>{t("exportWindow.openIn")}</legend>

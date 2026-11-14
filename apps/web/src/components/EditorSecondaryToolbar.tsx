@@ -39,6 +39,7 @@ import {
   ToolbarDeleteFaceIcon,
   ToolbarSimplifyIcon,
   ToolbarMakeExactIcon,
+  ToolbarBuildPlatesIcon,
   ToolbarMirrorIcon,
   ToolbarRotationPivotIcon,
   ToolbarPatternIcon,
@@ -72,7 +73,8 @@ import { SaveStatus } from "./SaveStatus";
 import { CUT_BELOW_BED_EVENT, PRINT_CHECK_EVENT, SPLIT_TO_FIT_EVENT } from "./PrintCheckPanel";
 import { Brush, ChevronDown, Cookie, Grip, MessageSquareText, PackageOpen, Printer, Worm } from "lucide-react";
 import { PareBuildBadge } from "./PareVersionStatus";
-import { Signature } from "lucide-react";
+import { ArchiveRestore, Signature } from "lucide-react";
+import { OPEN_FILE_BACKUPS_EVENT } from "@/lib/fileBackups";
 import { CommandPalette, type PaletteCommand } from "./workplane/CommandPalette";
 import { COMMAND_KEYWORDS, SHAPE_KEYWORDS } from "@/lib/commandKeywords";
 import { ExportButton } from "@/components/ExportButton";
@@ -317,6 +319,8 @@ export function SecondaryToolbar({
   onDelete,
   onDuplicate,
   onCenterOnWorkplane,
+  onBuildPlates,
+  buildPlatesActive,
   onDropToWorkplane,
   onLayFlat,
   layFlatActive,
@@ -487,6 +491,8 @@ export function SecondaryToolbar({
   onDelete: () => void;
   onDuplicate: () => void;
   onCenterOnWorkplane: () => void;
+  onBuildPlates?: () => void;
+  buildPlatesActive?: boolean;
   onDropToWorkplane: () => void;
   onLayFlat: () => void;
   layFlatActive: boolean;
@@ -905,6 +911,7 @@ export function SecondaryToolbar({
     { id: "undo", label: t("editor.tool.undo"), icon: ToolbarUndoIcon, action: onUndo, enabled: canUndo, hint: canUndo ? undoHint : null, onHover: onUndoRedoHover },
     { id: "redo", label: t("editor.tool.redo"), icon: ToolbarRedoIcon, action: onRedo, enabled: canRedo, hint: canRedo ? redoHint : null, onHover: onUndoRedoHover },
     { id: "history", label: t("editor.tool.history"), icon: ToolbarHistoryIcon, action: onHistoryView, enabled: canHistoryView, active: historyViewActive },
+    { id: "versions", label: t("backups.title"), icon: ArchiveRestore, action: () => window.dispatchEvent(new Event(OPEN_FILE_BACKUPS_EVENT)), enabled: !historyViewActive },
   ];
   const visibilityTools = [
     {
@@ -983,6 +990,7 @@ export function SecondaryToolbar({
     { id: "layFlat", label: t("editor.tool.layFlat"), icon: ToolbarLayFlatIcon, action: onLayFlat, enabled: canModifySelection, active: layFlatActive },
     { id: "mateFaces", label: t("editor.tool.mateFaces"), icon: ToolbarMateFacesIcon, action: onMateFaces, enabled: canModifySelection, active: mateFacesActive },
     { id: "center", label: t("editor.tool.centerOnWorkplane"), icon: ToolbarCenterOnWorkplaneIcon, action: onCenterOnWorkplane, enabled: canModifySelection },
+    ...(onBuildPlates ? [{ id: "buildPlates", label: t("editor.tool.buildPlates"), icon: ToolbarBuildPlatesIcon, action: onBuildPlates, enabled: true, active: Boolean(buildPlatesActive) }] : []),
     // Fork: spacing parts out has its own button (it opens Align with the Space out panel).
     { id: "spaceOut", label: t("distribute.title"), icon: ForkSpaceOutIcon, action: onAlign, enabled: canAlign, active: alignMode },
     { id: "fitCheck", label: t("editor.tool.clearance"), icon: ScanSearch, action: build33.onFitCheck, enabled: true, active: build33.fitActive },
@@ -1218,6 +1226,7 @@ export function SecondaryToolbar({
       plain("split-to-fit", t("splitToFit.command"), manageGroup, true, () => window.dispatchEvent(new Event(SPLIT_TO_FIT_EVENT))),
       plain("cut-below-bed", t("cutBelowBed.command"), manageGroup, true, () => window.dispatchEvent(new Event(CUT_BELOW_BED_EVENT))),
       plain("mesh-check", t("meshCheck.command"), manageGroup, hasSelection, () => window.dispatchEvent(new Event(MESH_CHECK_EVENT))),
+      plain("file-backups", t("backups.title"), manageGroup, true, () => window.dispatchEvent(new Event(OPEN_FILE_BACKUPS_EVENT)), { icon: ArchiveRestore, keywords: ["backup", "backups", "version", "versions", "restore", "earlier"] }),
       plain("fill-hole", t("fillHole.command"), t("editor.group.modify"), hasSelection, () => window.dispatchEvent(new Event(FILL_HOLE_EVENT))),
       // Build 70: the Mesh tools in the search too (Mesh check, Fill hole and Cut below are above).
       ...meshTools.filter((tool) => tool.id === "sculpt" || tool.id === "simplify" || tool.id === "makeExact" || tool.id === "roundMesh").map((tool) => fromTool(tool, t("editor.group.mesh"))),

@@ -6,6 +6,7 @@ import { readViewLook, type ViewLook } from "@/lib/viewLook";
 import { markEscapeHandled } from "@/lib/escapeHandled";
 import { ArrowDownToLine, Check, Moon, ChevronLeft, ChevronRight, Crosshair, Cuboid, Download, Eye, EyeOff, FlipHorizontal, GripVertical, Home, Layers, Minus, MousePointer2, PanelsTopLeft, Plus, Rotate3d, RotateCcw, Ruler, RulerDimensionLine, Slice, Spline, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type MouseEvent as ReactMouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type WheelEvent as ReactWheelEvent } from "react";
+import { plateCenterX, plateCount, plateName, platesExtentX } from "@/lib/buildPlates";
 import { nearestObjectGap, objectSnapOffset, shiftSnapBox, type ObjectGap, type ObjectSnapGuide, type SnapBox } from "@/lib/objectSnap";
 import { dragReach } from "@/lib/dragReach";
 import { useMovablePanel, type MovablePanelOptions } from "@/lib/useMovablePanel";
@@ -410,6 +411,8 @@ type WorkplaneViewportProps = {
   highlightIds?: readonly string[];
   /** The place a row of the clearance check stands for: a line with the gap, or the middle of an overlap; the camera goes there. */
   clearanceMark?: ClearanceMark | null;
+  /** The build-plate bar shown at the foot of the view, when it is open. */
+  plateBar?: ReactNode;
   onSetPlacementWorkplane: (workplane: PlacementWorkplane, source: "shape" | "base") => void;
   onToggleWorkplaneTool: () => void;
   onInteractionActiveChange?: (active: boolean) => void;
@@ -723,6 +726,8 @@ declare global {
     layerlingStrokeMotion?: () => void;
     /** Build 87: work to run at the start of each drawn frame (Sculpt's stroke), or null. */
     layerlingOnFrame?: (run: (() => void) | null) => void;
+    /** Looks at build plates from..to, keeping the camera's direction. */
+    layerlingFramePlates?: (from: number, to: number) => boolean;
     /** Build 73: the camera's ray through a page point (client pixels), in the world. */
     layerlingScreenRay?: (x: number, y: number) => { origin: [number, number, number]; direction: [number, number, number] } | null;
     /** Fork (build 53): where the camera is, in the world. */
@@ -3640,6 +3645,7 @@ export function WorkplaneViewport({
   onShapeContextMenu,
   highlightIds,
   clearanceMark = null,
+  plateBar,
   onSetPlacementWorkplane,
   onToggleWorkplaneTool,
   onInteractionActiveChange,
@@ -4397,7 +4403,7 @@ export function WorkplaneViewport({
     workspaceRef.current = nextWorkspace;
     setMeasureUnit(nextWorkspace);
     if (threeRef.current) {
-      rebuildWorkplane(threeRef.current, nextWorkspace, resolvedThemeRef.current, drawnWorkplane(), projectNameRef.current);
+      rebuildWorkplane(threeRef.current, nextWorkspace, resolvedThemeRef.current, drawnWorkplane(), projectNameRef.current, (index) => plateLabel(nextWorkspace, index));
       plateKeyRef.current = "";
       constrainCamera(threeRef.current, nextWorkspace);
       threeRef.current.needsRender = true;
@@ -4911,7 +4917,7 @@ export function WorkplaneViewport({
     const drawn = workplaneHidden ? horizontalPlacementWorkplane() : placementWorkplane;
     const plateKey = JSON.stringify([workspace, resolvedTheme, drawn, projectName, language, studioLook, themePreference]);
     if (!threeRef.current || plateKey !== plateKeyRef.current) {
-      rebuildWorkplane(threeRef.current, workspace, resolvedTheme, drawn, projectName);
+      rebuildWorkplane(threeRef.current, workspace, resolvedTheme, drawn, projectName, (index) => plateLabel(workspace, index));
       if (threeRef.current) plateKeyRef.current = plateKey;
     }
     rebuildSelectionHelpers(threeRef.current, shapesRef.current, renderSelectionIds(), placementWorkplane);
@@ -4971,7 +4977,7 @@ export function WorkplaneViewport({
     const state = createThreeScene(host);
     state.palette = themePaletteRef.current;
     threeRef.current = state;
-    rebuildWorkplane(state, workspaceRef.current, resolvedThemeRef.current, drawnWorkplane(), projectNameRef.current);
+    rebuildWorkplane(state, workspaceRef.current, resolvedThemeRef.current, drawnWorkplane(), projectNameRef.current, (index) => plateLabel(workspaceRef.current, index));
     state.workplaneLayer.visible = !workplaneLayerHiddenRef.current;
     plateKeyRef.current = "";
     window.layerlingCaptureCanvas = () => {
@@ -5364,6 +5370,30 @@ export function WorkplaneViewport({
     onNotice?.(t("workspace.startViewSaved"));
     return true;
   }, [onNotice]);
+
+  // The plate bar looks at one build plate or at all of them, keeping the camera's direction.
+  useEffect(() => {
+    window.layerlingFramePlates = (from, to) => {
+      const state = threeRef.current;
+      if (!state) return false;
+      const workspace = workspaceRef.current;
+      const first = Math.max(0, Math.min(from, to));
+      const last = Math.min(plateCount(workspace) - 1, Math.max(from, to));
+      const bounds = new THREE.Box3(
+        new THREE.Vector3(plateCenterX(workspace, first) - workspace.width / 2, 0, -workspace.depth / 2),
+        new THREE.Vector3(plateCenterX(workspace, last) + workspace.width / 2, 0, workspace.depth / 2),
+      );
+      constrainCamera(state, workspace);
+      frameBounds(state, bounds);
+      constrainCamera(state, workspace);
+      syncViewCube(state, viewCubeRef.current);
+      state.needsRender = true;
+      return true;
+    };
+    return () => {
+      delete window.layerlingFramePlates;
+    };
+  }, []);
 
   const resetStartView = useCallback(() => {
     writeStartView(null);
@@ -11036,6 +11066,7 @@ export function WorkplaneViewport({
             onPointerLeave={handlePointerLeave}
           />
           {!workplaneMode && !splitActive ? <SelectionCounter count={selectedIds.length} hostRef={hostRef} /> : null}
+          {!workplaneMode && !splitActive && !pickOnly ? plateBar : null}
           {facePullReadout ? (
             <div className={`face-pull-readout ${facePullReadout.pocket ? "pocket" : ""}`} style={{ left: facePullReadout.x, top: facePullReadout.y }} aria-live="polite">
               {facePullReadout.text}
@@ -11975,6 +12006,12 @@ function orbitCameraByDrag(state: ThreeState, dx: number, dy: number) {
   state.needsRender = true;
 }
 
+/** What a further build plate says on its corner: "Plate 2", or "Plate 2: Lid" when it has a name. */
+function plateLabel(workspace: WorkspaceSettings, index: number) {
+  const name = plateName(workspace, index);
+  return name ? t("plates.named", { number: index + 1, name }) : t("plates.plate", { number: index + 1 });
+}
+
 function constrainCamera(state: ThreeState, workspace: WorkspaceSettings) {
   // The pivot stays on the plate, but as far out as the part "Center view" went to, so that part can be centred (#352).
   const reach = state.focusReach;
@@ -11982,7 +12019,8 @@ function constrainCamera(state: ThreeState, workspace: WorkspaceSettings) {
   // Sideways the pivot reaches the farthest body too, not only the part "Center view" last went to: parts
   // parked far beside the plate could not be panned to with the mouse (#502).
   const { halfWidth, halfDepth } = pivotPlateReach(bodies, {
-    halfWidth: Math.max(workspace.width / 2, reach ? Math.max(Math.abs(reach.min.x), Math.abs(reach.max.x)) : 0),
+    // With several build plates the pivot reaches the last one too.
+    halfWidth: Math.max(workspace.width / 2, platesExtentX(workspace).maxX, reach ? Math.max(Math.abs(reach.min.x), Math.abs(reach.max.x)) : 0),
     halfDepth: Math.max(workspace.depth / 2, reach ? Math.max(Math.abs(reach.min.z), Math.abs(reach.max.z)) : 0),
   });
   // The pivot may rise to the top of the highest body (and sink to the foot of the lowest): a body
@@ -12089,6 +12127,8 @@ function rebuildWorkplane(
   theme: ResolvedAppTheme = "light",
   placementWorkplane: PlacementWorkplane = horizontalPlacementWorkplane(),
   projectName = "",
+  /** The label written on each further build plate, by its index from 1; plate 0 shows the design's name. */
+  plateLabel: (index: number) => string = (index) => `${index + 1}`,
 ) {
   if (!state) {
     return;
@@ -12134,9 +12174,9 @@ function rebuildWorkplane(
   const plateOutlineOnly = !activeIsBase && placementWorkplaneLiesOnBase(placementWorkplane);
   // A delta printer's plate is round (#1024): the plate itself, not a workplane laid on a face.
   const roundPlate = printerPresetById(workspace.printer)?.round === true && workspace.width === workspace.depth;
-  const addPlane = (workplane: PlacementWorkplane, muted: boolean, showMarker: boolean, outlineOnly = false, round = false) => {
+  const addPlane = (workplane: PlacementWorkplane, muted: boolean, showMarker: boolean, outlineOnly = false, round = false, extraPlate: { label: string } | null = null) => {
     const group = new THREE.Group();
-    group.name = muted ? "ReferenceWorkplane" : "ActiveWorkplane";
+    group.name = extraPlate ? "BuildPlate" : muted ? "ReferenceWorkplane" : "ActiveWorkplane";
     // The name and the printer, and the axis arrows, sit in the corners of the square inside a round plate.
     const cornerWidth = round ? workspace.width * Math.SQRT1_2 : workspace.width;
     const cornerDepth = round ? workspace.depth * Math.SQRT1_2 : workspace.depth;
@@ -12204,7 +12244,7 @@ function rebuildWorkplane(
         cornerDepth,
         labelPalette.color,
         muted ? labelPalette.opacity * 0.5 : labelPalette.opacity,
-        projectName,
+        extraPlate ? extraPlate.label : projectName,
         "",
         { outline: muted ? undefined : platePalette.surface.color },
       );
@@ -12212,7 +12252,7 @@ function rebuildWorkplane(
         group.add(label);
       }
       // Only on the real plate, and hidden together with the design name.
-      const printer = muted || workspace.showPlateLabels === false ? null : printerPresetById(workspace.printer);
+      const printer = muted || extraPlate || showMarker || workspace.showPlateLabels === false ? null : printerPresetById(workspace.printer);
       if (printer) {
         const printerLabel = createWorkplaneLabel(
           cornerWidth,
@@ -12229,7 +12269,7 @@ function rebuildWorkplane(
         }
       }
     }
-    if (!muted && workspace.showAxes) {
+    if (!muted && !extraPlate && workspace.showAxes) {
       group.add(createAxisArrows(cornerWidth, cornerDepth));
     }
     if (showMarker) {
@@ -12254,6 +12294,11 @@ function rebuildWorkplane(
   };
 
   addPlane(horizontalPlacementWorkplane(), !activeIsBase, false, plateOutlineOnly, roundPlate);
+  // The further build plates to the right of the first: the same plate with its grid and its name.
+  for (let index = 1; index < plateCount(workspace); index += 1) {
+    const plate = horizontalPlacementWorkplane();
+    addPlane({ ...plate, origin: { ...plate.origin, x: plateCenterX(workspace, index) } }, !activeIsBase, false, false, roundPlate, { label: plateLabel(index) });
+  }
   if (!activeIsBase) {
     addPlane(placementWorkplane, false, true);
   }

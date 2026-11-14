@@ -4,6 +4,21 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 110,
+    items: [
+      "Build plates: lay a design out on several plates side by side, move parts between them, arrange them, and export all plates or one plate at a time. Under Arrange, and Onto plate in the right-click menu.",
+      "Clearance check: shows the gap between two parts, and where they touch or overlap. It replaces the old fit check and checks again as you move parts.",
+      "Punch cuts one part's outline straight through another, even when they don't touch.",
+      "Make exact turns an imported STL into exact faces, so fillets, chamfers and STEP export work on it. In the Mesh menu.",
+      "New shapes: screw boss, snap-fit and rib.",
+      "Threads: NPT pipe threads, bottle necks, multi-start threads, and wing, star-knob, flange and square heads and nuts.",
+      "Lids: bayonet caps, click bumps and more lid types. Hollow can make stackable boxes with a collar and groove.",
+      "Loft: extra sections between the bottom and the top, with smooth or straight walls.",
+      "The size boxes can show in the axis colours (Settings).",
+      "Earlier versions: a state of each design is kept every 10 minutes while you work. Under History.",
+    ],
+  },
+  {
     build: 109,
     items: [
       "Smoother view: shadows are drawn again only when a part changes, and dragging no longer makes the page work out its layout on every frame.",

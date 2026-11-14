@@ -1953,3 +1953,173 @@ html[data-theme="dark"] .workplane-wrap.dimension-axis-colors .dimension-input[d
 .clearance-mark-overlay.fine .clearance-mark-point { fill: #1f8a4c; }
 html[data-theme="dark"] .clearance-stale { color: #ffc78a; background: #3a2511; border-color: #a8601f; }
 html[data-theme="dark"] .clearance-row.fine { border-left-color: #5fd47c; }
+
+/* Build 110: the bar of build plates at the foot of the view, in Pare's colours (follows the theme through the variables). */
+.plate-bar {
+  position: absolute; left: 50%; bottom: 14px; z-index: 11; display: flex; align-items: center; gap: 4px;
+  max-width: calc(100% - 140px); padding: 4px 6px; transform: translateX(-50%);
+  color: var(--foreground); background: var(--toolbar-bg, var(--panel)); border: 1px solid var(--toolbar-edge, var(--border));
+  border-radius: 12px; box-shadow: var(--shadow); font: 500 13px var(--font-ui);
+}
+.plate-bar-chips, .plate-bar-tools { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.plate-bar-chips { overflow-x: auto; scrollbar-width: thin; }
+.plate-bar-chip, .plate-bar-icon, .plate-bar-text {
+  display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+  color: inherit; background: transparent; border: 1px solid transparent; border-radius: 8px;
+  font: inherit; white-space: nowrap; cursor: pointer;
+}
+.plate-bar-icon { justify-content: center; width: 32px; padding: 0; }
+.plate-bar-chip:hover:not(:disabled), .plate-bar-icon:hover:not(:disabled), .plate-bar-text:hover:not(:disabled) {
+  background: var(--tile-hover, var(--tile)); border-color: var(--border);
+}
+.plate-bar-chip.active { color: #fff; background: var(--primary); border-color: var(--primary); }
+.plate-bar-chip-count {
+  min-width: 18px; padding: 0 5px; border-radius: 999px; font-size: 12px; line-height: 18px; text-align: center;
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+.plate-bar-chip.active .plate-bar-chip-count { background: rgba(255, 255, 255, 0.25); }
+.plate-bar-chip.has-overhangs .plate-bar-chip-count { color: #fff; background: #e5322d; }
+.plate-bar-chip:disabled, .plate-bar-icon:disabled, .plate-bar-text:disabled { opacity: 0.45; cursor: default; }
+.plate-bar-rename {
+  width: 150px; height: 32px; padding: 0 8px; color: inherit; background: var(--background);
+  border: 1px solid var(--primary); border-radius: 8px; font: inherit;
+}
+.plate-bar-separator { flex: 0 0 auto; width: 1px; height: 22px; margin: 0 3px; background: var(--border-strong, var(--border)); }
+.plate-bar-help { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 32px; height: 32px; color: inherit; }
+@media (max-width: 700px) {
+  .plate-bar { max-width: calc(100% - 20px); bottom: 8px; }
+  .plate-bar-text span { display: none; }
+}
+.export-window-plates .export-window-formats { flex-wrap: wrap; }
+
+/* Build 110: Earlier versions, the states of a design kept while you work. */
+.file-backups-card {
+  width: 640px;
+  height: auto;
+  max-height: min(560px, 100%);
+}
+
+.file-backups-card .workspace-modal-header strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-backups-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.file-backups-intro,
+.file-backups-empty {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.file-backups-problem {
+  margin: 0;
+  color: #b3261e;
+  font-weight: 700;
+}
+
+.file-backups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-backup-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  background: var(--tile);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.file-backup-picture {
+  flex: none;
+  width: 56px;
+  height: 42px;
+  object-fit: contain;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.file-backup-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-backup-text > span {
+  overflow: hidden;
+  color: var(--muted-strong);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-backup-actions {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.file-backup-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 8px;
+  color: var(--foreground);
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.file-backup-actions button:hover:not(:disabled),
+.file-backup-actions button:focus-visible {
+  border-color: var(--primary);
+}
+
+.file-backup-actions .file-backup-open {
+  color: #ffffff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.file-backup-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.file-backups-settings-hint {
+  color: var(--muted-strong);
+}
+
+@media (max-width: 560px) {
+  .file-backup-open > span {
+    display: none;
+  }
+}
+/* With the plate bar open at the foot of the view, messages and the build-volume pill stand above it. */
+.layerling-editor:has(.plate-bar) .editor-status { bottom: calc(var(--editor-footer-height) + 70px); }
+.layerling-editor:has(.plate-bar) .bed-overhang-warning { bottom: 66px; }
+.layerling-editor:has(.plate-bar):has(.bed-overhang-warning) .editor-status { bottom: calc(var(--editor-footer-height) + 122px); }
+.plate-bar-rename::placeholder { color: var(--muted-strong); }

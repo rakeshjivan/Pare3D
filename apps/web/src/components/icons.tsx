@@ -135,6 +135,7 @@ export {
   ToolbarDeleteFaceIcon,
   ToolbarSimplifyIcon,
   ToolbarMakeExactIcon,
+  ToolbarBuildPlatesIcon,
   ToolbarBundleIcon,
   ToolbarGroupIcon,
   ToolbarGuideIcon,

@@ -1,3 +1,4 @@
+import { normalizePlateNames } from "@/lib/buildPlateNames";
 import { normalizeDesignParameters } from "@/lib/designParameters";
 import { DEFAULT_OVERHANG_ANGLE, normalizeOverhangAngle } from "@/lib/overhangLimits";
 import type { CustomSnapGrid, CustomSnapGridSize, GridSize, HistoryRetentionLimit, MeasurementAccuracy, ShapeCustomization, ShapeCustomizationMap, ShapeKind, WorkplaneWorkspaceSettings } from "@/types/layerling";
@@ -753,6 +754,8 @@ export function normalizeWorkspaceSettings(value: unknown, fallback: WorkplaneWo
     sizePreset: stringOrDefault(candidate.sizePreset, fallback.sizePreset),
     // Older settings have no printer; that is "none", not the fallback's choice.
     printer: typeof candidate.printer === "string" ? candidate.printer : candidate.sizePreset === undefined ? fallback.printer : "",
+    // The plates belong to the design: they come only from its own settings, never from a fallback.
+    ...(normalizePlateNames(candidate.plates) ? { plates: normalizePlateNames(candidate.plates) } : {}),
     ...gridBlockForUnits(
       units,
       stringOrDefault(candidate.gridBlockPreset, fallback.gridBlockPreset),
@@ -926,7 +929,8 @@ export function saveWorkspaceDefault(
   }
   try {
     storage.setItem(WORKSPACE_DEFAULT_STORAGE_KEY, JSON.stringify({
-      workspace: (({ parameters: _parameters, ...rest }) => rest)(normalizeWorkspaceSettings(workspace)),
+      // A design's plates are its own: the default workplane has one plate.
+      workspace: (({ parameters: _parameters, plates: _plates, ...rest }) => rest)(normalizeWorkspaceSettings(workspace)),
       snap: normalizeSnapGrid(snap, DEFAULT_SNAP_GRID),
     }));
     return true;

@@ -17,6 +17,12 @@ That has a downside: whoever clears the browser storage or switches to another c
 
 A slim line on the start page says how your designs are backed up. With automatic backup on, Pare 3D writes all your designs to a backup file in a folder you choose, every 5 minutes while designs change, and the line says when it last did. {{ui:backupStrip.turnOn}} or {{ui:backupStrip.chooseFolder}} sets it up; {{ui:backupStrip.backUpNow}} makes a backup straight away, and {{ui:backupStrip.restore}} brings designs back from one. A cloud folder such as iCloud Drive, OneDrive or Dropbox keeps the backups safe off this computer too.
 
+## Earlier versions
+
+While you work on a design, Pare 3D keeps a state of it every 10 minutes, but only when something changed; the last six of each design stay. {{ui:backups.title}} in the {{ui:editor.group.history}} group of the ribbon (or in the command search) lists them with their time, name and size. {{ui:backups.open}} opens the version as a new design: the design you have open stays as it is. The download button saves the version as a `.lyl` file, the bin deletes it.
+
+These states live in the app's own storage on this computer, next to your designs. They do not replace the automatic backup to a folder above, which also keeps your designs safe when this computer is lost.
+
 ## Choosing where files go
 
 In the app, **Settings › Files** decides where Pare 3D saves on this computer:
