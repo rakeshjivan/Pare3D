@@ -1246,7 +1246,6 @@ export const MESSAGES_EN = {
   "status.selectOneToSeparate": "Select one object to separate",
   "status.selectSketchShape": "Select one shape created from a sketch to edit it",
   "status.selectedAllVisible": "Selected all visible shapes",
-  "status.selectionCleared": "Selection cleared",
   "status.selectionHidden": "Selection hidden",
   "status.selectionShown": "Selection visible",
   "status.selectionLockedNow": "Selection locked",

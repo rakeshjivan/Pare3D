@@ -376,6 +376,8 @@ const sharedOverlayMaterials = new Map<string, THREE.Material>();
 
 type OverlayLineLook = { color: string; linewidth: number; opacity: number; depthTest: boolean; dashSize?: number };
 
+const overlayLineSize = new THREE.Vector2();
+
 export function sharedOverlayLineMaterial(state: ThreeState, look: OverlayLineLook) {
   const key = `line:${look.color}:${look.linewidth}:${look.opacity}:${look.depthTest}:${look.dashSize ?? ""}`;
   let material = sharedOverlayMaterials.get(key) as LineMaterial | undefined;
@@ -395,8 +397,9 @@ export function sharedOverlayLineMaterial(state: ThreeState, look: OverlayLineLo
     material.userData.cached = true;
     sharedOverlayMaterials.set(key, material);
   }
-  const rect = state.renderer.domElement.getBoundingClientRect();
-  material.resolution.set(Math.max(1, rect.width), Math.max(1, rect.height));
+  // Build 109: the renderer's own size - getBoundingClientRect laid the page out again for every line.
+  const size = state.renderer.getSize(overlayLineSize);
+  material.resolution.set(Math.max(1, size.x), Math.max(1, size.y));
   return material;
 }
 

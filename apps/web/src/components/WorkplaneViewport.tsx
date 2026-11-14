@@ -5134,6 +5134,7 @@ export function WorkplaneViewport({
       }
       const renderStart = performance.now();
       fitCameraDepthRange(state.camera, state.controls.target);
+      if (state.needsRender) state.renderer.shadowMap.needsUpdate = true;
       renderFrame(state);
       const frameMs = performance.now() - renderStart;
       const perf = perfRef.current;
@@ -11327,6 +11328,12 @@ function createThreeScene(host: HTMLDivElement): ThreeState {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = DEFAULT_WORKSPACE.showShadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  // Pare 3D (build 109): the shadows are drawn again only when something in the scene changed. The key
+  // light stands still in the scene, so a frame where only the camera moved keeps the shadows it has -
+  // before, every frame drew the whole scene once more for them, and once more again for each of the
+  // hole preview's extra passes.
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -12010,6 +12017,7 @@ function rebuildWorkplane(
   // Fast mode turns shadows, edge lines and camera inertia off together, and draws fewer pixels.
   const view = effectiveViewSettings(workspace);
   state.renderer.shadowMap.enabled = view.showShadows;
+  state.renderer.shadowMap.needsUpdate = true;
   state.controls.enableDamping = view.cameraInertia;
   viewFastMode = Boolean(workspace.fastMode);
   const pixelRatio = viewPixelRatio(workspace, window.devicePixelRatio, state.renderer.domElement.clientWidth, state.renderer.domElement.clientHeight);
@@ -13683,6 +13691,8 @@ function gimbalGeometry(
   return { x: c.x, y: c.y, arrows, rings, viewRadius: GIMBAL_VIEW_RING };
 }
 
+const overlayCanvasSize = new THREE.Vector2();
+
 function syncTransformOverlay(
   state: ThreeState,
   shapes: WorkplaneShape[],
@@ -13716,7 +13726,9 @@ function syncTransformOverlay(
     return;
   }
 
-  const rect = state.renderer.domElement.getBoundingClientRect();
+  // Build 109: the canvas size the renderer was given, not getBoundingClientRect - that made the browser lay
+  // the page out again on every frame of a drag, as the overlay had just been written to.
+  const rect = state.renderer.getSize(overlayCanvasSize);
   // Future edits: do not remove this. The transform overlay is projected with
   // Vector3.project(), outside Three's renderer. With OrbitControls damping, the
   // camera matrix can otherwise be one frame stale, making handles/lines trail.
@@ -13743,7 +13755,7 @@ function syncTransformOverlay(
   const project = (point: THREE.Vector3) => {
     const cameraSpace = point.clone().applyMatrix4(state.camera.matrixWorldInverse);
     const projected = cameraSpace.clone().applyMatrix4(state.camera.projectionMatrix);
-    return transformOverlayScreenPoint(projected, flatView ? -1 : cameraSpace.z, rect.width, rect.height);
+    return transformOverlayScreenPoint(projected, flatView ? -1 : cameraSpace.z, rect.x, rect.y);
   };
 
   const xFootAxis = frame.xAxis.clone().normalize();

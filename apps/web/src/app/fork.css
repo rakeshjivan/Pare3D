@@ -1848,3 +1848,6 @@ html[data-theme="dark"] .parameters-row input { background: #1a1f26; }
 .gimbal-overlay .axis-y .gimbal-label { fill: #23852a; }
 .gimbal-overlay .axis-z .gimbal-label { fill: #2459c0; }
 
+
+/* Build 109: a toolbar menu left open never shows over a window that opened above it. */
+html:has([aria-modal="true"]) .secondary-toolbar [role="menu"] { display: none; }

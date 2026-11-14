@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { disposeChildren, sharedOverlayLineMaterial, type ThreeState } from "@/components/workplane/ViewportOverlays";
 
 /** Just what the overlay needs of the viewport: the canvas size. */
-const state = { renderer: { domElement: { getBoundingClientRect: () => ({ width: 800, height: 600 }) } } } as unknown as ThreeState;
+const state = { renderer: { getSize: (target: { set: (x: number, y: number) => unknown }) => target.set(800, 600) } } as unknown as ThreeState;
 
 describe("overlay line materials", () => {
   it("are one material per look, so drawing the guides again compiles no shaders", () => {

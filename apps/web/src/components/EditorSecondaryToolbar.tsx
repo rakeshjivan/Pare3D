@@ -655,8 +655,19 @@ export function SecondaryToolbar({
     const onDown = (event: PointerEvent) => {
       if (!modifyMoreRef.current?.contains(event.target as Node)) setModifyMoreOpen(false);
     };
+    // Build 109: Escape closes it too, and so does a window that opens over it (Settings from a key).
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setModifyMoreOpen(false);
+    };
+    const onSettings = () => setModifyMoreOpen(false);
     window.addEventListener("pointerdown", onDown);
-    return () => window.removeEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("layerling:open-workspace-settings", onSettings);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("layerling:open-workspace-settings", onSettings);
+    };
   }, [modifyMoreOpen]);
   // Build 71: when the groups would wrap onto a second row (a 13-inch laptop), the least used ones fold
   // into one button each, with their tools in a drop-down - the row stays one row, the plate stays tall.

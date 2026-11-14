@@ -2739,9 +2739,21 @@ export function LayerlingEditor({
     };
 
     applyTitles();
-    const observer = new MutationObserver(applyTitles);
+    // Build 109: one look over the buttons per quarter second at most. Before, every change to the page ran
+    // through all of its buttons - and a drag changes the page on every frame.
+    let pending: number | null = null;
+    const observer = new MutationObserver(() => {
+      if (pending !== null) return;
+      pending = window.setTimeout(() => {
+        pending = null;
+        applyTitles();
+      }, 250);
+    });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-label"] });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (pending !== null) window.clearTimeout(pending);
+    };
   }, []);
 
   useEffect(() => {
@@ -15507,8 +15519,8 @@ export function LayerlingEditor({
           void finishOpenGroupRef.current();
           return;
         }
+        // Build 109: no "Selection cleared" message - the handles going away say it.
         setSelectedIds([]);
-        setNotice(t("status.selectionCleared"));
         return;
       }
 
