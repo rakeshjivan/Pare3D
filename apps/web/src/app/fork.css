@@ -267,37 +267,6 @@ html[data-simple="on"] [data-layerling-tool="mateFaces"] {
   border: 1px solid var(--border-strong);
 }
 
-/* Fork: first-run hint on an empty plate. */
-.empty-plate-hint {
-  position: fixed;
-  top: calc(var(--editor-toolbar-height) + 26px);
-  left: 50%;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 12px 20px;
-  color: var(--foreground);
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 6px 22px rgba(20, 30, 45, 0.1);
-  font: 500 13px var(--font-ui);
-  text-align: center;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-.empty-plate-hint strong { font-size: 15px; color: var(--primary); }
-html[data-shape-dock="on"] .empty-plate-hint { left: calc((100vw - var(--shape-dock-width)) / 2); }
-html[data-theme="dark"] .empty-plate-hint { background: rgba(30, 30, 30, 0.92); }
-
-/* No hint over an open dialog. */
-html:has([aria-modal="true"]) .empty-plate-hint { display: none; }
-/* Build 70: nor over an open menu (the Send menu reached down over it). */
-html:has([role="menu"]) .empty-plate-hint { display: none; }
-html:has(.edge-modifier-panel) .empty-plate-hint { display: none; }
-
 /* Fork: Send to Bambu Studio. */
 .bambu-send {
   position: relative;

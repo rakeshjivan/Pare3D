@@ -1199,12 +1199,6 @@ export function SecondaryToolbar({
   return (
     <div className="secondary-toolbar" data-selection={canModifySelection ? "yes" : "no"}>
       {paletteOpen ? <CommandPalette commands={buildPaletteCommands()} onClose={() => setPaletteOpen(false)} /> : null}
-      {toolbarMode === "geometry" && objects.length === 0 && !historyViewActive ? (
-        <div className="empty-plate-hint" aria-live="polite">
-          <strong>Your plate is empty</strong>
-          <span>{shapesPinned && shapesOpen ? "Drag a shape from the panel on the right onto the plate, or click one and then click the plate." : "Open Shapes in the toolbar and drag one onto the plate."}</span>
-        </div>
-      ) : null}
       <div ref={toolbarContentRef} className={`toolbar-mode-content ${toolbarMode}`}>
         {toolbarMode === "geometry" ? (
           <>
