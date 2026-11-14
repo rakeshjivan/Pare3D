@@ -24,7 +24,9 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function formatSliderValue(value: number, accuracy: WorkplaneWorkspaceSettings["accuracy"], step: number) {
+function formatSliderValue(value: number, accuracy: WorkplaneWorkspaceSettings["accuracy"], step: number, decimals?: number) {
+  // A field that keeps decimals shows them only where the value has them: 102.5, but 120.
+  if (decimals !== undefined) return String(Math.round(value * 10 ** decimals) / 10 ** decimals);
   if (step >= 1) return String(Math.round(value));
   return formatMeasurementNumber(value, accuracy, step);
 }
@@ -152,6 +154,7 @@ export function EdgeModifierSlider({
   disabled = false,
   coarse,
   autoFocus = false,
+  decimals,
   onEnter,
   onChange,
   title,
@@ -175,6 +178,8 @@ export function EdgeModifierSlider({
   /** Enter takes the typed value and then calls this with it, for a window that applies on Enter (#760). */
   onEnter?: (value: number) => void;
   onChange: (value: number) => void;
+  /** The field keeps and shows up to this many decimals while the slider moves in `step`. */
+  decimals?: number;
   /** Build 92: what the slider does, shown when the pointer rests on it. */
   title?: string;
 }) {
@@ -191,7 +196,7 @@ export function EdgeModifierSlider({
   const rangeStep = coarse ? (length ? displayStepFromMillimeters(coarse.step, workspace) : coarse.step) : controlStep;
   const sliderValueOf = (value: number) => clamp(value, rangeMin, rangeMax);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(formatSliderValue(controlValue, workspace.accuracy, controlStep));
+  const [draft, setDraft] = useState(formatSliderValue(controlValue, workspace.accuracy, controlStep, decimals));
   const smooth = useContext(SmoothSliders);
   // Build 106: while dragging, the thumb shows this (display units); the value is passed on once a frame.
   const [live, setLive] = useState<number | null>(null);
@@ -211,7 +216,7 @@ export function EdgeModifierSlider({
 
   useEffect(() => {
     if (!editing) {
-      setDraft(formatSliderValue(controlValue, workspace.accuracy, controlStep));
+      setDraft(formatSliderValue(controlValue, workspace.accuracy, controlStep, decimals));
     }
   }, [controlStep, controlValue, editing, workspace.accuracy]);
 
@@ -230,7 +235,7 @@ export function EdgeModifierSlider({
     const parsed = parseMeasurementInput(draft);
     const current = Number.isFinite(parsed) ? parsed : controlValue;
     const next = clamp(wheelNextValue(current, direction, wheelBaseStep(controlMin, controlMax, controlStep, length && unitLabel === "in"), keys), controlMin, controlMax);
-    const shown = formatSliderValue(next, workspace.accuracy, controlStep);
+    const shown = formatSliderValue(next, workspace.accuracy, controlStep, decimals);
     wheelShownRef.current = shown;
     setDraft(shown);
     onChange(clamp(toModelValue(next), safeMin, safeMax));
@@ -254,7 +259,7 @@ export function EdgeModifierSlider({
 
   const handleSliderChange = (nextValue: number) => {
     const next = clamp(Number.isFinite(nextValue) ? nextValue : controlMin, controlMin, controlMax);
-    setDraft(formatSliderValue(next, workspace.accuracy, controlStep));
+    setDraft(formatSliderValue(next, workspace.accuracy, controlStep, decimals));
     if (!smooth) { onChange(clamp(toModelValue(next), safeMin, safeMax)); return; }
     setLive(next);
     pendingRef.current = clamp(toModelValue(next), safeMin, safeMax);
@@ -298,12 +303,12 @@ export function EdgeModifierSlider({
           <input
             ref={numberInputRef}
             type="text"
-            value={editing ? draft : formatSliderValue(shownValue, workspace.accuracy, controlStep)}
+            value={editing ? draft : formatSliderValue(shownValue, workspace.accuracy, controlStep, decimals)}
             inputMode="decimal"
             disabled={disabled}
             onFocus={(event) => {
               wheelShownRef.current = null;
-              setDraft(formatSliderValue(controlValue, workspace.accuracy, controlStep));
+              setDraft(formatSliderValue(controlValue, workspace.accuracy, controlStep, decimals));
               setEditing(true);
               selectWholeValue(event.currentTarget);
             }}
@@ -326,7 +331,7 @@ export function EdgeModifierSlider({
               } else if (event.key === "Escape") {
                 event.preventDefault();
                 event.stopPropagation();
-                setDraft(formatSliderValue(controlValue, workspace.accuracy, controlStep));
+                setDraft(formatSliderValue(controlValue, workspace.accuracy, controlStep, decimals));
                 setEditing(false);
               }
             }}

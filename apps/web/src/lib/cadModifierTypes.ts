@@ -458,6 +458,8 @@ export type CadModifierWorkerRequest =
       endAmount?: number;
       // Only for "shell": which faces stay open; `amount` is the wall thickness.
       shellOpenings?: ShellOpenings;
+      // Only for "shell" with the top open: the collar round the top and the groove under the wall, this high (mm).
+      shellStack?: number;
       shellEdges?: ShellEdges;
       // Only for "offset" (#919): `amount` is the distance, moved inward when this is set.
       offsetShrink?: boolean;

@@ -1904,3 +1904,52 @@ html:has([aria-modal="true"]) .secondary-toolbar [role="menu"] { display: none; 
 }
 html[data-theme="dark"] .workplane-wrap.dimension-axis-colors .dimension-label[data-axis],
 html[data-theme="dark"] .workplane-wrap.dimension-axis-colors .dimension-input[data-axis] { background: var(--dimension-axis-tint); color: var(--dimension-axis-text); }
+
+/* Build 110: Punch, the clearance check and the lid panel's extras (from layerling 1.165), in Pare's own colours. */
+.punch-axis-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.edge-modifier-field.tool-roles { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.edge-modifier-field.tool-roles button { display: inline-flex; align-items: center; gap: 6px; }
+.lid-neck-fit-button {
+  display: inline-flex; min-height: 32px; align-items: center; gap: 6px; margin-top: 8px; padding: 0 12px;
+  color: var(--accent, #1662b3); background: var(--surface, #fff); border: 1px solid var(--accent, #1662b3); border-radius: 7px;
+  font: 700 12px var(--font-ui); cursor: pointer;
+}
+.lid-neck-fit-button:disabled { cursor: default; opacity: 0.6; }
+.clearance-status { min-height: 18px; margin: 10px 0 6px; color: var(--foreground); font: 600 12.5px/1.4 var(--font-ui); }
+.clearance-status span { display: inline-flex; align-items: center; gap: 6px; }
+.clearance-stale {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; color: #8a4a00; background: #fff3e0;
+  border: 1px solid #f0b46a; border-radius: 7px; font: inherit; cursor: pointer;
+}
+.clearance-list { display: grid; gap: 4px; max-height: 260px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.clearance-list.stale { opacity: 0.55; }
+.clearance-row {
+  display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 7px 8px; color: var(--foreground); text-align: left;
+  background: transparent; border: 1px solid var(--border); border-left: 4px solid var(--muted-strong, #5b6673); border-radius: 8px;
+  font: inherit; cursor: pointer;
+}
+.clearance-row svg { flex: none; margin-top: 1px; color: var(--muted-strong, #5b6673); }
+.clearance-row-text { display: grid; gap: 2px; min-width: 0; }
+.clearance-row-text strong { font: 600 12.5px var(--font-ui); overflow-wrap: anywhere; }
+.clearance-row-text span { color: var(--muted-strong, #5b6673); font: 500 11.5px var(--font-ui); }
+.clearance-row.overlap, .clearance-row.touching { border-left-color: #e5322d; }
+.clearance-row.overlap svg, .clearance-row.touching svg { color: #e5322d; }
+.clearance-row.tight { border-left-color: #e8a317; }
+.clearance-row.tight svg { color: #e8a317; }
+.clearance-row.fine { border-left-color: #1f8a4c; }
+.clearance-row.fine svg { color: #1f8a4c; }
+.clearance-row:disabled { cursor: default; }
+.clearance-row:hover:not(:disabled) { border-color: var(--accent, #1662b3); }
+.clearance-row.active { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #1662b3) 35%, transparent); }
+.clearance-hint { margin: 8px 0 0; color: var(--muted-strong, #5b6673); font: 500 11.5px/1.4 var(--font-ui); }
+.clearance-mark-overlay { position: absolute; inset: 0; z-index: 7; pointer-events: none; }
+.clearance-mark-line { stroke: #e8a317; stroke-width: 2.5; }
+.clearance-mark-point { fill: #e8a317; stroke: #fff; stroke-width: 1.5; }
+.clearance-mark-ring { fill: none; stroke: #e8a317; stroke-width: 2; stroke-dasharray: 4 3; }
+.clearance-mark-overlay.overlap .clearance-mark-line, .clearance-mark-overlay.touching .clearance-mark-line,
+.clearance-mark-overlay.overlap .clearance-mark-ring, .clearance-mark-overlay.touching .clearance-mark-ring { stroke: #e5322d; }
+.clearance-mark-overlay.overlap .clearance-mark-point, .clearance-mark-overlay.touching .clearance-mark-point { fill: #e5322d; }
+.clearance-mark-overlay.fine .clearance-mark-line, .clearance-mark-overlay.fine .clearance-mark-ring { stroke: #1f8a4c; }
+.clearance-mark-overlay.fine .clearance-mark-point { fill: #1f8a4c; }
+html[data-theme="dark"] .clearance-stale { color: #ffc78a; background: #3a2511; border-color: #a8601f; }
+html[data-theme="dark"] .clearance-row.fine { border-left-color: #5fd47c; }

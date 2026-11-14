@@ -5,6 +5,7 @@ import { MovableToolPanel } from "@/components/workplane/MovableToolPanel";
 import { Check, LoaderCircle, X } from "lucide-react";
 import { EdgeFeatureHistory, EdgeModifierSlider, type EdgeHistoryOption } from "@/components/workplane/EdgeModifierPanel";
 import { MoreOptions } from "@/components/workplane/MoreOptions";
+import { DEFAULT_SHELL_STACK_HEIGHT, SHELL_STACK_MAX_HEIGHT, SHELL_STACK_MIN_HEIGHT, SHELL_STACK_MIN_WALL } from "@/lib/shellStackLimits";
 import { cadModifierUserErrorMessage } from "@/lib/cadModifierRuntime";
 import { t } from "@/lib/i18n";
 import { useLanguage } from "@/lib/useLanguage";
@@ -32,6 +33,8 @@ export function ShellPanel({
   maxThickness,
   openings,
   edges,
+  stack,
+  stackOffered,
   workspace,
   busy,
   error,
@@ -44,6 +47,7 @@ export function ShellPanel({
   onThicknessChange,
   onOpeningsChange,
   onEdgesChange,
+  onStackChange,
   onApply,
   onCancel,
 }: {
@@ -52,6 +56,10 @@ export function ShellPanel({
   maxThickness: number;
   openings: ShellOpenings;
   edges: ShellEdges;
+  /** The height in mm of the collar and the groove that let one box stand on the next; 0 for none. */
+  stack: number;
+  /** Stacking is offered only with the top as the one open side. */
+  stackOffered: boolean;
   workspace: WorkplaneWorkspaceSettings;
   busy: boolean;
   error: string | null;
@@ -66,6 +74,7 @@ export function ShellPanel({
   onThicknessChange: (value: number) => void;
   onOpeningsChange: (value: ShellOpenings) => void;
   onEdgesChange: (value: ShellEdges) => void;
+  onStackChange: (value: number) => void;
   onApply: () => void;
   onCancel: () => void;
 }) {
@@ -168,6 +177,36 @@ export function ShellPanel({
         </div>
         <span className="shell-openings-summary">{t("shell.edgesHint")}</span>
       </div>
+      {stackOffered ? (
+        <div className="edge-modifier-field shell-openings shell-stack" role="group" aria-label={t("shell.stack")}>
+          <span>{t("shell.stack")}</span>
+          <div className="shell-opening-options">
+            <button
+              type="button"
+              aria-pressed={stack > 0}
+              className={stack > 0 ? "active" : ""}
+              disabled={busy}
+              onClick={() => onStackChange(stack > 0 ? 0 : DEFAULT_SHELL_STACK_HEIGHT)}
+            >
+              {t("shell.stack")}
+            </button>
+          </div>
+          {stack > 0 ? (
+            <EdgeModifierSlider
+              label={t("shell.stackHeight")}
+              value={stack}
+              min={SHELL_STACK_MIN_HEIGHT}
+              max={SHELL_STACK_MAX_HEIGHT}
+              step={WALL_STEP}
+              workspace={workspace}
+              length
+              disabled={busy}
+              onChange={onStackChange}
+            />
+          ) : null}
+          <span className="shell-openings-summary">{thickness < SHELL_STACK_MIN_WALL && stack > 0 ? t("shell.stackWallThin", { min: SHELL_STACK_MIN_WALL }) : t("shell.stackHint")}</span>
+        </div>
+      ) : null}
       </MoreOptions>
 
       {error ? <div className="edge-modifier-error" role="alert">{shellErrorMessage(error, roundedEdgesHint)}</div> : null}

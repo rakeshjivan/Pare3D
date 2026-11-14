@@ -1,5 +1,7 @@
 /// <reference lib="webworker" />
 
+import { STACK_NEEDS_TOP_MESSAGE, shellStackSolid } from "@/lib/cadShellStack";
+import { shellOpenSides } from "@/lib/shellLimits";
 import { ENCLOSURE_PART_NAMES, enclosurePartSolid } from "@/lib/enclosureSolid";
 import { cadHasSolidBody } from "@/lib/cadSolidBody";
 import { OcctKernel, type ShapeHandle } from "occt-wasm";
@@ -1000,6 +1002,14 @@ async function bearbeiteAnfrage(request: CadModifierWorkerRequest, halter: { cad
       let component: ShapeHandle;
       if (request.kind === "shell") {
         component = shellSolid(activeCad, solid, request.amount, request.shellOpenings ?? "none", request.shellEdges);
+        // Stacking: a collar round the top and a groove under the wall, only for a body hollowed with its top open.
+        if (request.shellStack && request.shellStack > 0) {
+          const open = shellOpenSides(request.shellOpenings);
+          if (open.length !== 1 || open[0] !== "top") throw new Error(STACK_NEEDS_TOP_MESSAGE);
+          const stacked = shellStackSolid(activeCad, component, request.shellStack, request.amount);
+          activeCad.release(component);
+          component = stacked;
+        }
       } else if (request.kind === "offset") {
         component = offsetSolid(activeCad, solid, request.amount, request.offsetShrink === true, request.shellEdges);
       } else if (request.kind === "deleteFace") {
