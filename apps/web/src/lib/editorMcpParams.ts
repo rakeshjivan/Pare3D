@@ -1,6 +1,6 @@
 import { type LoftMeasures } from "@/lib/loftGeometry";
 import { bentTubeNaturalDimensions, normalizedBentTubeFields } from "@/lib/bentTubeGeometry";
-import { defaultThreadHeadHeight, normalizeThreadHeadHeight, threadNaturalFootprint, threadSettings } from "@/lib/threadGeometry";
+import { defaultThreadHeadHeight, normalizeThreadHeadHeight, threadNaturalFootprint, threadSettings, threadDriveFields, threadDriveSettings, threadCollarFields, threadCollarSettings } from "@/lib/threadGeometry";
 import { shapeExtrudeDeformPatch, shapeTaperPatch } from "@/lib/workplaneShapes";
 import { normalizeShapeCustomizations } from "@/lib/workplaneSettings";
 import type { ShapeCustomization, ShapeKind, WorkplaneNote, WorkplaneShape } from "@/types/layerling";
@@ -140,19 +140,40 @@ export function applyMcpThreadSettings(
   // Stand der Kopf auf seinem Normmass, waechst er mit dem Durchmesser mit -
   // sonst saesse nach einem Wechsel von M8 auf M5 der Kopf einer M8 auf einer
   // duenneren Schraube. Wer die Hoehe selbst angibt, behaelt sie.
-  const settings = requestedHead === undefined && headFollowsStandard
+  const sized = requestedHead === undefined && headFollowsStandard
     ? { ...merged, headHeight: normalizeThreadHeadHeight(defaultThreadHeadHeight(merged), merged) }
     : merged;
+  // Head diameter and drive (#1052) checked against the head as it now is. Like the head height,
+  // the three measures belong to the one screw and do not come through the shape defaults.
+  const driveFields = threadDriveFields({
+    threadHeadDiameter: mcpOptionalNumber(params.threadHeadDiameter) ?? shape.threadHeadDiameter,
+    threadDrive: shape.threadDrive,
+    threadDriveSize: mcpOptionalNumber(params.threadDriveSize) ?? shape.threadDriveSize,
+    threadDriveDepth: mcpOptionalNumber(params.threadDriveDepth) ?? shape.threadDriveDepth,
+  }, sized);
+  const withDrive = { ...sized, ...threadDriveSettings(driveFields, sized) };
+  // The collar (#1152) checked against the head as it now is; its diameter left unset follows the size.
+  const collarFields = threadCollarFields({
+    threadCollarHeight: mcpOptionalNumber(params.threadCollarHeight) ?? shape.threadCollarHeight,
+    threadCollarDiameter: mcpOptionalNumber(params.threadCollarDiameter) ?? shape.threadCollarDiameter,
+  }, withDrive);
+  const settings = { ...withDrive, ...threadCollarSettings(collarFields, withDrive) };
   const footprint = threadNaturalFootprint(settings);
   const keepFootprint = params.width !== undefined || params.depth !== undefined || params.size !== undefined;
+  // A collar set or changed without a height of its own keeps the thread as long as it was.
+  const collarGrowth = settings.collarHeight - threadSettings(shape).collarHeight;
+  const keepThreadLength = params.height === undefined && Math.abs(collarGrowth) > 1e-9;
   return {
     ...shape,
     threadRole: settings.role,
     threadHead: settings.head,
     threadHand: settings.hand,
     threadProfile: settings.profile,
+    threadTaper: settings.taper ? true : undefined,
     threadDiameter: settings.diameter,
     threadPitch: settings.pitch,
+    // Starts (#1348): one stays unset, as it always was.
+    threadStarts: settings.starts > 1 ? settings.starts : undefined,
     threadClearance: settings.clearance,
     threadBoltClearance: settings.boltClearance,
     threadAxialClearance: settings.axialClearance,
@@ -163,6 +184,9 @@ export function applyMcpThreadSettings(
     threadChamfer: settings.chamfer,
     threadChamferBottom: settings.chamferLow,
     threadHeadChamfer: settings.headChamfer,
+    ...driveFields,
+    ...collarFields,
+    ...(keepThreadLength ? { height: Math.max(0.01, shape.height + collarGrowth) } : {}),
     ...(keepFootprint ? {} : {
       width: footprint.width,
       depth: footprint.depth,

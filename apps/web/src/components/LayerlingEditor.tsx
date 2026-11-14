@@ -12193,7 +12193,7 @@ export function LayerlingEditor({
         // Alles Formeigene in einem Zug, mit denselben Grenzen wie im
         // Merkmalsfeld: Seitenzahl, Kegelradien, Zahnrad, Gewinde, Feder,
         // Beschriftung. Was die Art gar nicht kennt, faellt dabei weg.
-        const shapeParams = target.kind === "thread" ? mcpThreadSizeParams(params, threadSettings(target).profile) : params;
+        const shapeParams = target.kind === "thread" ? mcpThreadSizeParams(params, threadSettings(target).profile, threadSettings(target).taper) : params;
         const settings = mcpShapeCustomization(target.kind, shapeParams);
         (Object.keys(settings) as (keyof ShapeCustomization)[]).forEach((key) => {
           const value = settings[key];
@@ -12242,11 +12242,13 @@ export function LayerlingEditor({
             threadHead: threaded.threadHead,
             threadHand: threaded.threadHand,
             threadProfile: threaded.threadProfile,
+            threadTaper: threaded.threadTaper,
             threadDiameter: threaded.threadDiameter,
             threadPitch: threaded.threadPitch,
             threadClearance: threaded.threadClearance,
             threadBoltClearance: threaded.threadBoltClearance,
             threadAxialClearance: threaded.threadAxialClearance,
+            threadStarts: threaded.threadStarts,
             threadDepth: threaded.threadDepth,
             threadFlankAngle: threaded.threadFlankAngle,
             threadQuality: threaded.threadQuality,
@@ -12258,6 +12260,8 @@ export function LayerlingEditor({
             threadDrive: threaded.threadDrive,
             threadDriveSize: threaded.threadDriveSize,
             threadDriveDepth: threaded.threadDriveDepth,
+            threadCollarHeight: threaded.threadCollarHeight,
+            threadCollarDiameter: threaded.threadCollarDiameter,
             width: threaded.width,
             depth: threaded.depth,
           });

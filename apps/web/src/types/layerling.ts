@@ -171,12 +171,16 @@ export type ShapeCustomization = {
   threadHead?: ThreadHead;
   threadHand?: ThreadHand;
   threadProfile?: ThreadProfile;
+  /** Tapered 1 in 16 on the diameter, as the pipe thread NPT (#1267); missing means straight. */
+  threadTaper?: boolean;
   threadDiameter?: number;
   threadPitch?: number;
   threadClearance?: number;
   /** Rod and screw: how much thinner (in diameter) the bolt comes out, for a metal nut. */
   threadBoltClearance?: number;
   threadAxialClearance?: number;
+  /** Starts (#1348): threads side by side, each a pitch from the next; 1 when absent. */
+  threadStarts?: number;
   /** Own profile: the thread depth in mm (outer minus core radius) and the included flank angle in degrees. */
   threadDepth?: number;
   threadFlankAngle?: number;
@@ -191,6 +195,9 @@ export type ShapeCustomization = {
   threadDrive?: ThreadDrive;
   threadDriveSize?: number;
   threadDriveDepth?: number;
+  /** Screw (#1152): a round collar between the head and the thread; nut (#1175): on its top face. This high in mm; unset or 0 = none. Its diameter unset = twice the thread. */
+  threadCollarHeight?: number;
+  threadCollarDiameter?: number;
   springTurns?: number;
   springWire?: number;
   springHand?: ThreadHand;
@@ -639,9 +646,9 @@ export type GridfinityOpening = {
 
 /** Was aus dem Gewinde wird: Stange, Schraube, Mutter oder das Loch dafuer. */
 export type ThreadRole = "rod" | "screw" | "nut" | "bore";
-export type ThreadHead = "cylinder" | "countersunk" | "hex";
+export type ThreadHead = "cylinder" | "countersunk" | "hex" | "square" | "flange" | "wing" | "knob";
 /** What drives a screw: a recess in its free head face (#1052). */
-export type ThreadDrive = "hex" | "torx" | "phillips" | "none";
+export type ThreadDrive = "hex" | "torx" | "phillips" | "slot" | "robertson" | "none";
 export type ThreadHand = "right" | "left";
 /**
  * Die Zahnform: scharfe ISO-Spitze, flache Trapezflanke, rundes Profil oder
@@ -876,12 +883,16 @@ export type WorkplaneShape = {
   threadHead?: ThreadHead;
   threadHand?: ThreadHand;
   threadProfile?: ThreadProfile;
+  /** Tapered 1 in 16 on the diameter, as the pipe thread NPT (#1267); missing means straight. */
+  threadTaper?: boolean;
   threadDiameter?: number;
   threadPitch?: number;
   threadClearance?: number;
   /** Rod and screw: how much thinner (in diameter) the bolt comes out, for a metal nut. */
   threadBoltClearance?: number;
   threadAxialClearance?: number;
+  /** Starts (#1348): threads side by side, each a pitch from the next; 1 when absent. */
+  threadStarts?: number;
   /** Own profile: the thread depth in mm (outer minus core radius) and the included flank angle in degrees. */
   threadDepth?: number;
   threadFlankAngle?: number;
@@ -896,6 +907,9 @@ export type WorkplaneShape = {
   threadDrive?: ThreadDrive;
   threadDriveSize?: number;
   threadDriveDepth?: number;
+  /** Screw (#1152): a round collar between the head and the thread; nut (#1175): on its top face. This high in mm; unset or 0 = none. Its diameter unset = twice the thread. */
+  threadCollarHeight?: number;
+  threadCollarDiameter?: number;
   springTurns?: number;
   springWire?: number;
   springHand?: ThreadHand;

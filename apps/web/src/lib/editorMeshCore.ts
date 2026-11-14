@@ -653,11 +653,13 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         threadHead: shape.threadHead,
         threadHand: shape.threadHand,
         threadProfile: shape.threadProfile,
+        threadTaper: shape.threadTaper,
         threadDiameter: shape.threadDiameter,
         threadPitch: shape.threadPitch,
         threadClearance: shape.threadClearance,
         threadBoltClearance: shape.threadBoltClearance,
         threadAxialClearance: shape.threadAxialClearance,
+        threadStarts: shape.threadStarts,
         threadDepth: shape.threadDepth,
         threadFlankAngle: shape.threadFlankAngle,
         threadQuality: shape.threadQuality,
@@ -669,6 +671,8 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         threadDrive: shape.threadDrive,
         threadDriveSize: shape.threadDriveSize,
         threadDriveDepth: shape.threadDriveDepth,
+        threadCollarHeight: shape.threadCollarHeight,
+        threadCollarDiameter: shape.threadCollarDiameter,
       });
       break;
     case "spring":

@@ -1406,7 +1406,7 @@ function validateShapeDefinition(definition: Record<string, unknown>, label: str
     if (definition.threadRole !== undefined && !["rod", "screw", "nut", "bore"].includes(definition.threadRole as string)) {
       throw new Error(`${label}.threadRole is invalid`);
     }
-    if (definition.threadHead !== undefined && !["cylinder", "countersunk", "hex"].includes(definition.threadHead as string)) {
+    if (definition.threadHead !== undefined && !["cylinder", "countersunk", "hex", "square", "flange", "wing", "knob"].includes(definition.threadHead as string)) {
       throw new Error(`${label}.threadHead is invalid`);
     }
     if (definition.threadHand !== undefined && definition.threadHand !== "right" && definition.threadHand !== "left") {
@@ -1414,6 +1414,9 @@ function validateShapeDefinition(definition: Record<string, unknown>, label: str
     }
     if (definition.threadProfile !== undefined && !isThreadProfile(definition.threadProfile)) {
       throw new Error(`${label}.threadProfile is invalid`);
+    }
+    if (definition.threadTaper !== undefined && typeof definition.threadTaper !== "boolean") {
+      throw new Error(`${label}.threadTaper is invalid`);
     }
     if (definition.threadDiameter !== undefined) {
       const threadDiameter = finiteNumber(definition.threadDiameter, `${label}.threadDiameter`);
@@ -1434,6 +1437,11 @@ function validateShapeDefinition(definition: Record<string, unknown>, label: str
     if (definition.threadAxialClearance !== undefined) {
       const threadAxialClearance = finiteNumber(definition.threadAxialClearance, `${label}.threadAxialClearance`);
       if (threadAxialClearance < 0 || threadAxialClearance > 1) throw new Error(`${label}.threadAxialClearance is outside the supported range`);
+    }
+    // Starts (#1348): a whole number of threads side by side.
+    if (definition.threadStarts !== undefined) {
+      const threadStarts = finiteNumber(definition.threadStarts, `${label}.threadStarts`);
+      if (!Number.isInteger(threadStarts) || threadStarts < 1 || threadStarts > 8) throw new Error(`${label}.threadStarts is outside the supported range`);
     }
     if (definition.threadDepth !== undefined) {
       const threadDepth = finiteNumber(definition.threadDepth, `${label}.threadDepth`);
@@ -1465,10 +1473,10 @@ function validateShapeDefinition(definition: Record<string, unknown>, label: str
       const threadHeadChamfer = finiteNumber(definition.threadHeadChamfer, `${label}.threadHeadChamfer`);
       if (threadHeadChamfer < 0 || threadHeadChamfer > 480) throw new Error(`${label}.threadHeadChamfer is outside the supported range`);
     }
-    if (definition.threadDrive !== undefined && !["hex", "torx", "phillips", "none"].includes(definition.threadDrive as string)) {
+    if (definition.threadDrive !== undefined && !["hex", "torx", "phillips", "slot", "robertson", "none"].includes(definition.threadDrive as string)) {
       throw new Error(`${label}.threadDrive is invalid`);
     }
-    for (const field of ["threadHeadDiameter", "threadDriveSize", "threadDriveDepth"] as const) {
+    for (const field of ["threadHeadDiameter", "threadDriveSize", "threadDriveDepth", "threadCollarHeight", "threadCollarDiameter"] as const) {
       if (definition[field] === undefined) continue;
       const value = finiteNumber(definition[field], `${label}.${field}`);
       if (value < 0 || value > 640) throw new Error(`${label}.${field} is outside the supported range`);

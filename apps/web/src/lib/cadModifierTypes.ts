@@ -1,4 +1,6 @@
 import type { ScrewBossFields } from "@/lib/screwBoss";
+import type { ThreadOutlineTier } from "@/lib/threadOutline";
+import type { ThreadHead } from "@/types/layerling";
 import type { SnapFitFields } from "@/lib/snapFit";
 import type { RibFields } from "@/lib/rib";
 import type { ThreadDriveOutline } from "@/lib/threadGeometry";
@@ -202,6 +204,8 @@ export type CadModifierThreadPart = {
   major: number;
   minor: number;
   pitch: number;
+  /** Threads side by side (#1348), each `pitch` from the next, each climbing `pitch * starts` a turn; 1 when absent. */
+  starts?: number;
   /** 1: the thread climbs as the angle from +x towards +z grows, a left-hand thread about +y; -1 the other way, a right-hand one. */
   hand: 1 | -1;
   height: number;
@@ -212,9 +216,16 @@ export type CadModifierThreadPart = {
   /** The chamfer at the bottom end, when the part has one (`chamferBottom`). */
   chamferLow: number;
   chamferBottom: boolean;
+  /**
+   * A tapered thread (NPT, #1267): every radius at height y (above the shape's bottom) is shifted
+   * by `slope * (y - at)`, as the mesh draws it. Absent for a straight thread.
+   */
+  taper?: { slope: number; at: number };
+  /** A nut body or screw head of outline tiers (#1131): square, flange, wing or star knob. It takes the place of the hexagon or head kind. */
+  tiers?: ThreadOutlineTier[];
   /** Screw only. */
   head?: {
-    kind: "cylinder" | "hex" | "countersunk";
+    kind: ThreadHead;
     height: number;
     /** Cylinder head radius, or the countersunk head's crown radius at y = 0. */
     radius: number;
@@ -227,9 +238,11 @@ export type CadModifierThreadPart = {
     /** The drive in the free head face (#1052) as its outline in the x/z plane of the shape, and its depth; 0 depth for none. */
     driveOutline?: ThreadDriveOutline;
     socketDepth: number;
+    /** The round collar (#1152) on the head's shaft face, up from `height`; on an outline head it is a tier instead. */
+    collar?: { radius: number; height: number };
   };
-  /** Nut only: its hex across flats, and the face radius of its chamfered rims (0 for sharp). */
-  nut?: { acrossFlats: number; chamferFaceRadius: number };
+  /** Nut only: its hex across flats, and the face radius of its chamfered rims (0 for sharp). The collar (#1175) is a round part on its top face, up from the body, which is `height` less the collar. */
+  nut?: { acrossFlats: number; chamferFaceRadius: number; collar?: { radius: number; height: number } };
   transform?: number[];
   expected?: { bounds: number[]; volume: number };
 };

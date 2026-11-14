@@ -70,12 +70,14 @@ import {
   normalizeThreadClearance,
   normalizeThreadBoltClearance,
   normalizeThreadAxialClearance,
+  normalizeThreadStarts,
   normalizeThreadDepth,
   normalizeThreadFlankAngle,
   threadDepthLimits,
   MIN_THREAD_FLANK_ANGLE,
   MAX_THREAD_FLANK_ANGLE,
   threadAxialClearanceLimit,
+  threadStartsLimit,
   MIN_THREAD_BOLT_CLEARANCE,
   MAX_THREAD_BOLT_CLEARANCE,
   normalizeThreadDiameter,
@@ -97,19 +99,22 @@ import {
   threadDriveDepthLimits,
   threadDriveFields,
   threadDriveSettings,
+  threadCollarDiameterLimits,
+  threadCollarFields,
+  threadCollarHeightLimits,
+  threadCollarSettings,
   threadDriveOutline,
   threadDriveOutlinePoints,
   threadHeadHeightLimits,
   threadNaturalHeight,
   threadPitchLimits,
   threadSettings,
-  threadSizeFor,
+  threadStandardSize,
   threadSizeById,
-  threadProfileForSize,
+  threadSizeSettings,
   threadUsesInchPitch,
   threadsPerInchToPitch,
-  type ThreadSettings,
-} from "@/lib/threadGeometry";
+  type ThreadSettings, threadNutShape } from "@/lib/threadGeometry";
 import {
   DEFAULT_STAR_INNER_SIZE,
   DEFAULT_STAR_INNER_FILLET,
@@ -407,17 +412,33 @@ const THREAD_HEAD_OPTIONS: Array<{ value: ThreadHead; label: MessageKey }> = [
   { value: "cylinder", label: "thread.headCylinder" },
   { value: "countersunk", label: "thread.headCountersunk" },
   { value: "hex", label: "thread.headHex" },
+  { value: "square", label: "thread.headSquare" },
+  { value: "flange", label: "thread.headFlange" },
+  { value: "wing", label: "thread.headWing" },
+  { value: "knob", label: "thread.headKnob" },
+];
+/** The shape of a nut (#1131), kept in the head field a nut had no use for. */
+const THREAD_NUT_SHAPE_OPTIONS: Array<{ value: ThreadHead; label: MessageKey }> = [
+  { value: "hex", label: "thread.nutHex" },
+  { value: "square", label: "thread.nutSquare" },
+  { value: "flange", label: "thread.nutFlange" },
+  { value: "wing", label: "thread.nutWing" },
+  { value: "knob", label: "thread.nutKnob" },
 ];
 const THREAD_DRIVE_OPTIONS: Array<{ value: ThreadDrive; label: MessageKey }> = [
   { value: "hex", label: "thread.driveHex" },
   { value: "torx", label: "thread.driveTorx" },
   { value: "phillips", label: "thread.drivePhillips" },
+  { value: "slot", label: "thread.driveSlot" },
+  { value: "robertson", label: "thread.driveRobertson" },
   { value: "none", label: "thread.driveNone" },
 ];
 const DRIVE_SIZE_HINT: Record<Exclude<ThreadDrive, "none">, MessageKey> = {
   hex: "prop.driveSizeHex",
   torx: "prop.driveSizeTorx",
   phillips: "prop.driveSizePhillips",
+  slot: "prop.driveSizeSlot",
+  robertson: "prop.driveSizeRobertson",
 };
 const THREAD_PROFILE_OPTIONS: Array<{ value: ThreadProfile; label: MessageKey }> = [
   { value: "v", label: "thread.profileV" },
@@ -1897,7 +1918,8 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
 
   if (shape.kind === "thread") {
     const settings = threadSettings(shape);
-    const standard = threadSizeFor(settings.diameter, settings.pitch);
+    // A size of the menu only as it is tapered (#1267): a straight thread at an NPT size's measures is a free one.
+    const standard = threadStandardSize(settings);
     const standardSeries = standard ? threadSeriesFor(standard) : null;
     const pitchLimits = threadPitchLimits(settings.diameter);
     const headLimits = threadHeadHeightLimits(settings);
@@ -1906,19 +1928,22 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
     const headDiameterLimits = threadHeadDiameterLimits(settings);
     const driveSizeLimits = threadDriveSizeLimits(settings);
     const driveDepthLimits = threadDriveDepthLimits(settings);
+    const collarHeightLimits = threadCollarHeightLimits(settings);
+    const collarDiameterLimits = threadCollarDiameterLimits(settings);
     // Zollgewinde werden in Gaengen je Zoll gedacht, nicht in Millimetern.
     const inchPitch = threadUsesInchPitch(settings.diameter);
+    // "Frei" steht vorn, sonst sieht man es erst ganz unten nach allen Reihen (Discussion #1142).
     const sizeOptions = [
+      { value: "custom", label: t("thread.customSize") },
       ...THREAD_SIZE_GROUPS.flatMap((group) => group.sizes.map((size) => ({
         value: size.id,
         label: size.id,
         group: t(THREAD_SERIES_TEXT[group.series].group),
       }))),
-      { value: "custom", label: t("thread.customSize") },
     ];
     // Die Hoehe des Koerpers bleibt Kopf plus Gewinde; abgefragt wird aber das
     // Gewinde, weil ein Mass, das den Kopf mitzaehlt, niemandem etwas sagt.
-    const threadLength = Math.max(MIN_SHAPE_SIZE, shape.height - settings.headHeight);
+    const threadLength = Math.max(MIN_SHAPE_SIZE, shape.height - settings.headHeight - settings.collarHeight);
     const headFollowsStandard = Math.abs(settings.headHeight - defaultThreadHeadHeight(settings)) < 1e-6;
     /**
      * Breite und Tiefe stehen nicht mehr zur Wahl - sie folgen dem Durchmesser
@@ -1933,6 +1958,8 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
       next.clearance = normalizeThreadClearance(next.clearance);
       next.boltClearance = normalizeThreadBoltClearance(next.boltClearance);
       next.axialClearance = normalizeThreadAxialClearance(next.axialClearance, next.pitch);
+      // A size from the menu is one thread (#1348); otherwise the starts stay, as far as the new measures allow.
+      next.starts = normalizeThreadStarts(patch.starts ?? (patch.taper || next.taper ? 1 : next.starts), next.diameter, next.pitch, next.taper);
       // The own profile keeps its proportions when the pitch changes: the depth goes with it, unless it is set in the same step.
       if (patch.pitch !== undefined && patch.depth === undefined && settings.profile === "custom") next.depth = settings.depth * (next.pitch / settings.pitch);
       next.flankAngle = normalizeThreadFlankAngle(next.flankAngle);
@@ -1960,17 +1987,26 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
         threadDriveDepth: patch.driveDepth ?? (headChanged ? undefined : shape.threadDriveDepth),
       }, headSize);
       Object.assign(next, threadDriveSettings(driveFields, headSize));
+      // The collar (#1152) keeps its height on another head and stays within the head's width.
+      const collarHead = { ...headSize, headDiameter: next.headDiameter };
+      const collarFields = threadCollarFields({
+        threadCollarHeight: patch.collarHeight ?? shape.threadCollarHeight,
+        threadCollarDiameter: patch.collarDiameter ?? shape.threadCollarDiameter,
+      }, collarHead);
+      Object.assign(next, threadCollarSettings(collarFields, collarHead));
       // Die Kopffase haengt am Kopf: wer den Kopf flacher zieht oder auf
       // Senkkopf umschaltet, darf keine Fase behalten, die es dort nicht gibt.
-      next.headChamfer = normalizeThreadHeadChamfer(next.headChamfer, { ...headSize, headDiameter: next.headDiameter, drive: next.drive, driveSize: next.driveSize, chamferLow: next.chamferLow, profile: next.profile });
+      next.headChamfer = normalizeThreadHeadChamfer(next.headChamfer, { ...headSize, headDiameter: next.headDiameter, drive: next.drive, driveSize: next.driveSize, chamferLow: next.chamferLow, profile: next.profile, collarHeight: next.collarHeight, collarDiameter: next.collarDiameter });
       const footprint = threadNaturalFootprint(next);
       const update: Partial<WorkplaneShape> = {
         threadRole: next.role,
         threadHead: next.head,
         threadHand: next.hand,
         threadProfile: next.profile,
+        threadTaper: next.taper ? true : undefined,
         threadDiameter: next.diameter,
         threadPitch: next.pitch,
+        threadStarts: next.starts > 1 ? next.starts : undefined,
         threadClearance: next.clearance,
         threadBoltClearance: next.boltClearance,
         threadAxialClearance: next.axialClearance,
@@ -1983,12 +2019,13 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
         threadChamferBottom: next.chamferLow,
         threadHeadChamfer: next.headChamfer,
         ...driveFields,
+        ...collarFields,
         width: footprint.width,
         depth: footprint.depth,
         size: resizedShapeSize(footprint.width, footprint.depth),
         height: resetHeight
           ? threadNaturalHeight(next)
-          : Math.max(MIN_SHAPE_SIZE, (nextLength ?? threadLength) + next.headHeight),
+          : Math.max(MIN_SHAPE_SIZE, (nextLength ?? threadLength) + next.headHeight + next.collarHeight),
       };
       // Ein Gewindeloch ist zum Abziehen da, alles andere ist Material.
       if (next.role === "bore") update.hole = true;
@@ -2028,6 +2065,16 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
         onChange: (drive) => applyThread({ drive: normalizeThreadDrive(drive, settings.head) }),
       });
     }
+    if (settings.role === "nut") {
+      properties.push({
+        type: "select",
+        id: "threadNutShape",
+        label: t("inspector.threadNutShape"),
+        value: threadNutShape(settings.head),
+        options: THREAD_NUT_SHAPE_OPTIONS.map((option) => ({ value: option.value, label: t(option.label) })),
+        onChange: (head) => applyThread({ head: normalizeThreadHead(head) }),
+      });
+    }
     properties.push(
       {
         type: "select",
@@ -2039,8 +2086,9 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
         onChange: (value) => {
           const chosen = threadSizeById(value);
           // Eine G-Groesse bringt ihr Whitworth-Profil mit, eine M-, UNC- oder
-          // UNF-Groesse das Spitzgewinde; Trapez und Rund bleiben stehen.
-          if (chosen) applyThread({ diameter: chosen.diameter, pitch: chosen.pitch, profile: threadProfileForSize(chosen, settings.profile) });
+          // UNF-Groesse das Spitzgewinde, ein Flaschenhals sein eigenes Profil;
+          // Trapez und Rund bleiben stehen.
+          if (chosen) applyThread({ ...threadSizeSettings(chosen, settings.profile, standard), starts: 1 });
         },
       },
       {
@@ -2062,6 +2110,32 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
         onChange: (length) => applyThread({}, length),
       },
     );
+    const pushCollar = (hint?: string) => {
+      if (collarHeightLimits.max <= 0) return;
+      properties.push({
+        id: "collarHeight",
+        label: t("prop.collarHeight"),
+        value: settings.collarHeight,
+        min: collarHeightLimits.min,
+        max: collarHeightLimits.max,
+        step: 0.1,
+        hint,
+        onChange: (collarHeight) => applyThread({ collarHeight }),
+      });
+      if (settings.collarHeight > 0) {
+        properties.push({
+          id: "collarDiameter",
+          label: t("prop.collarDiameter"),
+          value: settings.collarDiameter,
+          min: collarDiameterLimits.min,
+          max: collarDiameterLimits.max,
+          step: 0.1,
+          onChange: (collarDiameter) => applyThread({ collarDiameter }),
+        });
+      }
+    };
+    // A nut's collar (#1175) stands on its top face, the height above it counted apart from the body's.
+    if (settings.role === "nut") pushCollar();
     if (settings.role === "screw") {
       properties.push({
         id: "headHeight",
@@ -2076,7 +2150,7 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
       if (settings.head !== "countersunk") {
         properties.push({
           id: "headDiameter",
-          label: t(settings.head === "hex" ? "prop.headAcrossFlats" : "prop.headDiameter"),
+          label: t(settings.head === "hex" || settings.head === "square" || settings.head === "flange" ? "prop.headAcrossFlats" : settings.head === "wing" ? "prop.headSpan" : "prop.headDiameter"),
           value: settings.headDiameter,
           min: headDiameterLimits.min,
           max: headDiameterLimits.max,
@@ -2084,6 +2158,8 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
           onChange: (headDiameter) => applyThread({ headDiameter }),
         });
       }
+      // A collar between head and thread (#1152): a spacer under a star knob, a shoulder under a head.
+      pushCollar(t("prop.collarHeightHint"));
       if (settings.drive !== "none") {
         properties.push({
           id: "driveSize",
@@ -2138,13 +2214,27 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
         }
         : {
           id: "pitch",
-          label: t("prop.pitch"),
+          // With several starts (#1348) this is the distance from thread to thread, not how far one climbs.
+          label: t(settings.starts > 1 ? "prop.threadDivision" : "prop.pitch"),
           value: settings.pitch,
           min: pitchLimits.min,
           max: pitchLimits.max,
           step: 0.05,
           onChange: (pitch) => applyThread({ pitch }),
         },
+      // Starts (#1348): threads side by side, as on a lead screw. A tapered thread has one.
+      ...(settings.taper ? [] : [{
+        id: "threadStarts",
+        label: t("prop.threadStarts"),
+        value: settings.starts,
+        min: 1,
+        max: threadStartsLimit(settings.diameter, settings.pitch),
+        step: 1,
+        hint: settings.starts > 1
+          ? t("thread.startsLeadHint", { lead: (settings.pitch * settings.starts).toLocaleString(numberLocale()), starts: settings.starts, pitch: settings.pitch.toLocaleString(numberLocale()) })
+          : t("thread.startsHint"),
+        onChange: (starts: number) => applyThread({ starts: Math.round(starts) }),
+      }]),
       {
         type: "select",
         id: "threadHand",
@@ -2160,6 +2250,14 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
         value: settings.profile,
         options: THREAD_PROFILE_OPTIONS.map((option) => ({ value: option.value, label: t(option.label) })),
         onChange: (profile) => applyThread({ profile: normalizeThreadProfile(profile) }),
+      },
+      // Tapered 1 in 16, as NPT (Discussion #1267): any profile; an NPT size turns it on.
+      {
+        type: "toggle",
+        id: "threadTaper",
+        label: t("prop.threadTaper"),
+        value: settings.taper,
+        onChange: (taper) => applyThread({ taper }),
       },
     );
     if (settings.profile === "custom") {

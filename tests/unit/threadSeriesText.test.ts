@@ -4,7 +4,7 @@ import { THREAD_SERIES_TEXT, THREAD_SIZE_GROUPS, THREAD_SIZES, threadSeriesFor }
 
 /*
  * Every series in the thread size menu has a short group header and a hint
- * line. The header stays short so the native dropdown,
+ * line in both languages. The header stays short so the native dropdown,
  * which is as wide as its longest line, stays narrow: no header is longer
  * than "UNC – US inch, coarse" by more than a few characters.
  */
@@ -23,7 +23,7 @@ describe("thread size series texts", () => {
   });
 
   it("names the series in its header, and every size belongs to the series it is listed under", () => {
-    const leads = { metric: "M", UNC: "UNC", UNF: "UNF", G: "G" } as const;
+    const leads = { metric: "M", UNC: "UNC", UNF: "UNF", G: "G", NPT: "NPT", bottle: "PCO" } as const;
     for (const group of THREAD_SIZE_GROUPS) {
       for (const messages of Object.values(catalogues)) expect(messages[THREAD_SERIES_TEXT[group.series].group].startsWith(`${leads[group.series]} – `)).toBe(true);
       for (const size of group.sizes) expect(threadSeriesFor(size)).toBe(group.series);

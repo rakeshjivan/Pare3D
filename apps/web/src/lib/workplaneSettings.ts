@@ -563,7 +563,7 @@ export function normalizeShapeCustomizations(value: unknown, fallback: ShapeCust
           : fallbackEntry?.threadRole;
       entry.threadHead = source.threadHead === undefined
         ? fallbackEntry?.threadHead
-        : ["cylinder", "countersunk", "hex"].includes(source.threadHead)
+        : ["cylinder", "countersunk", "hex", "square", "flange", "wing", "knob"].includes(source.threadHead)
           ? source.threadHead
           : fallbackEntry?.threadHead;
       entry.threadHand = source.threadHand === undefined
@@ -581,6 +581,7 @@ export function normalizeShapeCustomizations(value: unknown, fallback: ShapeCust
       entry.threadClearance = optionalShapeNumber(source.threadClearance, fallbackEntry?.threadClearance, 0, 1.5);
       entry.threadBoltClearance = optionalShapeNumber(source.threadBoltClearance, fallbackEntry?.threadBoltClearance, 0, 1);
       entry.threadAxialClearance = optionalShapeNumber(source.threadAxialClearance, fallbackEntry?.threadAxialClearance, 0, 1);
+      entry.threadStarts = optionalShapeNumber(source.threadStarts, fallbackEntry?.threadStarts, 1, 8);
       entry.threadDepth = optionalShapeNumber(source.threadDepth, fallbackEntry?.threadDepth, 0.01, 40);
       entry.threadFlankAngle = optionalShapeNumber(source.threadFlankAngle, fallbackEntry?.threadFlankAngle, 10, 90);
       entry.threadQuality = optionalShapeNumber(source.threadQuality, fallbackEntry?.threadQuality, 12, 96, true);
@@ -589,9 +590,19 @@ export function normalizeShapeCustomizations(value: unknown, fallback: ShapeCust
       entry.threadHeadChamfer = optionalShapeNumber(source.threadHeadChamfer, fallbackEntry?.threadHeadChamfer, 0, 40);
       entry.threadDrive = source.threadDrive === undefined
         ? fallbackEntry?.threadDrive
-        : ["hex", "torx", "phillips", "none"].includes(source.threadDrive)
+        : ["hex", "torx", "phillips", "slot", "robertson", "none"].includes(source.threadDrive)
           ? source.threadDrive
           : fallbackEntry?.threadDrive;
+      // makeShapeFromAsset reads these too, but they were dropped here, so the AI bridge and the shape defaults never
+      // got a tapered thread, a head of its own size, a drive or a collar through (same ranges as the .lyl check).
+      // false is kept, so a change through the AI bridge can switch the taper off again.
+      entry.threadTaper = typeof source.threadTaper === "boolean" ? source.threadTaper : fallbackEntry?.threadTaper;
+      entry.threadHeadHeight = optionalShapeNumber(source.threadHeadHeight, fallbackEntry?.threadHeadHeight, 0, 480);
+      entry.threadHeadDiameter = optionalShapeNumber(source.threadHeadDiameter, fallbackEntry?.threadHeadDiameter, 0, 640);
+      entry.threadDriveSize = optionalShapeNumber(source.threadDriveSize, fallbackEntry?.threadDriveSize, 0, 640);
+      entry.threadDriveDepth = optionalShapeNumber(source.threadDriveDepth, fallbackEntry?.threadDriveDepth, 0, 640);
+      entry.threadCollarHeight = optionalShapeNumber(source.threadCollarHeight, fallbackEntry?.threadCollarHeight, 0, 640);
+      entry.threadCollarDiameter = optionalShapeNumber(source.threadCollarDiameter, fallbackEntry?.threadCollarDiameter, 0, 640);
     }
     if (kind === "gear") {
       entry.teeth = optionalShapeNumber(source.teeth, fallbackEntry?.teeth, 6, 150, true);

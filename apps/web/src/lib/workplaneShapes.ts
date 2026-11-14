@@ -606,11 +606,13 @@ export function workplaneShapesEqual(a: WorkplaneShape, b: WorkplaneShape) {
     a.threadHead === b.threadHead &&
     a.threadHand === b.threadHand &&
     a.threadProfile === b.threadProfile &&
+    a.threadTaper === b.threadTaper &&
     a.threadDiameter === b.threadDiameter &&
     a.threadPitch === b.threadPitch &&
     a.threadClearance === b.threadClearance &&
     a.threadBoltClearance === b.threadBoltClearance &&
     a.threadAxialClearance === b.threadAxialClearance &&
+    a.threadStarts === b.threadStarts &&
     a.threadDepth === b.threadDepth &&
     a.threadFlankAngle === b.threadFlankAngle &&
     a.threadQuality === b.threadQuality &&
@@ -622,6 +624,8 @@ export function workplaneShapesEqual(a: WorkplaneShape, b: WorkplaneShape) {
     a.threadDrive === b.threadDrive &&
     a.threadDriveSize === b.threadDriveSize &&
     a.threadDriveDepth === b.threadDriveDepth &&
+    a.threadCollarHeight === b.threadCollarHeight &&
+    a.threadCollarDiameter === b.threadCollarDiameter &&
     a.parametricSource?.kind === b.parametricSource?.kind &&
     a.parametricSource?.rotation === b.parametricSource?.rotation &&
     a.parametricSource?.rotationX === b.parametricSource?.rotationX &&

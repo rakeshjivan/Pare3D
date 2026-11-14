@@ -1340,11 +1340,13 @@ export function cadModifierThreadForShape(shape: WorkplaneShape): CadModifierThr
     threadHead: shape.threadHead,
     threadHand: shape.threadHand,
     threadProfile: shape.threadProfile,
+    threadTaper: shape.threadTaper,
     threadDiameter: shape.threadDiameter,
     threadPitch: shape.threadPitch,
     threadClearance: shape.threadClearance,
     threadBoltClearance: shape.threadBoltClearance,
     threadAxialClearance: shape.threadAxialClearance,
+    threadStarts: shape.threadStarts,
     threadDepth: shape.threadDepth,
     threadFlankAngle: shape.threadFlankAngle,
     threadQuality: shape.threadQuality,
@@ -1356,20 +1358,25 @@ export function cadModifierThreadForShape(shape: WorkplaneShape): CadModifierThr
     threadDrive: shape.threadDrive,
     threadDriveSize: shape.threadDriveSize,
     threadDriveDepth: shape.threadDriveDepth,
+    threadCollarHeight: shape.threadCollarHeight,
+    threadCollarDiameter: shape.threadCollarDiameter,
   });
   const { settings, spec } = plan;
+  const tapered = plan.taperSlope !== 0;
   const part: CadModifierThreadPart = {
     role: settings.role,
     profile: plan.profile.points.map((point) => ({ u: point.u, level: point.level })),
     major: plan.major,
     minor: plan.minor,
     pitch: settings.pitch,
+    ...(settings.starts > 1 ? { starts: settings.starts } : {}),
     hand: plan.handSign === -1 ? -1 : 1,
     height: plan.height,
     shaftBottom: plan.shaftBottom,
     chamfer: plan.chamfer > 0 ? plan.chamfer : 0,
     chamferLow: plan.chamferLow > 0 ? plan.chamferLow : 0,
     chamferBottom: plan.chamferBottom,
+    ...(tapered ? { taper: { slope: plan.taperSlope, at: plan.taperAt } } : {}),
     // The mesh is drawn at its natural footprint and stretched to the shape's
     // width and depth; the body takes the same stretch.
     transform: profileTransformForShape(shape, new THREE.Matrix4().makeScale(plan.scaleX, 1, plan.scaleZ)),
@@ -1377,8 +1384,9 @@ export function cadModifierThreadForShape(shape: WorkplaneShape): CadModifierThr
   // The Whitworth points sample arcs; the body takes the arcs themselves, five
   // faces per turn instead of one per chord. They are circles only at the
   // profile's full depth, which a very coarse pitch on a thin rod can cut
-  // short - then the points stay the profile.
-  if (settings.profile === "whitworth" && !plan.axialPlay && Math.abs(plan.major - plan.minor - settings.pitch * plan.profile.depthPerPitch) < 1e-9) {
+  // short - then the points stay the profile. A tapered thread takes the
+  // points too: its faces are ruled between the points' tapered helices.
+  if (settings.profile === "whitworth" && !tapered && !plan.axialPlay && Math.abs(plan.major - plan.minor - settings.pitch * plan.profile.depthPerPitch) < 1e-9) {
     part.curve = { kind: "whitworth", radius: WHITWORTH_PROFILE_CONSTANTS.radiusPerPitch, halfAngle: (WHITWORTH_PROFILE_CONSTANTS.flankAngleDegrees / 2) * (Math.PI / 180) };
   }
   if (settings.role === "screw") {
@@ -1391,9 +1399,17 @@ export function cadModifierThreadForShape(shape: WorkplaneShape): CadModifierThr
       chamferFaceRadius: plan.headBroken ? plan.headFaceRadius : 0,
       ...(plan.driveOutline ? { driveOutline: plan.driveOutline } : {}),
       socketDepth: plan.driveOutline ? plan.socketDepth : 0,
+      ...(plan.collarHeight > 0 && !plan.tiers ? { collar: { radius: plan.collarRadius, height: plan.collarHeight } } : {}),
     };
   }
-  if (settings.role === "nut") part.nut = { acrossFlats: spec.acrossFlats, chamferFaceRadius: plan.rimBroken ? plan.rimFaceRadius : 0 };
+  if (settings.role === "nut") {
+    part.nut = {
+      acrossFlats: spec.acrossFlats,
+      chamferFaceRadius: plan.rimBroken ? plan.rimFaceRadius : 0,
+      ...(plan.collarHeight > 0 ? { collar: { radius: plan.collarRadius, height: plan.collarHeight } } : {}),
+    };
+  }
+  if (plan.tiers) part.tiers = plan.tiers;
   return part;
 }
 
