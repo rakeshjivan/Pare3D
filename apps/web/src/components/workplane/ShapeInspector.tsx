@@ -1,5 +1,9 @@
 "use client";
 
+import { screwBossFootprint, screwBossPlan, screwBossSize, screwBossSizes, normalizeScrewBossFastener, MAX_SCREW_BOSS_GUSSETS, type ScrewBossFastener } from "@/lib/screwBoss";
+import { snapFitCatchBox, snapFitPlan, SNAP_FIT_STRAIN_PLA, SNAP_FIT_STRAIN_TOUGH, type SnapFitPart } from "@/lib/snapFit";
+import { MIN_RIB_FOOT_OVERHANG, MIN_RIB_FOOT_THICKNESS, normalizeRibFootShape, normalizeRibStyle, normalizeRibTop, ribBoxWidth, ribFootSwitch, ribGussetWallKeepingPlace, ribLengthKeepingPatch, ribSize, ribThicknessOnFootPatch } from "@/lib/rib";
+import { numberLocale } from "@/lib/i18n";
 import { displayY, displayYTurn, insideZ, insideZTurn } from "@/lib/displayAxes";
 import { GuideHelpLink } from "@/components/GuideHelpLink";
 import { guideChapterForShape, guideSectionForShape } from "@/lib/guideLinks";
@@ -501,7 +505,7 @@ const RELATIVE_SIZE_PROPERTY_IDS = new Set(["width", "height", "length", "diamet
 const ROTATION_PROPERTY_IDS = new Set(["rotateX", "rotateY", "rotateZ"]);
 
 function propertyUsesLengthUnit(key: string) {
-  return ["vase.wall", "vase.bottom", "vase.ribDepth", "vase.stripeDepth", "vase.voronoiCell", "vase.voronoiGap", "vase.voronoiDepth", "vase.waveAmplitude", "vaseFloor.drainDiameter", "vaseFloor.floorSlope", "vaseFloor.footHeight", "vaseFloor.rubberFootDiameter", "vaseFloor.rubberFootDepth", "vaseFloor.cutoutSize", "vaseFloor.cutoutWeb", "vaseFloor.lampHole", "vaseFloor.puckDiameter", "vaseFloor.lampNotch", "vaseFloor.lampNotchHeight", "vaseFloor.reinforceDepth", "vaseFloor.slitWidth", "vaseFloor.lineWidth", "vasePrint.lineWidth", "vaseParts.legHeight", "vaseParts.legDiameter", "vaseParts.saucerHeight", "vaseParts.saucerGap", "vaseParts.saucerWall", "vaseParts.insertWall", "vaseParts.insertStandoff", "vaseParts.reservoirHeight", "vaseParts.frogHole", "vaseParts.tubeDiameter", "vaseParts.lidClearance", "vaseParts.lidThickness", "vaseParts.lidDepth", "vaseParts.threadPitch", "vaseParts.fitClearance", "textLineWidth", "textEdgeSize", "letterSize", "iconWidth", "keyringDiameter", "keyringAlong", "positionX", "positionY", "positionZ", "pivotX", "pivotY", "pivotZ", "radius", "length", "width", "height", "sketchCuttingEdge", "bevel", "topRadius", "baseRadius", "thickness", "outerDiameter", "innerDiameter", "textRadius", "extrudeTopOffsetX", "extrudeTopOffsetZ", "toothSize", "toothWidth", "gearBacklash", "centerHole", "slotSmallEnd", "slotCentreDistance", "sketchLineWidth", "topLength", "topWidth", "bottomLength", "bottomWidth", "diameter", "pitch", "clearance", "axialClearance", "boltClearance", "threadDepth", "threadCoreDiameter", "threadLength", "headHeight", "headDiameter", "driveSize", "driveDepth", "chamfer", "chamferBottom", "headChamfer", "wire", "starOuterSize", "starInnerSize", "starOuterFillet", "starInnerFillet", "heartTipFillet", "crescentThickness", "crescentTipFillet", "honeycombCellSize", "honeycombWallThickness", "honeycombFrameWidth", "cornerFillet", "topBottomFillet", "bentTubeSize", "bentTubeWall", "bentTubeSegmentLength", "bentTubeBendRadius", "dovetailNeckWidth", "dovetailClearance", "hingePinDiameter", "hingeLeafThickness", "hingeClearance", "screwHoleShaft", "screwHoleHeadDepth", "knurlDepth", "knurlChamfer", "loftBottomWidth", "loftBottomDepth", "loftTopWidth", "loftTopDepth", "loftBottomCorner", "loftTopCorner", "loftOffsetX", "loftOffsetZ", "loftWall", "gridfinityLabelBackLength", "gridfinityLabelBackOffset", "gridfinityLabelBackWidth", "gridfinityLabelCornerSize", "gridfinityLabelFrontLength", "gridfinityLabelFrontOffset", "gridfinityLabelFrontWidth", "gridfinityLabelLeftLength", "gridfinityLabelLeftOffset", "gridfinityLabelLeftWidth", "gridfinityLabelRightLength", "gridfinityLabelRightOffset", "gridfinityLabelRightWidth", "gridfinityScoopRadius", "gridfinityFloorHeight", "gridfinityLipChamfer", "gridfinityWallThickness", "gridfinityDrawerWidth", "gridfinityDrawerDepth", "gridfinityPaddingBack", "gridfinityPaddingFront", "gridfinityPaddingLeft", "gridfinityPaddingRight", "gridfinityCornerRadius", "gridfinityDividerThickness", "gridfinityDividerPositionX", "gridfinityDividerPositionZ", "gridfinityCompartmentLabelWidth", "gridfinityOpeningCornerSize", "gridfinityOpeningDepthBack", "gridfinityOpeningDepthFront", "gridfinityOpeningDepthLeft", "gridfinityOpeningDepthRight", "gridfinityOpeningWidthBack", "gridfinityOpeningWidthFront", "gridfinityOpeningWidthLeft", "gridfinityOpeningWidthRight", "gridfinityOpeningDistanceBack", "gridfinityOpeningDistanceFront", "gridfinityOpeningDistanceLeft", "gridfinityOpeningDistanceRight"].includes(key);
+  return ["screwBossHole", "screwBossHoleDepth", "screwBossDiameter", "screwBossGussetHeight", "screwBossGussetThickness", "screwBossReach", "snapFitThickness", "snapFitUndercut", "snapFitClearance", "snapFitFoot", "ribLength", "ribThickness", "ribFootThickness", "vase.wall", "vase.bottom", "vase.ribDepth", "vase.stripeDepth", "vase.voronoiCell", "vase.voronoiGap", "vase.voronoiDepth", "vase.waveAmplitude", "vaseFloor.drainDiameter", "vaseFloor.floorSlope", "vaseFloor.footHeight", "vaseFloor.rubberFootDiameter", "vaseFloor.rubberFootDepth", "vaseFloor.cutoutSize", "vaseFloor.cutoutWeb", "vaseFloor.lampHole", "vaseFloor.puckDiameter", "vaseFloor.lampNotch", "vaseFloor.lampNotchHeight", "vaseFloor.reinforceDepth", "vaseFloor.slitWidth", "vaseFloor.lineWidth", "vasePrint.lineWidth", "vaseParts.legHeight", "vaseParts.legDiameter", "vaseParts.saucerHeight", "vaseParts.saucerGap", "vaseParts.saucerWall", "vaseParts.insertWall", "vaseParts.insertStandoff", "vaseParts.reservoirHeight", "vaseParts.frogHole", "vaseParts.tubeDiameter", "vaseParts.lidClearance", "vaseParts.lidThickness", "vaseParts.lidDepth", "vaseParts.threadPitch", "vaseParts.fitClearance", "textLineWidth", "textEdgeSize", "letterSize", "iconWidth", "keyringDiameter", "keyringAlong", "positionX", "positionY", "positionZ", "pivotX", "pivotY", "pivotZ", "radius", "length", "width", "height", "sketchCuttingEdge", "bevel", "topRadius", "baseRadius", "thickness", "outerDiameter", "innerDiameter", "textRadius", "extrudeTopOffsetX", "extrudeTopOffsetZ", "toothSize", "toothWidth", "gearBacklash", "centerHole", "slotSmallEnd", "slotCentreDistance", "sketchLineWidth", "topLength", "topWidth", "bottomLength", "bottomWidth", "diameter", "pitch", "clearance", "axialClearance", "boltClearance", "threadDepth", "threadCoreDiameter", "threadLength", "headHeight", "headDiameter", "driveSize", "driveDepth", "chamfer", "chamferBottom", "headChamfer", "wire", "starOuterSize", "starInnerSize", "starOuterFillet", "starInnerFillet", "heartTipFillet", "crescentThickness", "crescentTipFillet", "honeycombCellSize", "honeycombWallThickness", "honeycombFrameWidth", "cornerFillet", "topBottomFillet", "bentTubeSize", "bentTubeWall", "bentTubeSegmentLength", "bentTubeBendRadius", "dovetailNeckWidth", "dovetailClearance", "hingePinDiameter", "hingeLeafThickness", "hingeClearance", "screwHoleShaft", "screwHoleHeadDepth", "knurlDepth", "knurlChamfer", "loftBottomWidth", "loftBottomDepth", "loftTopWidth", "loftTopDepth", "loftBottomCorner", "loftTopCorner", "loftOffsetX", "loftOffsetZ", "loftWall", "gridfinityLabelBackLength", "gridfinityLabelBackOffset", "gridfinityLabelBackWidth", "gridfinityLabelCornerSize", "gridfinityLabelFrontLength", "gridfinityLabelFrontOffset", "gridfinityLabelFrontWidth", "gridfinityLabelLeftLength", "gridfinityLabelLeftOffset", "gridfinityLabelLeftWidth", "gridfinityLabelRightLength", "gridfinityLabelRightOffset", "gridfinityLabelRightWidth", "gridfinityScoopRadius", "gridfinityFloorHeight", "gridfinityLipChamfer", "gridfinityWallThickness", "gridfinityDrawerWidth", "gridfinityDrawerDepth", "gridfinityPaddingBack", "gridfinityPaddingFront", "gridfinityPaddingLeft", "gridfinityPaddingRight", "gridfinityCornerRadius", "gridfinityDividerThickness", "gridfinityDividerPositionX", "gridfinityDividerPositionZ", "gridfinityCompartmentLabelWidth", "gridfinityOpeningCornerSize", "gridfinityOpeningDepthBack", "gridfinityOpeningDepthFront", "gridfinityOpeningDepthLeft", "gridfinityOpeningDepthRight", "gridfinityOpeningWidthBack", "gridfinityOpeningWidthFront", "gridfinityOpeningWidthLeft", "gridfinityOpeningWidthRight", "gridfinityOpeningDistanceBack", "gridfinityOpeningDistanceFront", "gridfinityOpeningDistanceLeft", "gridfinityOpeningDistanceRight"].includes(key);
 }
 
 /**
@@ -2258,6 +2262,220 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
       step: 6,
       onChange: (quality) => applyThread({ quality }),
     });
+    return properties;
+  }
+
+  if (shape.kind === "screwBoss") {
+    const plan = screwBossPlan({ ...shape, depth });
+    const mm = (value: number) => (Math.round(value * 10) / 10).toLocaleString(numberLocale());
+    const outer = plan.radius * 2;
+    // A new size or fastener starts from its own measures: the hole follows it again, the post takes its diameter.
+    const sizePatch = (fastener: ScrewBossFastener, id: string) => {
+      const size = screwBossSize(fastener === "custom" ? "insert" : fastener, id);
+      const reach = plan.gussets > 0 ? Math.max(0.5, width / 2 - outer / 2) : 0;
+      const footprint = screwBossFootprint(size.outer, plan.gussets, size.outer / 2 + reach);
+      return {
+        screwBossFastener: fastener,
+        screwBossSize: size.id,
+        screwBossHole: undefined,
+        screwBossHoleDepth: undefined,
+        screwBossDiameter: size.outer,
+        width: footprint,
+        depth: footprint,
+        height: Math.max(shape.height, Math.round((size.length + 2.5) * 10) / 10),
+      };
+    };
+    const sizeOption = (size: ReturnType<typeof screwBossSize>) => ({
+      value: size.id,
+      label: size.fastener === "insert"
+        ? t(size.id === "M3S" ? "screwBoss.insertShortOption" : "screwBoss.insertOption", { size: size.id === "M3S" ? "M3" : size.name, hole: mm(size.hole), length: mm(size.length) })
+        : t("screwBoss.screwOption", { size: size.name, hole: mm(size.hole) }),
+    });
+    const wallHint = plan.wall + 1e-6 < plan.minWall
+      ? t("screwBoss.wallThin", { wall: mm(plan.wall), min: mm(plan.minWall) })
+      : t("screwBoss.wall", { wall: mm(plan.wall) });
+    const properties: ShapePropertyConfig[] = [
+      {
+        type: "select",
+        id: "screwBossFastener",
+        label: t("prop.screwBossFastener"),
+        value: plan.fastener,
+        options: [{ value: "insert", label: t("screwBoss.insert") }, { value: "selfTapping", label: t("screwBoss.selfTapping") }, { value: "custom", label: t("screwBoss.custom") }],
+        onChange: (value) => {
+          const fastener = normalizeScrewBossFastener(value);
+          onUpdate(fastener === "custom" ? { screwBossFastener: fastener } : sizePatch(fastener, fastener === "selfTapping" ? "K30" : "M3"));
+        },
+      },
+    ];
+    if (plan.fastener !== "custom") {
+      properties.push({
+        type: "select",
+        id: "screwBossSize",
+        label: t("prop.screwBossSize"),
+        value: plan.size.id,
+        options: screwBossSizes(plan.fastener).map(sizeOption),
+        hint: t(plan.fastener === "insert" ? "screwBoss.insertHint" : "screwBoss.screwHint"),
+        onChange: (value) => onUpdate(sizePatch(plan.fastener, String(value))),
+      });
+    }
+    properties.push(
+      { id: "screwBossHole", label: t("prop.screwBossHole"), value: plan.holeRadius * 2, min: 0.4, max: Math.max(0.5, outer - 0.8), step: 0.1, hint: plan.fastener === "custom" ? t("screwBoss.customHint") : undefined, onChange: (value) => onUpdate({ screwBossHole: value }) },
+      { id: "screwBossHoleDepth", label: t("prop.screwBossHoleDepth"), value: plan.holeDepth, min: 0.2, max: shape.height, step: 0.1, hint: plan.through ? t("screwBoss.through") : undefined, onChange: (value) => onUpdate({ screwBossHoleDepth: value }) },
+      {
+        id: "screwBossDiameter",
+        label: t("prop.screwBossDiameter"),
+        value: outer,
+        min: plan.holeRadius * 2 + 0.8,
+        max: 200,
+        step: 0.1,
+        hint: wallHint,
+        onChange: (value) => {
+          const reach = plan.gussets > 0 ? Math.max(0.5, width / 2 - outer / 2) : 0;
+          const footprint = screwBossFootprint(value, plan.gussets, value / 2 + reach);
+          onUpdate({ screwBossDiameter: value, width: footprint, depth: footprint });
+        },
+      },
+      { id: "height", label: t("prop.height"), value: shape.height, min: 0.5, max: 300, onChange: setHeight },
+      {
+        id: "screwBossGussets",
+        label: t("prop.screwBossGussets"),
+        value: plan.gussets,
+        min: 0,
+        max: MAX_SCREW_BOSS_GUSSETS,
+        step: 1,
+        hint: Math.round(shape.screwBossGussets ?? 0) > plan.gussets ? t("screwBoss.gussetsNoRoom") : t("screwBoss.gussetsHint"),
+        onChange: (value) => {
+          const count = Math.max(0, Math.min(MAX_SCREW_BOSS_GUSSETS, Math.round(value)));
+          // Gussets start 3 mm long beyond the post; without them the footprint is the post again.
+          const footprint = count > 0 ? Math.max(width, outer + 6) : outer;
+          onUpdate({ screwBossGussets: count, width: footprint, depth: footprint });
+        },
+      },
+    );
+    if (plan.gussets > 0) {
+      properties.push(
+        { id: "screwBossReach", label: t("prop.screwBossReach"), value: width, min: outer + 1, max: 300, step: 0.5, onChange: (value) => onUpdate({ width: value, depth: value }) },
+        { id: "screwBossGussetHeight", label: t("prop.screwBossGussetHeight"), value: plan.gussetHeight, min: 0.5, max: Math.max(0.5, shape.height - 0.4), step: 0.1, onChange: (value) => onUpdate({ screwBossGussetHeight: value }) },
+        { id: "screwBossGussetThickness", label: t("prop.screwBossGussetThickness"), value: plan.gussetHalf * 2, min: 0.4, max: Math.max(0.5, outer * 0.9), step: 0.1, onChange: (value) => onUpdate({ screwBossGussetThickness: value }) },
+      );
+    }
+    return properties;
+  }
+
+  if (shape.kind === "snapFit") {
+    const plan = snapFitPlan({ ...shape, depth });
+    const percent = (value: number) => (Math.round(value * 1000) / 10).toLocaleString(numberLocale());
+    const strainHint = plan.strain > SNAP_FIT_STRAIN_TOUGH
+      ? t("snapFit.strainTooMuch", { strain: percent(plan.strain) })
+      : plan.strain > SNAP_FIT_STRAIN_PLA
+        ? t("snapFit.strainTough", { strain: percent(plan.strain) })
+        : t("snapFit.strainFine", { strain: percent(plan.strain) });
+    const setPart = (value: string) => {
+      const part: SnapFitPart = value === "hook" || value === "catch" ? value : "both";
+      if (part === plan.part) return;
+      // The catch alone is a ledge; back to the hook it takes the hook's own size again.
+      if (part === "catch") onUpdate({ snapFitPart: part, ...snapFitCatchBox(plan.undercut, plan.retain) });
+      else if (plan.part === "catch") onUpdate({ snapFitPart: part, height: 16, depth: 9 });
+      else onUpdate({ snapFitPart: part });
+    };
+    const properties: ShapePropertyConfig[] = [
+      {
+        type: "select",
+        id: "snapFitPart",
+        label: t("prop.snapFitPart"),
+        value: plan.part,
+        options: [{ value: "both", label: t("snapFit.both") }, { value: "hook", label: t("snapFit.hook") }, { value: "catch", label: t("snapFit.catch") }],
+        hint: t(plan.part === "both" ? "snapFit.bothHint" : plan.part === "hook" ? "snapFit.hookHint" : "snapFit.catchHint"),
+        onChange: setPart,
+      },
+      { id: "width", label: t("prop.snapFitWidth"), value: width, min: 0.5, max: 200, onChange: setWidth },
+    ];
+    if (plan.part !== "catch") {
+      properties.push(
+        { id: "height", label: t("prop.snapFitHeight"), value: shape.height, min: 3, max: 200, onChange: setHeight },
+        { id: "length", label: t("prop.snapFitDepth"), value: depth, min: plan.thickness + plan.undercut + 0.5, max: 200, onChange: setDepth },
+        { id: "snapFitThickness", label: t("prop.snapFitThickness"), value: plan.thickness, min: 0.4, max: 20, step: 0.1, hint: strainHint, onChange: (value) => onUpdate({ snapFitThickness: value }) },
+      );
+    }
+    properties.push(
+      { id: "snapFitUndercut", label: t("prop.snapFitUndercut"), value: plan.undercut, min: 0.2, max: 10, step: 0.1, onChange: (value) => onUpdate(plan.part === "catch" ? { snapFitUndercut: value, ...snapFitCatchBox(value, plan.retain) } : { snapFitUndercut: value }) },
+    );
+    if (plan.part !== "catch") {
+      properties.push({ id: "snapFitLeadAngle", label: t("prop.snapFitLeadAngle"), value: plan.lead, min: 10, max: 60, step: 1, hint: t("snapFit.leadHint"), onChange: (value) => onUpdate({ snapFitLeadAngle: value }) });
+    }
+    properties.push(
+      { id: "snapFitRetainAngle", label: t("prop.snapFitRetainAngle"), value: plan.retain, min: 30, max: 90, step: 1, hint: t("snapFit.retainHint"), onChange: (value) => onUpdate(plan.part === "catch" ? { snapFitRetainAngle: value, ...snapFitCatchBox(plan.undercut, value) } : { snapFitRetainAngle: value }) },
+    );
+    if (plan.part === "both") properties.push({ id: "snapFitClearance", label: t("prop.snapFitClearance"), value: plan.clearance, min: 0, max: 2, step: 0.05, onChange: (value) => onUpdate({ snapFitClearance: value }) });
+    if (plan.part !== "catch") properties.push({ id: "snapFitFoot", label: t("prop.snapFitFoot"), value: plan.foot, min: 0, max: Math.max(0.5, shape.height / 3), step: 0.1, hint: t("snapFit.footHint"), onChange: (value) => onUpdate({ snapFitFoot: value }) });
+    return properties;
+  }
+
+  if (shape.kind === "rib") {
+    const style = normalizeRibStyle(shape.ribStyle);
+    // On its foot (Discussion #1307) the box's depth is the foot's width, the rib's thickness a field of its own; the
+    // depth's field id ("length") goes with the depth, so the dimension on the work area stays the same field.
+    const onFoot = shape.ribFoot === true;
+    const rib = { ...shape, width, depth };
+    const size = ribSize(rib);
+    // On an oval foot the box's width is the foot's length in the same way, the rib's own length a field of its own
+    // ("ribLength", the width's id staying with the box) that sets the box's width round it.
+    const onOval = size.foot?.shape === "oval";
+    // A change to the foot or the rib's thickness: the box follows it, an oval foot's length too, so the rib stays as
+    // long as it was; it grows round its middle, but a gusset's away from its wall, so the gusset stays where it stands.
+    const footPatch = (change: Partial<WorkplaneShape>): Partial<WorkplaneShape> => {
+      const patch = { ...change, ...ribLengthKeepingPatch(rib, { ...rib, ...change }) };
+      if (patch.width === undefined && patch.depth === undefined) return patch;
+      const sized = { ...patch, size: resizedShapeSize(patch.width ?? width, patch.depth ?? depth) };
+      return style === "gusset" && patch.width !== undefined && Math.abs(patch.width - width) > 1e-9 ? { ...sized, ...ribGussetWallKeepingPlace(rib, patch.width) } : sized;
+    };
+    const properties: ShapePropertyConfig[] = [
+      {
+        type: "select",
+        id: "ribStyle",
+        label: t("prop.ribStyle"),
+        value: style,
+        options: [{ value: "straight", label: t("rib.straight") }, { value: "gusset", label: t("rib.gusset") }],
+        hint: t(style === "gusset" ? "rib.gussetHint" : "rib.straightHint"),
+        // A gusset starts as a square corner piece, a rib as a long strip (on an oval foot, its box the foot's length).
+        onChange: (value) => onUpdate(value === "gusset" ? { ribStyle: "gusset", width: ribBoxWidth(rib, 10), height: 10 } : { ribStyle: "straight", width: ribBoxWidth(rib, 40), height: 8 }),
+      },
+      onOval
+        ? { id: "ribLength", label: t(style === "gusset" ? "prop.ribGussetFoot" : "prop.ribLength"), value: Math.round(size.width * 100) / 100, min: 0.2, max: 500, onChange: (value) => onUpdate(widthPatch(ribBoxWidth(rib, value)), { resizeAxis: "width" }) }
+        : { id: "width", label: t(style === "gusset" ? "prop.ribGussetFoot" : "prop.ribLength"), value: width, min: 0.2, max: 500, onChange: setWidth },
+      { id: "height", label: t(style === "gusset" ? "prop.ribGussetLeg" : "prop.height"), value: shape.height, min: 0.2, max: 300, onChange: setHeight },
+      onFoot
+        ? { id: "ribThickness", label: t("prop.ribThickness"), value: size.thickness, min: 0.2, max: 50, step: 0.1, hint: t("rib.thicknessHint"), onChange: (value) => onUpdate(footPatch(ribThicknessOnFootPatch(rib, value))) }
+        : { id: "length", label: t("prop.ribThickness"), value: depth, min: 0.2, max: 50, step: 0.1, hint: t("rib.thicknessHint"), onChange: setDepth },
+    ];
+    if (style === "straight") {
+      properties.push({
+        type: "select",
+        id: "ribTop",
+        label: t("prop.ribTop"),
+        value: normalizeRibTop(shape.ribTop),
+        options: [{ value: "flat", label: t("rib.topFlat") }, { value: "round", label: t("rib.topRound") }, { value: "chamfer", label: t("rib.topChamfer") }],
+        onChange: (value) => onUpdate({ ribTop: normalizeRibTop(value) }),
+      });
+    }
+    // Switched on or off the box follows the foot, centred on the rib (an oval one under a gusset from its wall), so the
+    // rib stays where it stands.
+    properties.push({ type: "toggle", id: "ribFoot", label: t("prop.ribFoot"), value: onFoot, onChange: (value) => onUpdate(footPatch(ribFootSwitch(rib, value))) });
+    if (onFoot) {
+      properties.push(
+        {
+          type: "select",
+          id: "ribFootShape",
+          label: t("prop.ribFootShape"),
+          value: normalizeRibFootShape(shape.ribFootShape),
+          options: [{ value: "square", label: t("rib.footSquare") }, { value: "oval", label: t("rib.footOval") }],
+          hint: t("rib.footShapeHint"),
+          onChange: (value) => onUpdate(footPatch({ ribFootShape: normalizeRibFootShape(value) })),
+        },
+        { id: "length", label: t("prop.ribFootWidth"), value: depth, min: Math.round((size.thickness + 2 * MIN_RIB_FOOT_OVERHANG) * 100) / 100, max: 100, step: 0.1, hint: t("rib.footHint"), onChange: (value) => onUpdate(footPatch({ depth: value })) },
+        { id: "ribFootThickness", label: t("prop.ribFootThickness"), value: size.foot?.thickness ?? MIN_RIB_FOOT_THICKNESS, min: MIN_RIB_FOOT_THICKNESS, max: Math.max(MIN_RIB_FOOT_THICKNESS, shape.height / 2), step: 0.1, hint: t("rib.footThicknessHint"), onChange: (value) => onUpdate({ ribFootThickness: value }) },
+      );
+    }
     return properties;
   }
 

@@ -1,3 +1,6 @@
+import type { ScrewBossFields } from "@/lib/screwBoss";
+import type { SnapFitFields } from "@/lib/snapFit";
+import type { RibFields } from "@/lib/rib";
 import type { ThreadDriveOutline } from "@/lib/threadGeometry";
 import type { GridfinityCompartmentLabel, GridfinityLabelCorner, GridfinityOpening, GridfinityType, ShellEdges, ShellOpenings } from "@/types/layerling";
 
@@ -352,6 +355,21 @@ export type CadModifierGridfinityPart = {
   expected?: { bounds: number[]; volume: number };
 };
 
+/**
+ * An enclosure part (#1246) - a screw boss, a snap-fit or a rib - as the exact body its display mesh draws: the
+ * shape's own fields, from which `enclosureSolid.ts` builds the body by the same plan as the mesh, with true circles
+ * where the mesh has polygons. In the shape's own frame (y up, the bottom at y = 0, centred on x and z); `transform`
+ * places it. A screw boss set as a hole (`fields.hole`) is its pocket alone, as its mesh is (#1288).
+ */
+export type CadModifierEnclosurePart = (
+  | { kind: "screwBoss"; fields: ScrewBossFields }
+  | { kind: "snapFit"; fields: SnapFitFields }
+  | { kind: "rib"; fields: RibFields }
+) & {
+  transform?: number[];
+  expected?: { bounds: number[]; volume: number };
+};
+
 export type CadModifierMeshPart = {
   positions?: Float32Array;
   indices?: Uint32Array;
@@ -375,6 +393,7 @@ export type CadModifierMeshPart = {
   gridfinity?: CadModifierGridfinityPart;
   /** A Hirth joint's exact body; positions/indices (if any) are only the fallback if it cannot be built. */
   hirth?: CadModifierHirthPart;
+  enclosure?: CadModifierEnclosurePart;
   primitive?: CadModifierPrimitivePart;
   /** When set, positions/indices (if any) are only the fallback if the exact body fails. */
   profile?: CadModifierProfilePart;

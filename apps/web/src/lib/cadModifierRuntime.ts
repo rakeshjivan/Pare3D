@@ -1,6 +1,7 @@
 import { t } from "@/lib/i18n";
 import { localizedError } from "@/lib/userErrors";
 import type { CadModifierDeflection, CadModifierEdge, CadModifierQuality } from "@/lib/cadModifierTypes";
+import type { OcctKernel, ShapeHandle } from "occt-wasm";
 
 const occtRuntimeVersion = process.env.NEXT_PUBLIC_OCCT_RUNTIME_VERSION;
 /** Where scripts/copy-occt-wasm.mjs stages the kernel: one folder per kernel version. */
@@ -404,4 +405,26 @@ export function cadModifierUserErrorMessage(rawError: string | null | undefined)
     return t("edge.errorKernelRestart");
   }
   return localizedError(rawError);
+}
+
+export function isCadTransform(transform: number[] | undefined): transform is number[] {
+  return Boolean(transform?.length === 12 && transform.every(Number.isFinite));
+}
+
+export function isIdentityCadTransform(transform: number[]) {
+  const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+  return transform.every((value, index) => Math.abs(value - identity[index]) < 1e-9);
+}
+
+/** Places a CAD shape by a 3×4 transform; a general transform when it stretches or mirrors. */
+export function applyCadTransform(cad: OcctKernel, shape: ShapeHandle, transform: number[] | undefined) {
+  if (!isCadTransform(transform) || isIdentityCadTransform(transform)) return shape;
+  if (cadTransformRequiresGeneralTransform(transform)) {
+    return cad.generalTransform(shape, transform);
+  }
+  try {
+    return cad.transform(shape, transform);
+  } catch {
+    return cad.generalTransform(shape, transform);
+  }
 }

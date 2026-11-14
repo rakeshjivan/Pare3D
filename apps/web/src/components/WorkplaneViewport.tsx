@@ -9,6 +9,9 @@ import { nearestObjectGap, objectSnapOffset, shiftSnapBox, type ObjectGap, type 
 import { dragReach } from "@/lib/dragReach";
 import { useMovablePanel, type MovablePanelOptions } from "@/lib/useMovablePanel";
 import { createHirthGeometry } from "@/lib/hirthGeometry";
+import { createScrewBossGeometry } from "@/lib/screwBoss";
+import { createSnapFitGeometry } from "@/lib/snapFit";
+import { createRibGeometry } from "@/lib/rib";
 import { computeSectionPlaneVector, DEFAULT_SECTION_SETTINGS, getSectionBounds, SECTION_AXES_SHOWN, sectionAxisLetter, sectionAxisVector, sectionFineWindow, sectionFrameFromView, sectionFrameFromWorkplane, sectionPlacementWorkplane, sectionPointFromFrame, sectionPointToFrame, type SectionFrame, type SectionOrientation, type SectionPlaneAxis, type SectionPlaneSettings } from "@/lib/sectionView";
 import { projectSectionPoint, type SectionBody, type SectionLoop, type SectionPoint } from "@/lib/sectionSvg";
 import { normalizeSectionCutFace, SECTION_CUT_FACES, sectionCapMesh, sectionHatchSpacing, sectionHatchTexture, sectionHatchTurned, sectionHatchUvs, type SectionCutFace } from "@/lib/sectionCaps";
@@ -1075,6 +1078,29 @@ export function tapeShapeTopologyKey(shape: WorkplaneShape): string {
     segments: shape.segments,
     topRadius: shape.topRadius,
     baseRadius: shape.baseRadius,
+    screwBossFastener: shape.screwBossFastener,
+    // A boss grouped as a hole is drawn as its hole alone (see screwBossCavityMesh).
+    screwBossAsHole: shape.kind === "screwBoss" && shape.hole ? true : undefined,
+    screwBossSize: shape.screwBossSize,
+    screwBossHole: shape.screwBossHole,
+    screwBossHoleDepth: shape.screwBossHoleDepth,
+    screwBossDiameter: shape.screwBossDiameter,
+    screwBossGussets: shape.screwBossGussets,
+    screwBossGussetHeight: shape.screwBossGussetHeight,
+    screwBossGussetThickness: shape.screwBossGussetThickness,
+    snapFitPart: shape.snapFitPart,
+    snapFitThickness: shape.snapFitThickness,
+    snapFitUndercut: shape.snapFitUndercut,
+    snapFitClearance: shape.snapFitClearance,
+    snapFitLeadAngle: shape.snapFitLeadAngle,
+    snapFitRetainAngle: shape.snapFitRetainAngle,
+    snapFitFoot: shape.snapFitFoot,
+    ribStyle: shape.ribStyle,
+    ribTop: shape.ribTop,
+    ribFoot: shape.ribFoot,
+    ribThickness: shape.ribThickness,
+    ribFootThickness: shape.ribFootThickness,
+    ribFootShape: shape.ribFootShape,
     topWidth: shape.topWidth,
     topDepth: shape.topDepth,
     taperTopWidth: shape.taperTopWidth,
@@ -1396,6 +1422,29 @@ export function shapeGeometrySignature(shape: WorkplaneShape): string {
     segments: shape.segments,
     topRadius: shape.topRadius,
     baseRadius: shape.baseRadius,
+    screwBossFastener: shape.screwBossFastener,
+    // A boss grouped as a hole is drawn as its hole alone (see screwBossCavityMesh).
+    screwBossAsHole: shape.kind === "screwBoss" && shape.hole ? true : undefined,
+    screwBossSize: shape.screwBossSize,
+    screwBossHole: shape.screwBossHole,
+    screwBossHoleDepth: shape.screwBossHoleDepth,
+    screwBossDiameter: shape.screwBossDiameter,
+    screwBossGussets: shape.screwBossGussets,
+    screwBossGussetHeight: shape.screwBossGussetHeight,
+    screwBossGussetThickness: shape.screwBossGussetThickness,
+    snapFitPart: shape.snapFitPart,
+    snapFitThickness: shape.snapFitThickness,
+    snapFitUndercut: shape.snapFitUndercut,
+    snapFitClearance: shape.snapFitClearance,
+    snapFitLeadAngle: shape.snapFitLeadAngle,
+    snapFitRetainAngle: shape.snapFitRetainAngle,
+    snapFitFoot: shape.snapFitFoot,
+    ribStyle: shape.ribStyle,
+    ribTop: shape.ribTop,
+    ribFoot: shape.ribFoot,
+    ribThickness: shape.ribThickness,
+    ribFootThickness: shape.ribFootThickness,
+    ribFootShape: shape.ribFootShape,
     topWidth: shape.topWidth,
     topDepth: shape.topDepth,
     taperTopWidth: shape.taperTopWidth,
@@ -15428,6 +15477,15 @@ function createShapeObject(
     case "hirth":
       addMesh(group, sharedShapeGeometry(geometryCacheKey, () => createHirthGeometry(width, height, depth, shape)), material, shape);
       break;
+    case "screwBoss":
+      addMesh(group, sharedShapeGeometry(geometryCacheKey, () => createScrewBossGeometry({ ...shape, width, depth, height })), material, shape);
+      break;
+    case "snapFit":
+      addMesh(group, sharedShapeGeometry(geometryCacheKey, () => createSnapFitGeometry({ ...shape, width, depth, height })), material, shape);
+      break;
+    case "rib":
+      addMesh(group, sharedShapeGeometry(geometryCacheKey, () => createRibGeometry({ ...shape, width, depth, height })), material, shape);
+      break;
     case "honeycomb":
       addMesh(group, sharedShapeGeometry(geometryCacheKey, () => createHoneycombGeometry({
         width,
@@ -15809,7 +15867,7 @@ function addShapeEdgeDecorations(group: THREE.Group, mesh: THREE.Mesh, prepared:
   const complexEdges =
     shape.kind === "mesh" ||
     Boolean(shape.importedMesh) ||
-    ["cone", "pyramid", "roof", "roundRoof", "halfSphere", "paraboloid", "torus", "tube", "ring", "star", "gear", "hirth", "wedge", "polygon", "heart", "crescent", "slot", "dovetail", "hinge", "gridfinity", "knurl", "teardrop", "port", "counterbore", "countersink", "doubleCountersink", "honeycomb", "loft"].includes(shape.kind);
+    ["cone", "pyramid", "roof", "roundRoof", "halfSphere", "paraboloid", "torus", "tube", "ring", "star", "gear", "hirth", "screwBoss", "snapFit", "rib", "wedge", "polygon", "heart", "crescent", "slot", "dovetail", "hinge", "gridfinity", "knurl", "teardrop", "port", "counterbore", "countersink", "doubleCountersink", "honeycomb", "loft"].includes(shape.kind);
   const importedTriangleCount = shape.importedMesh?.triangleCount ?? 0;
   // A vase's relief has an edge at every rib: drawn like a heavy imported mesh, without the lines.
   const skipHeavyImportedEdges = (Boolean(shape.importedMesh) && importedTriangleCount > IMPORTED_SELECTED_EDGE_TRIANGLE_LIMIT)

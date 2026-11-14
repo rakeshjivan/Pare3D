@@ -273,7 +273,7 @@ export function snapGridForUnits(units: string, snap: GridSize): GridSize {
 }
 const customizableShapeKinds: ShapeKind[] = [
   "box", "roundedBox", "cylinder", "slot", "ellipse", "sphere", "sketch", "scribble", "cone", "pyramid", "roof", "text", "roundRoof",
-  "halfSphere", "paraboloid", "torus", "tube", "bentTube", "star", "heart", "crescent", "gear", "hirth", "honeycomb", "hinge", "knurl", "dovetail", "counterbore", "countersink", "doubleCountersink", "teardrop", "port", "loft", "vase", "thread", "spring", "gridfinity", "ring", "wedge", "polygon", "icosahedron", "ruler", "mesh",
+  "halfSphere", "paraboloid", "torus", "tube", "bentTube", "star", "heart", "crescent", "gear", "hirth", "screwBoss", "snapFit", "rib", "honeycomb", "hinge", "knurl", "dovetail", "counterbore", "countersink", "doubleCountersink", "teardrop", "port", "loft", "vase", "thread", "spring", "gridfinity", "ring", "wedge", "polygon", "icosahedron", "ruler", "mesh",
 ];
 
 function numberOrDefault(value: unknown, fallback: number) {
@@ -442,6 +442,34 @@ export function normalizeShapeCustomizations(value: unknown, fallback: ShapeCust
       entry.gridfinityCompartmentsX = optionalShapeNumber(source.gridfinityCompartmentsX, fallbackEntry?.gridfinityCompartmentsX, 1, MAX_CUSTOM_SHAPE_DIMENSION, true);
       entry.gridfinityCompartmentsZ = optionalShapeNumber(source.gridfinityCompartmentsZ, fallbackEntry?.gridfinityCompartmentsZ, 1, MAX_CUSTOM_SHAPE_DIMENSION, true);
       entry.gridfinityDividerThickness = optionalShapeNumber(source.gridfinityDividerThickness, fallbackEntry?.gridfinityDividerThickness, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+    }
+    if (kind === "screwBoss") {
+      entry.screwBossFastener = source.screwBossFastener === "insert" || source.screwBossFastener === "selfTapping" || source.screwBossFastener === "custom" ? source.screwBossFastener : fallbackEntry?.screwBossFastener;
+      entry.screwBossSize = typeof source.screwBossSize === "string" && source.screwBossSize.length <= 16 ? source.screwBossSize : fallbackEntry?.screwBossSize;
+      entry.screwBossHole = optionalShapeNumber(source.screwBossHole, fallbackEntry?.screwBossHole, 0.4, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.screwBossHoleDepth = optionalShapeNumber(source.screwBossHoleDepth, fallbackEntry?.screwBossHoleDepth, 0.2, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.screwBossDiameter = optionalShapeNumber(source.screwBossDiameter, fallbackEntry?.screwBossDiameter, 1, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.screwBossGussets = optionalShapeNumber(source.screwBossGussets, fallbackEntry?.screwBossGussets, 0, 6, true);
+      entry.screwBossGussetHeight = optionalShapeNumber(source.screwBossGussetHeight, fallbackEntry?.screwBossGussetHeight, 0.5, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.screwBossGussetThickness = optionalShapeNumber(source.screwBossGussetThickness, fallbackEntry?.screwBossGussetThickness, 0.4, 20);
+    }
+    if (kind === "snapFit") {
+      entry.snapFitPart = source.snapFitPart === "both" || source.snapFitPart === "hook" || source.snapFitPart === "catch" ? source.snapFitPart : fallbackEntry?.snapFitPart;
+      entry.snapFitThickness = optionalShapeNumber(source.snapFitThickness, fallbackEntry?.snapFitThickness, 0.4, 20);
+      entry.snapFitUndercut = optionalShapeNumber(source.snapFitUndercut, fallbackEntry?.snapFitUndercut, 0.2, 10);
+      entry.snapFitClearance = optionalShapeNumber(source.snapFitClearance, fallbackEntry?.snapFitClearance, 0, 2);
+      entry.snapFitLeadAngle = optionalShapeNumber(source.snapFitLeadAngle, fallbackEntry?.snapFitLeadAngle, 10, 60);
+      entry.snapFitRetainAngle = optionalShapeNumber(source.snapFitRetainAngle, fallbackEntry?.snapFitRetainAngle, 30, 90);
+      entry.snapFitFoot = optionalShapeNumber(source.snapFitFoot, fallbackEntry?.snapFitFoot, 0, 20);
+    }
+    if (kind === "rib") {
+      entry.ribStyle = source.ribStyle === "straight" || source.ribStyle === "gusset" ? source.ribStyle : fallbackEntry?.ribStyle;
+      entry.ribTop = source.ribTop === "flat" || source.ribTop === "round" || source.ribTop === "chamfer" ? source.ribTop : fallbackEntry?.ribTop;
+      // The foot (Discussion #1307): false is kept, so a command can switch it off again.
+      entry.ribFoot = typeof source.ribFoot === "boolean" ? source.ribFoot : fallbackEntry?.ribFoot;
+      entry.ribThickness = optionalShapeNumber(source.ribThickness, fallbackEntry?.ribThickness, 0.2, 50);
+      entry.ribFootThickness = optionalShapeNumber(source.ribFootThickness, fallbackEntry?.ribFootThickness, 0.2, 50);
+      entry.ribFootShape = source.ribFootShape === "square" || source.ribFootShape === "oval" ? source.ribFootShape : fallbackEntry?.ribFootShape;
     }
     if (kind === "knurl") {
       entry.knurlPattern = source.knurlPattern === "straight" || source.knurlPattern === "diamond" || source.knurlPattern === "round" ? source.knurlPattern : fallbackEntry?.knurlPattern;

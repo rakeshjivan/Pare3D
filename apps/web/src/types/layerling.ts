@@ -22,6 +22,9 @@ export type ShapeKind =
   | "crescent"
   | "gear"
   | "hirth"
+  | "screwBoss"
+  | "snapFit"
+  | "rib"
   | "honeycomb"
   | "hinge"
   | "knurl"
@@ -113,6 +116,40 @@ export type ShapeCustomization = {
   segments?: number;
   topRadius?: number;
   baseRadius?: number;
+  /** Screw boss: what goes into its hole - a heat-set insert, a self-tapping screw, or a hole of one's own. */
+  screwBossFastener?: "insert" | "selfTapping" | "custom";
+  /** Screw boss: the size from its list (M3, #4-40, ST2.9 ...); the hole follows it unless typed in. */
+  screwBossSize?: string;
+  /** Screw boss: the hole's diameter and depth in mm, when typed in. */
+  screwBossHole?: number;
+  screwBossHoleDepth?: number;
+  /** Screw boss: the post's outer diameter in mm (the footprint may be wider for the gussets). */
+  screwBossDiameter?: number;
+  /** Screw boss: how many gussets brace it (0 to 6), how high they reach and how thick they are, in mm. */
+  screwBossGussets?: number;
+  screwBossGussetHeight?: number;
+  screwBossGussetThickness?: number;
+  /** Snap-fit: the hook and its catch together, or one of them. */
+  snapFitPart?: "both" | "hook" | "catch";
+  /** Snap-fit: the arm's thickness, the barb's undercut and the clearance to the catch, in mm. */
+  snapFitThickness?: number;
+  snapFitUndercut?: number;
+  snapFitClearance?: number;
+  /** Snap-fit: the barb's entry angle and the angle of the face that holds, in degrees from the direction it goes in. */
+  snapFitLeadAngle?: number;
+  snapFitRetainAngle?: number;
+  /** Snap-fit: the foot's thickness under the arm in mm (0: no foot). */
+  snapFitFoot?: number;
+  /** Rib: a straight rib or a gusset, and a straight rib's top. */
+  ribStyle?: "straight" | "gusset";
+  ribTop?: "flat" | "round" | "chamfer";
+  /** Rib: a thin, wider plate under it (Discussion #1307); missing means none. With it the depth is the foot's width. */
+  ribFoot?: boolean;
+  /** Rib on its foot: the rib's own thickness, and the foot's thickness from the bottom, in mm. */
+  ribThickness?: number;
+  ribFootThickness?: number;
+  /** Rib on its foot: square (missing) or an ellipse seen from above; on an oval foot the width is the foot's length. */
+  ribFootShape?: "square" | "oval";
   topWidth?: number;
   topDepth?: number;
   teeth?: number;
@@ -771,6 +808,40 @@ export type WorkplaneShape = {
   segments?: number;
   topRadius?: number;
   baseRadius?: number;
+  /** Screw boss: what goes into its hole - a heat-set insert, a self-tapping screw, or a hole of one's own. */
+  screwBossFastener?: "insert" | "selfTapping" | "custom";
+  /** Screw boss: the size from its list (M3, #4-40, ST2.9 ...); the hole follows it unless typed in. */
+  screwBossSize?: string;
+  /** Screw boss: the hole's diameter and depth in mm, when typed in. */
+  screwBossHole?: number;
+  screwBossHoleDepth?: number;
+  /** Screw boss: the post's outer diameter in mm (the footprint may be wider for the gussets). */
+  screwBossDiameter?: number;
+  /** Screw boss: how many gussets brace it (0 to 6), how high they reach and how thick they are, in mm. */
+  screwBossGussets?: number;
+  screwBossGussetHeight?: number;
+  screwBossGussetThickness?: number;
+  /** Snap-fit: the hook and its catch together, or one of them. */
+  snapFitPart?: "both" | "hook" | "catch";
+  /** Snap-fit: the arm's thickness, the barb's undercut and the clearance to the catch, in mm. */
+  snapFitThickness?: number;
+  snapFitUndercut?: number;
+  snapFitClearance?: number;
+  /** Snap-fit: the barb's entry angle and the angle of the face that holds, in degrees from the direction it goes in. */
+  snapFitLeadAngle?: number;
+  snapFitRetainAngle?: number;
+  /** Snap-fit: the foot's thickness under the arm in mm (0: no foot). */
+  snapFitFoot?: number;
+  /** Rib: a straight rib or a gusset, and a straight rib's top. */
+  ribStyle?: "straight" | "gusset";
+  ribTop?: "flat" | "round" | "chamfer";
+  /** Rib: a thin, wider plate under it (Discussion #1307); missing means none. With it the depth is the foot's width. */
+  ribFoot?: boolean;
+  /** Rib on its foot: the rib's own thickness, and the foot's thickness from the bottom, in mm. */
+  ribThickness?: number;
+  ribFootThickness?: number;
+  /** Rib on its foot: square (missing) or an ellipse seen from above; on an oval foot the width is the foot's length. */
+  ribFootShape?: "square" | "oval";
   topWidth?: number;
   topDepth?: number;
   taperTopWidth?: number;

@@ -173,6 +173,32 @@ The {{ui:shape.dovetail}} is the joint in which two parts lock into each other a
 
 > **Tip:** A tapped hole cuts into the part it overlaps when grouped. So put it a bit into the material rather than just touching the surface.
 
+## Screw boss
+
+The {{ui:shape.screwBoss}} is the post a lid or a board is screwed to in an enclosure: a round post with a hole from the top. Under {{ui:prop.screwBossFastener}} you choose what goes into it. A {{ui:screwBoss.insert}} is a brass insert pressed in with a soldering iron: {{ui:prop.screwBossSize}} offers M2 to M5 and #2-56 to 1/4-20, the hole as the common inserts want it (M3: 4.0 mm for an insert 5.7 mm long), a millimetre deeper than the insert so the plastic it pushes aside has room, and the post about twice the hole. A {{ui:screwBoss.selfTapping}} cuts its own thread: ST2.2 to ST4.2 (DIN 7981), plastics screws of 2.5 to 5 mm (K25–K50) or #2 to #10, with a pilot hole of about 0.8 times the screw, the post 2.5 times it and the hole 2.5 screws deep. {{ui:screwBoss.custom}} takes the diameter and depth you type in.
+
+{{ui:prop.screwBossHole}}, {{ui:prop.screwBossHoleDepth}} and {{ui:prop.screwBossDiameter}} can be changed by hand; below the diameter the panel says how thick the wall round the hole is, and warns when it is thinner than the fastener wants. A hole as deep as the post goes through. The hole's mouth has a small chamfer, so the insert or the screw finds its way in. {{ui:prop.screwBossGussets}} adds two to six thin ribs from the post down to the floor; {{ui:prop.screwBossReach}}, {{ui:prop.screwBossGussetHeight}} and {{ui:prop.screwBossGussetThickness}} set how far out, how high and how thick they are.
+
+Stand the boss on the floor of a hollowed box and group it with the box; in the lid, a {{ui:shape.counterbore}} as a hole over it takes the screw head. Set as a hole and grouped with a solid part, the boss cuts only its hole – the pocket for the insert or the screw, with its chamfer – so a block or a post of your own gets a blind hole for an insert; the hole opens where the boss's top is. Printed holes come out a little smaller than drawn: print one boss first and adjust {{ui:prop.screwBossHole}} by a tenth or two.
+
+## Snap-fit
+
+A lid that clicks shut needs no screws. The {{ui:shape.snapFit}} is a hook on a foot with its counterpart, the catch. With {{ui:prop.snapFitPart}} set to {{ui:snapFit.both}} the two stand where they sit when snapped in, so you place them on lid and box together; {{ui:snapFit.hook}} or {{ui:snapFit.catch}} makes one of them. The barb has a slope below it that lets it slide in, the {{ui:prop.snapFitLeadAngle}} (30° goes in easily), and above it the face that holds: at a {{ui:prop.snapFitRetainAngle}} of 90° it holds for good, at 45° it can be pulled apart again. The {{ui:prop.snapFitUndercut}} is how far the barb reaches under the catch, {{ui:prop.snapFitClearance}} the play between the two.
+
+The arm bends by the undercut as it goes in. Below {{ui:prop.snapFitThickness}} the panel says how much it stretches at its root: PLA starts to break above about 2 %, PETG and ABS take about 4 %. A longer or thinner arm, or a smaller undercut, stretches less. The pair stands as it sits in a box printed upright, the lid on top: the hook hangs from its foot, the catch's top slopes at 45°, and only its holding face, as wide as the undercut, reaches out flat, so it prints on the wall without support.
+
+Put the pair where the lid meets the box wall: the hook's foot under the lid, the catch's back against the inside of the wall. {{ui:inspector.separateParts}} then splits them into two bodies; group the hook with the lid and the catch with the box. If you can, print the lid so the arm lies flat: an arm standing up bends across its layers and breaks more easily.
+
+## Ribs
+
+The {{ui:shape.rib}} stiffens a floor or a wall. As a {{ui:rib.straight}} it is as long, high and thick as you set, its {{ui:prop.ribTop}} flat, round or chamfered. As a {{ui:rib.gusset}} it is a triangle that braces a wall against the floor: {{ui:prop.ribGussetFoot}} along the floor, {{ui:prop.ribGussetLeg}} up the wall, both ends cut off short so they print cleanly.
+
+With {{ui:prop.ribFoot}} switched on, the rib stands on a thin plate along its whole length, centred under it and wider than it (a gusset's lies under its side along the floor), which holds it on the bed or the floor, so a thinner rib still stands. The foot starts three times as wide as the rib and 0.8 mm thick; {{ui:prop.ribFootWidth}} is measured all the way across, so the shape is as wide as the foot, and {{ui:prop.ribFootThickness}} from the bottom up.
+
+Under {{ui:prop.ribFootShape}} the foot is {{ui:rib.footSquare}} or {{ui:rib.footOval}}. The oval foot is an ellipse seen from above, without corners that could lift off the bed as the plastic shrinks while it cools. It is as wide as the foot and just long enough that at the rib's two ends it is still twice as wide as the rib, so the ends stand on it as well (under a gusset it is half an ellipse, from the wall to past the tip). On a foot narrower than about 2.7 times the rib the ellipse would get long: it stops at one and a half times the rib's length, but never so short that the ends stand on nothing. The shape grows by what reaches past the ends; the rib keeps its length.
+
+A rib about as thick as the wall or a little thinner, a multiple of the line width (0.8 or 1.6 mm with a 0.4 mm nozzle), and a few times as high as it is thick stiffens without pulling the wall out of shape. Several in a row come from {{ui:editor.tool.array}}; group them with the box.
+
 ## Teardrop hole
 
 A hole lying on its side gets a bridge across its top when printed, and the bridge sags. The {{ui:shape.teardrop}} therefore has a point on top: every layer rests on the one below, and the hole comes out round enough without supports. Set the {{ui:prop.teardropDiameter}} to the size of the hole, about 3.4 mm for an M3 screw, and the {{ui:prop.teardropLength}} long enough to reach through the part. The {{ui:prop.teardropTipAngle}} is 90°, so the flanks meet at 45°. Most printers handle that cleanly; a flatter point needs more height, a steeper one saves it.

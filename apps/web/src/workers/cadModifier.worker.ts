@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 
+import { ENCLOSURE_PART_NAMES, enclosurePartSolid } from "@/lib/enclosureSolid";
 import { cadHasSolidBody } from "@/lib/cadSolidBody";
 import { OcctKernel, type ShapeHandle } from "occt-wasm";
 import { assertCadKernelRunnable } from "@/lib/wasmSupport";
@@ -23,7 +24,7 @@ import { draftFacesSolid, DRAFT_FACES_REFUSED } from "@/lib/cadDraft";
 import { planarMeshFaces } from "@/lib/cadPlanarMesh";
 import { cadFlatFaceMeshStraysFromOutline } from "@/lib/cadFaceOutline";
 import { buildMessage } from "@/lib/buildStamp";
-import { CAD_MODIFIER_KERNEL_RESTART_MESSAGE, CAD_MODIFIER_RUNTIME_BASE, cadModifierCappedDeflection, cadModifierTessellationDeflection, cadModifierTopologyEdgeIsSelectable, cadTransformRequiresGeneralTransform, isCadModifierKernelExhausted, isCadModifierWasmMemoryFault } from "@/lib/cadModifierRuntime";
+import { CAD_MODIFIER_KERNEL_RESTART_MESSAGE, CAD_MODIFIER_RUNTIME_BASE, cadModifierCappedDeflection, cadModifierTessellationDeflection, cadModifierTopologyEdgeIsSelectable, applyCadTransform, cadTransformRequiresGeneralTransform, isCadModifierKernelExhausted, isCadTransform, isIdentityCadTransform, isCadModifierWasmMemoryFault } from "@/lib/cadModifierRuntime";
 
 const HASH_UPPER_BOUND = 2_147_483_647;
 const CAD_EDGE_WIREFRAME_DEFLECTION = 0.035;
@@ -197,27 +198,6 @@ function meshPartToAsciiStl(part: CadModifierMeshPart) {
   }
   lines[lines.length - 1] = "endsolid layerling";
   return lines.join("\n");
-}
-
-function isCadTransform(transform: number[] | undefined): transform is number[] {
-  return Boolean(transform?.length === 12 && transform.every(Number.isFinite));
-}
-
-function isIdentityCadTransform(transform: number[]) {
-  const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
-  return transform.every((value, index) => Math.abs(value - identity[index]) < 1e-9);
-}
-
-function applyCadTransform(cad: OcctKernel, shape: ShapeHandle, transform: number[] | undefined) {
-  if (!isCadTransform(transform) || isIdentityCadTransform(transform)) return shape;
-  if (cadTransformRequiresGeneralTransform(transform)) {
-    return cad.generalTransform(shape, transform);
-  }
-  try {
-    return cad.transform(shape, transform);
-  } catch {
-    return cad.generalTransform(shape, transform);
-  }
 }
 
 const ROTATE_Z_TO_Y: number[] = [
@@ -423,7 +403,23 @@ function reconstructSolid(cad: OcctKernel, part: CadModifierMeshPart) {
       }
     }
   }
-  if (part.gridfinity) {
+  if (part.enclosure) {
+    try {
+      const placed = applyCadTransform(cad, enclosurePartSolid(cad, part.enclosure), part.enclosure.transform);
+      if (!cadShapeIsValid(cad, placed)) throw new Error(`The exact ${ENCLOSURE_PART_NAMES[part.enclosure.kind]} is not valid after placing it`);
+      const mismatch = cadProfileSolidMismatch(cad, placed, part.enclosure.expected);
+      if (mismatch) throw new Error(`The exact ${ENCLOSURE_PART_NAMES[part.enclosure.kind]} does not match the shape (${mismatch})`);
+      exactProfileBodiesUsed += 1;
+      return placed;
+    } catch (error) {
+      // As for a profile: with its mesh along, the part goes the way it always went.
+      if (isFatalKernelFault(error)) throw error;
+      if (!part.positions || !part.indices) {
+        const reason = error instanceof Error ? error.message : String(error ?? "");
+        throw new Error(`This ${ENCLOSURE_PART_NAMES[part.enclosure.kind]} could not be built as an exact body, and its mesh is too dense for edge treatment. ${reason}`.trim());
+      }
+    }
+  }  if (part.gridfinity) {
     try {
       const placed = applyCadTransform(cad, gridfinityPartSolid(cad, part.gridfinity), part.gridfinity.transform);
       if (!cadShapeIsValid(cad, placed)) throw new Error("The exact Gridfinity body is not valid after placing it");
@@ -679,14 +675,14 @@ function reconstructPartsWithFallback(cad: OcctKernel, parts: CadModifierMeshPar
   try {
     return reconstructParts(cad, parts);
   } catch (error) {
-    const exactParts = parts.filter((part) => part.profile || part.step || part.thread || part.spring || part.helicalGear || part.gridfinity || part.hirth);
+    const exactParts = parts.filter((part) => part.profile || part.step || part.thread || part.spring || part.helicalGear || part.gridfinity || part.hirth || part.enclosure);
     if (
       isFatalKernelFault(error) ||
       exactProfileBodiesUsed === 0 ||
       exactParts.some((part) => !part.positions || !part.indices)
     ) throw error;
     releaseSession(cad);
-    return reconstructParts(cad, parts.map((part) => (part.profile || part.step || part.thread || part.spring || part.helicalGear || part.gridfinity || part.hirth ? { ...part, profile: undefined, step: undefined, thread: undefined, spring: undefined, helicalGear: undefined, gridfinity: undefined, hirth: undefined } : part)));
+    return reconstructParts(cad, parts.map((part) => (part.profile || part.step || part.thread || part.spring || part.helicalGear || part.gridfinity || part.hirth || part.enclosure ? { ...part, profile: undefined, step: undefined, thread: undefined, spring: undefined, helicalGear: undefined, gridfinity: undefined, hirth: undefined, enclosure: undefined } : part)));
   }
 }
 

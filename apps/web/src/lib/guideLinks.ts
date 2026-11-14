@@ -77,6 +77,9 @@ export const GUIDE_SECTIONS = {
   hinge: { chapter: "threads", en: "hinge" },
   knurl: { chapter: "threads", en: "knurling" },
   dovetail: { chapter: "threads", en: "dovetail" },
+  screwBoss: { chapter: "threads", en: "screw-boss" },
+  snapFit: { chapter: "threads", en: "snap-fit" },
+  ribs: { chapter: "threads", en: "ribs" },
   teardrop: { chapter: "threads", en: "teardrop-hole" },
   screwHoles: { chapter: "threads", en: "counterbore-and-countersink" },
   ruler: { chapter: "measuring", en: "the-ruler" },
@@ -206,6 +209,12 @@ export function guideSectionForShape(shape: GuideShape): GuideSection | undefine
       return "knurl";
     case "dovetail":
       return "dovetail";
+    case "screwBoss":
+      return "screwBoss";
+    case "snapFit":
+      return "snapFit";
+    case "rib":
+      return "ribs";
     case "teardrop":
       return "teardrop";
     case "port":
@@ -240,6 +249,9 @@ export function guideChapterForShape(shape: GuideShape): GuideChapter {
     case "hinge":
     case "knurl":
     case "dovetail":
+    case "screwBoss":
+    case "snapFit":
+    case "rib":
     case "teardrop":
     case "port":
     case "counterbore":

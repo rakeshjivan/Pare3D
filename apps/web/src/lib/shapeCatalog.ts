@@ -197,6 +197,9 @@ import {
 } from "@/lib/bentTubeGeometry";
 import { t, type MessageKey } from "@/lib/i18n";
 import type { ShapeAsset, ShapeCustomization, ShapeKind, WorkplaneShape } from "@/types/layerling";
+import { DEFAULT_SCREW_BOSS_FASTENER, DEFAULT_SCREW_BOSS_SIZE, normalizeScrewBossFastener } from "@/lib/screwBoss";
+import { DEFAULT_SNAP_FIT_CLEARANCE, DEFAULT_SNAP_FIT_FOOT, DEFAULT_SNAP_FIT_LEAD_ANGLE, DEFAULT_SNAP_FIT_RETAIN_ANGLE, DEFAULT_SNAP_FIT_THICKNESS, DEFAULT_SNAP_FIT_UNDERCUT, normalizeSnapFitPart } from "@/lib/snapFit";
+import { DEFAULT_RIB_THICKNESS, normalizeRibStyle, normalizeRibTop, ribBoxWidth, ribFootWidthFor } from "@/lib/rib";
 import { DEFAULT_HIRTH_BORE, DEFAULT_HIRTH_DIAMETER, DEFAULT_HIRTH_HEIGHT, DEFAULT_HIRTH_TEETH, hirthRightAngleToothHeight, normalizeHirthBore, normalizeHirthTeeth, normalizeHirthToothHeight } from "@/lib/hirthGeometry";
 
 const SHAPE_LABEL_KEYS: Record<string, MessageKey> = {
@@ -224,6 +227,9 @@ const SHAPE_LABEL_KEYS: Record<string, MessageKey> = {
   crescent: "shape.crescent",
   gear: "shape.gear",
   hirth: "shape.hirth",
+  screwBoss: "shape.screwBoss",
+  snapFit: "shape.snapFit",
+  rib: "shape.rib",
   honeycomb: "shape.honeycomb",
   hinge: "shape.hinge",
   knurl: "shape.knurl",
@@ -268,6 +274,9 @@ export const toolbarShapeAssets: ToolbarShapeAsset[] = [
   { id: "doubleCountersink", name: "Double Countersink", src: "assets/editor/shape-icons-gray/doubleCountersink.png", menuIcon: "assets/editor/shape-icons-gray/doubleCountersink.png", kind: "doubleCountersink", color: "#6b8a8a" },
   { id: "teardrop", name: "Teardrop", src: "assets/editor/shape-icons-gray/teardrop.png", menuIcon: "assets/editor/shape-icons-gray/teardrop.png", kind: "teardrop", color: "#7d6a9c" },
   { id: "port", name: "Port opening", src: "assets/editor/shape-icons-gray/port.png", menuIcon: "assets/editor/shape-icons-gray/port.png", kind: "port", color: "#5b7d99", hole: true },
+  { id: "screwBoss", name: "Screw boss", src: "assets/editor/shape-icons-gray/screwBoss.png", menuIcon: "assets/editor/shape-icons-gray/screwBoss.png", kind: "screwBoss", color: "#8c7b6b" },
+  { id: "snapFit", name: "Snap-fit", src: "assets/editor/shape-icons-gray/snapFit.png", menuIcon: "assets/editor/shape-icons-gray/snapFit.png", kind: "snapFit", color: "#4f8f7a" },
+  { id: "rib", name: "Rib", src: "assets/editor/shape-icons-gray/rib.png", menuIcon: "assets/editor/shape-icons-gray/rib.png", kind: "rib", color: "#7b8794" },
   { id: "text", name: "Text", src: "assets/editor/shape-icons-gray/text.png", menuIcon: "assets/editor/shape-icons-gray/text.png", kind: "text", color: "#cf101b" },
   { id: "thread", name: "Thread", src: "assets/editor/shape-icons-gray/thread.png", menuIcon: "assets/editor/shape-icons-gray/thread.png", kind: "thread", color: "#8a98a6" },
   { id: "spring", name: "Spring", src: "assets/editor/shape-icons-gray/spring.png", menuIcon: "assets/editor/shape-icons-gray/spring.png", kind: "spring", color: "#18b99a" },
@@ -455,6 +464,10 @@ export function shapeAssetDefaultDimensions(kind: ShapeKind) {
     return { width: 26, depth: 16, height: 20 };
   }
   if (kind === "hirth") return { width: DEFAULT_HIRTH_DIAMETER, depth: DEFAULT_HIRTH_DIAMETER, height: DEFAULT_HIRTH_HEIGHT };
+  // An M3 heat-set insert's boss, a hook with its catch that bends about 1.6 %, a rib 1.6 mm (four lines) thick.
+  if (kind === "screwBoss") return { width: 8, depth: 8, height: 10 };
+  if (kind === "snapFit") return { width: 8, depth: 9, height: 16 };
+  if (kind === "rib") return { width: 40, depth: DEFAULT_RIB_THICKNESS, height: 8 };
   const roundProfile = kind === "sphere" || kind === "torus" || kind === "ring" || kind === "halfSphere" || kind === "paraboloid";
   const flatProfile = kind === "torus" || kind === "ring" || kind === "text" || kind === "gear";
   // A gear starts as 12 involute teeth of module 2 (#201).
@@ -488,6 +501,19 @@ export function shapeAssetSpecialDefaults(kind: ShapeKind, dimensions = shapeAss
   if (kind === "sphere") return { steps: 24 };
   if (kind === "halfSphere" || kind === "paraboloid") return { steps: 32 };
   if (kind === "cone") return { topRadius: 0, baseRadius: dimensions.width / 2 };
+  if (kind === "screwBoss") return { screwBossFastener: DEFAULT_SCREW_BOSS_FASTENER, screwBossSize: DEFAULT_SCREW_BOSS_SIZE };
+  if (kind === "snapFit") {
+    return {
+      snapFitPart: "both",
+      snapFitThickness: DEFAULT_SNAP_FIT_THICKNESS,
+      snapFitUndercut: DEFAULT_SNAP_FIT_UNDERCUT,
+      snapFitClearance: DEFAULT_SNAP_FIT_CLEARANCE,
+      snapFitLeadAngle: DEFAULT_SNAP_FIT_LEAD_ANGLE,
+      snapFitRetainAngle: DEFAULT_SNAP_FIT_RETAIN_ANGLE,
+      snapFitFoot: DEFAULT_SNAP_FIT_FOOT,
+    };
+  }
+  if (kind === "rib") return { ribStyle: "straight", ribTop: "flat" };
   if (kind === "pyramid") return { sides: 4, topWidth: 0, topDepth: 0 };
   if (kind === "polygon") return { sides: 6 };
   if (kind === "roundRoof") return { sides: 64 };
@@ -632,6 +658,27 @@ export function sceneShape(shape: Partial<WorkplaneShape> & Pick<WorkplaneShape,
     segments: shape.segments,
     topRadius: shape.topRadius,
     baseRadius: shape.baseRadius,
+    screwBossFastener: shape.screwBossFastener,
+    screwBossSize: shape.screwBossSize,
+    screwBossHole: shape.screwBossHole,
+    screwBossHoleDepth: shape.screwBossHoleDepth,
+    screwBossDiameter: shape.screwBossDiameter,
+    screwBossGussets: shape.screwBossGussets,
+    screwBossGussetHeight: shape.screwBossGussetHeight,
+    screwBossGussetThickness: shape.screwBossGussetThickness,
+    snapFitPart: shape.snapFitPart,
+    snapFitThickness: shape.snapFitThickness,
+    snapFitUndercut: shape.snapFitUndercut,
+    snapFitClearance: shape.snapFitClearance,
+    snapFitLeadAngle: shape.snapFitLeadAngle,
+    snapFitRetainAngle: shape.snapFitRetainAngle,
+    snapFitFoot: shape.snapFitFoot,
+    ribStyle: shape.ribStyle,
+    ribTop: shape.ribTop,
+    ribFoot: shape.ribFoot,
+    ribThickness: shape.ribThickness,
+    ribFootThickness: shape.ribFootThickness,
+    ribFootShape: shape.ribFootShape,
     topWidth: shape.topWidth,
     topDepth: shape.topDepth,
     taperTopWidth: shape.taperTopWidth,
@@ -921,12 +968,23 @@ export function makeShapeFromAsset(
       depth: gearType === "rack" ? customization.depth ?? rackToothHeight(DEFAULT_GEAR_MODULE, gearProfile) + DEFAULT_GEAR_RIM : 0,
     })
     : null;
-  const width = gearSize?.width ?? gridfinityFootprint?.width ?? loftFootprint?.width ?? bentTubeFootprint?.width ?? threadFootprint?.width ?? customization.width ?? defaults.width;
+  const naturalWidth = gearSize?.width ?? gridfinityFootprint?.width ?? loftFootprint?.width ?? bentTubeFootprint?.width ?? threadFootprint?.width ?? customization.width ?? defaults.width;
+  // A rib on its foot (Discussion #1307) keeps its own thickness, a new one's four lines; its box is the foot's width,
+  // three times the rib unless a depth was asked for.
+  const ribOnFoot = asset.kind === "rib" && customization.ribFoot === true;
+  const ribThickness = ribOnFoot ? customization.ribThickness ?? DEFAULT_RIB_THICKNESS : undefined;
+  const ribFootDepth = ribThickness !== undefined && customization.depth === undefined ? ribFootWidthFor(ribThickness) : undefined;
   // A cylinder is always circular - depth follows width here too, so it never
   // snaps between insert and first render (canonicalizeShape enforces this
   // again afterwards as the actual safety net).
-  const depth = asset.kind === "cylinder" ? width : gearSize?.depth ?? gridfinityFootprint?.depth ?? loftFootprint?.depth ?? bentTubeFootprint?.depth ?? threadFootprint?.depth ?? customization.depth ?? defaults.depth;
+  const depth = asset.kind === "cylinder" ? naturalWidth : gearSize?.depth ?? gridfinityFootprint?.depth ?? loftFootprint?.depth ?? bentTubeFootprint?.depth ?? threadFootprint?.depth ?? ribFootDepth ?? customization.depth ?? defaults.depth;
   const height = gridfinityFootprint?.height ?? bentTubeFootprint?.height ?? customization.height ?? (threadDefaults ? threadNaturalHeight(threadDefaults) : defaults.height);
+  // On an oval foot the box is the ellipse's: the new rib is as long as without, the box longer by what reaches past
+  // its ends, unless a width was asked for, which is the box's as a depth asked for is the foot's width.
+  const ribFootShape = asset.kind === "rib" && (customization.ribFootShape === "square" || customization.ribFootShape === "oval") ? customization.ribFootShape : undefined;
+  const width = ribOnFoot && ribFootShape === "oval" && customization.width === undefined
+    ? ribBoxWidth({ width: naturalWidth, depth, height, ribFoot: true, ribThickness, ribFootThickness: customization.ribFootThickness, ribFootShape }, naturalWidth)
+    : naturalWidth;
   const size = Math.max(width, depth);
   const hirthTeeth = asset.kind === "hirth" ? normalizeHirthTeeth(customization.teeth) : undefined;
   const gearTeeth = asset.kind === "gear" ? normalizeGearTeeth(customization.teeth ?? DEFAULT_GEAR_TEETH) : hirthTeeth;
@@ -967,6 +1025,27 @@ export function makeShapeFromAsset(
     segments: asset.kind === "cylinder" || asset.kind === "ellipse" || asset.kind === "slot" ? 1 : asset.kind === "text" ? customization.segments : undefined,
     topRadius: asset.kind === "cone" ? customization.topRadius ?? 0 : undefined,
     baseRadius: asset.kind === "cone" ? customization.baseRadius ?? width / 2 : undefined,
+    screwBossFastener: asset.kind === "screwBoss" ? normalizeScrewBossFastener(customization.screwBossFastener) : undefined,
+    screwBossSize: asset.kind === "screwBoss" ? customization.screwBossSize ?? DEFAULT_SCREW_BOSS_SIZE : undefined,
+    screwBossHole: asset.kind === "screwBoss" ? customization.screwBossHole : undefined,
+    screwBossHoleDepth: asset.kind === "screwBoss" ? customization.screwBossHoleDepth : undefined,
+    screwBossDiameter: asset.kind === "screwBoss" ? customization.screwBossDiameter : undefined,
+    screwBossGussets: asset.kind === "screwBoss" ? customization.screwBossGussets : undefined,
+    screwBossGussetHeight: asset.kind === "screwBoss" ? customization.screwBossGussetHeight : undefined,
+    screwBossGussetThickness: asset.kind === "screwBoss" ? customization.screwBossGussetThickness : undefined,
+    snapFitPart: asset.kind === "snapFit" ? normalizeSnapFitPart(customization.snapFitPart) : undefined,
+    snapFitThickness: asset.kind === "snapFit" ? customization.snapFitThickness ?? DEFAULT_SNAP_FIT_THICKNESS : undefined,
+    snapFitUndercut: asset.kind === "snapFit" ? customization.snapFitUndercut ?? DEFAULT_SNAP_FIT_UNDERCUT : undefined,
+    snapFitClearance: asset.kind === "snapFit" ? customization.snapFitClearance ?? DEFAULT_SNAP_FIT_CLEARANCE : undefined,
+    snapFitLeadAngle: asset.kind === "snapFit" ? customization.snapFitLeadAngle ?? DEFAULT_SNAP_FIT_LEAD_ANGLE : undefined,
+    snapFitRetainAngle: asset.kind === "snapFit" ? customization.snapFitRetainAngle ?? DEFAULT_SNAP_FIT_RETAIN_ANGLE : undefined,
+    snapFitFoot: asset.kind === "snapFit" ? customization.snapFitFoot ?? DEFAULT_SNAP_FIT_FOOT : undefined,
+    ribStyle: asset.kind === "rib" ? normalizeRibStyle(customization.ribStyle) : undefined,
+    ribTop: asset.kind === "rib" ? normalizeRibTop(customization.ribTop) : undefined,
+    ribFoot: ribOnFoot ? true : undefined,
+    ribThickness,
+    ribFootThickness: asset.kind === "rib" ? customization.ribFootThickness : undefined,
+    ribFootShape,
     topWidth: asset.kind === "pyramid" ? normalizePyramidTop(customization.topWidth, width) : undefined,
     topDepth: asset.kind === "pyramid" ? normalizePyramidTop(customization.topDepth, depth) : undefined,
     teeth: gearTeeth,

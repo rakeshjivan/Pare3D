@@ -1,4 +1,7 @@
 
+import { createScrewBossGeometry } from "@/lib/screwBoss";
+import { createSnapFitGeometry } from "@/lib/snapFit";
+import { createRibGeometry } from "@/lib/rib";
 import type manifoldModule from "manifold-3d";
 import type { ManifoldToplevel } from "manifold-3d";
 import * as THREE from "three";
@@ -294,7 +297,8 @@ function bufferGeometryToMeshData(name: string, geometry: THREE.BufferGeometry):
   prepared.computeVertexNormals();
   prepared.computeBoundingBox();
   const minY = prepared.boundingBox?.min.y ?? 0;
-  if (Math.abs(minY) > 0.000001) {
+  // A screw boss grouped as a hole stands where it is drawn in its box (see createScrewBossGeometry).
+  if (Math.abs(minY) > 0.000001 && !geometry.userData.keepsItsHeight) {
     prepared.translate(0, -minY, 0);
     prepared.computeBoundingBox();
   }
@@ -597,6 +601,15 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
       break;
     case "hirth":
       geometry = createHirthGeometry(width, height, depth, shape);
+      break;
+    case "screwBoss":
+      geometry = createScrewBossGeometry({ ...shape, width, depth, height });
+      break;
+    case "snapFit":
+      geometry = createSnapFitGeometry({ ...shape, width, depth, height });
+      break;
+    case "rib":
+      geometry = createRibGeometry({ ...shape, width, depth, height });
       break;
     case "honeycomb":
       geometry = createHoneycombGeometry({
