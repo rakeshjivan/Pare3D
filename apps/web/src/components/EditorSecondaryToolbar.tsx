@@ -977,7 +977,7 @@ export function SecondaryToolbar({
     { id: "center", label: t("editor.tool.centerOnWorkplane"), icon: ToolbarCenterOnWorkplaneIcon, action: onCenterOnWorkplane, enabled: canModifySelection },
     // Fork: spacing parts out has its own button (it opens Align with the Space out panel).
     { id: "spaceOut", label: t("distribute.title"), icon: ForkSpaceOutIcon, action: onAlign, enabled: canAlign, active: alignMode },
-    { id: "fitCheck", label: t("fitCheck.title"), icon: ScanSearch, action: build33.onFitCheck, enabled: true, active: build33.fitActive },
+    { id: "fitCheck", label: t("editor.tool.clearance"), icon: ScanSearch, action: build33.onFitCheck, enabled: true, active: build33.fitActive },
   ];
   // Fork: the makers - each opens its own panel.
   const makeTools = [

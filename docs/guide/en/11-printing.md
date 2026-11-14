@@ -52,15 +52,22 @@ How steep your printer manages is set in the settings under {{ui:workspace.appea
 
 Sometimes you sink a part partly below the plate on purpose, to give a round or uneven part a flat base. The slicer cuts off whatever is below the plate. {{ui:cutBelowBed.button}} does the same in Pare 3D, so you see what will print: each part that sinks below the plate is grouped with a hole box filling everything under the plate beneath it. With nothing selected, every part is cut; otherwise the selected ones. It stays an ordinary group - {{ui:editor.tool.ungroup}} takes the cut back. Find it in {{ui:printCheck.title}}, or search for it with [[Ctrl]]+[[K]].
 
-## Fit check: overlaps and tight gaps
+## Checking clearance
 
-Parts that move against each other - a lid, a hinge, a print-in-place joint, a gear on a shaft - need a gap between them, or they fuse when printed. **{{ui:fitCheck.title}}** in the Arrange group finds where that goes wrong:
+Parts that should move after printing - a flexi dragon, a hinge printed in place, a box and its lid, an axle in its bore - need a gap between them. Too little, and they stick together; overlapping, they print as one piece. {{ui:editor.tool.clearance}}, at the end of {{ui:editor.group.arrange}}, checks that before you print. It takes the selected objects, or every visible object when nothing is selected (the same ones an export takes), and checks each pair:
 
-- With two or more parts selected it checks those; otherwise every visible part.
-- Where parts **overlap**, what they share shows in red on the plate, and the list gives its volume.
-- Where parts come **closer than the {{ui:fitCheck.clearance}}** (0.3 mm to begin with), the list says how far apart they are. 0.2 to 0.4 mm suits most printers for parts that print together and must move; the fit test under "Holes that fit" below tells you what yours needs.
+- **{{ui:clearance.kind.overlap}}** (red): the two share a volume. It shows red inside the bodies, which turn see-through, and the list says how large it is.
+- **{{ui:clearance.kind.touching}}** (red): they touch and fuse when printed.
+- **{{ui:clearance.kind.tight}}** (orange): the narrowest gap is smaller than {{ui:clearance.threshold}}.
+- **{{ui:clearance.kind.fine}}** (green): the narrowest gap is at least that wide.
 
-Click a line in the list to select its two parts. The check runs again by itself whenever a part moves, so you can nudge parts apart with the window open and watch the list empty. {{ui:edge.done}} closes it.
+Each row names the two parts and, for a gap, its width and where it lies: {{ui:clearance.direction.side}} (within one layer) or {{ui:clearance.direction.layer}} (above or below: there the slicer can only leave whole layers free, so a gap thinner than one layer closes). Click a row: the camera goes there, both parts are outlined, and a line with the number marks the narrowest place. Pairs further apart than 5 mm are not listed. Nothing in the design changes: the check saves nothing and leaves nothing to undo.
+
+{{ui:clearance.threshold}} starts at 0.3 mm; 0.3 is tight, 0.4 usual for a print in place. Changing it sorts the list again at once, without a new check, and the browser keeps the value. {{ui:clearance.splitParts}} (on to start) checks the separate parts of one object against each other too: a flexi dragon or a hinge imported as one STL is one object, but its links are separate parts. They are listed as "Name · Part 2". A part inside a cavity of another, a ball in a cage, is a part of its own.
+
+If you change the design while the panel is open, it shows {{ui:clearance.stale}}; click that or {{ui:clearance.checkAgain}}. [[Esc]] or {{ui:clearance.close}} closes the panel. Scaling changes the gaps too: a flexi model scaled to 70 % keeps 70 % of its gaps, so check again after scaling.
+
+The check measures the triangle mesh the slicer gets. A round axle and its bore are polygons with their corners on the circle, so a gap can come out a few hundredths smaller than the round numbers. A pair with too many triangles is listed as {{ui:clearance.kind.unchecked}}. An AI runs the same check with `Pare 3D_check_clearance`.
 
 ## Holes that fit
 

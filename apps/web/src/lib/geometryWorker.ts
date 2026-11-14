@@ -5,6 +5,7 @@ import { exportMeshesTo3mfAsync, type ThreeMfExportMesh } from "@/lib/threemfExp
 import { flattenThreeMfMeshes } from "@/lib/threemfFlat";
 import { articulateShapes, type FlexiOptions, type FlexiShapesResult } from "@/lib/flexiJoints";
 import { lidForShapes, type LidOptions, type LidShapeResult } from "@/lib/lidTool";
+import { checkClearance, type ClearanceOptions, type ClearanceResult } from "@/lib/clearanceCheck";
 import { resultMeshes, type GeometryTask, type GeometryWorkerRequest, type GeometryWorkerResponse } from "@/lib/geometryWorkerTypes";
 import { rememberPreparedDisplay } from "@/lib/importedMeshDisplay";
 import { getLanguage, t } from "@/lib/i18n";
@@ -264,6 +265,18 @@ export function splitShapesByPlaneOffThread(targets: readonly WorkplaneShape[], 
 }
 
 /** articulateShapes (lib/flexiJoints.ts) off the page: the links of a flexi body. */
+/**
+ * checkClearance (lib/clearanceCheck.ts) off the page: overlaps, touching parts and the narrowest gaps. A check the
+ * signal calls off (a new one started) never answers.
+ */
+export function checkClearanceOffThread(source: readonly WorkplaneShape[], options: Partial<ClearanceOptions>, signal?: AbortSignal): Promise<ClearanceResult> {
+  const onPage = async () => checkClearance([...source], options);
+  if (containsText([...source])) return onPage();
+  return runGeometryTask<ClearanceResult>("clearance", { source: [...source], options }, onPage, () => {
+    throw new Error(t("status.computeTimedOut"));
+  }, signal);
+}
+
 export function articulateShapesOffThread(targets: readonly WorkplaneShape[], options: FlexiOptions, signal?: AbortSignal): Promise<FlexiShapesResult> {
   const onPage = () => articulateShapes([...targets], options);
   if (containsText([...targets])) return onPage();

@@ -53,7 +53,9 @@ import { WorkplaneViewport, type LayFlatPick, type ViewportToolMemory } from "./
 import { layFlatRotation } from "@/lib/layFlat";
 import { SketchWorkspace, type SketchMeasurement, type SketchPrimitive, type SketchSelection, type SketchTool } from "./SketchWorkspace";
 import { EdgeModifierPanel, type EdgeChamferStyle } from "./workplane/EdgeModifierPanel";
-import { FitCheckPanel } from "./workplane/FitCheckPanel";
+import { ClearancePanel, clearanceMarkFor, clearanceRowIds, type ClearanceSettings, type ClearanceToolState } from "./workplane/ClearancePanel";
+import { clearanceMeshShape, clearanceSourceShapes, reclassifyClearance, readClearanceSettings, writeClearanceSettings } from "@/lib/clearanceCheck";
+import { getPrinterPlay } from "@/lib/printerPlay";
 import { MeshRoundPanel } from "./workplane/MeshRoundPanel";
 import { SurfaceTexturePanel } from "./workplane/SurfaceTexturePanel";
 import { picturePixels } from "@/lib/pictureIcon";
@@ -64,9 +66,9 @@ import { anchorMotion, movePositions } from "@/lib/surfaceTextFollow";
 import { partGeometry, trianglesNear } from "@/lib/surfacePartCache";
 import { faceComponents } from "@/lib/meshComponents";
 import { movedPointIds, solveSketchConstraints } from "@/lib/sketchConstraints";
-import { hullPositions, type FitReport } from "@/lib/partTools";
+import { hullPositions } from "@/lib/partTools";
 import { smallestRoundingRadius, type MeshRoundMode } from "@/lib/meshRound";
-import { checkFitInBackground, remeshInBackground, roundMeshInBackground, textureMeshInBackground } from "@/lib/meshJobs";
+import { remeshInBackground, roundMeshInBackground, textureMeshInBackground } from "@/lib/meshJobs";
 import { alignToPlate, bridgeChoice, expandConnected, extrudeChoice, invertConnected, optimizeBoundary, shrinkChoice, smoothChoice } from "@/lib/meshEditTools";
 import { applyToSelection, brushChoice, lassoChoice, type LassoMode, cornerPositions, growChoice, soupFloat32, invertChoice, loosePieces, sculptMeshOf, soupOf, withoutTriangles, type SculptMesh, type SelectReach } from "@/lib/meshSculpt";
 import { remeshRegion, LiveMesh, averageEdgeOf, stampBrush, type LiveBrush, type LivePatch } from "@/lib/liveSculpt";
@@ -279,7 +281,7 @@ import type { AlignAxis, AlignTarget, GridSize, ParametricSource, ProjectAsset, 
 import { type Vec3, type MeshData, type ShapeUpdatePatch, MIN_SHAPE_DIMENSION, resetManifoldRuntime, cleanModelDimension, getManifoldRuntime, meshForShape, meshReachAlong, appendMeshData, formatTriangleCount, boundsForShapes, boundsForCuboids, meshAabb, boundsForPositions } from "@/lib/editorMeshCore";
 import { planCutConnectors, type CutConnectorPlan, cloneAsGroupChild, withClosedHolesNote, splitShapesByPlane, unionOverlappingExportMeshes, exportBodiesWithLooseHoles, formatSectionOffset, SECTION_SEEN_FROM_KEYS, expandBundles, visibleExportShapes, multicolorExportSolids, exportFaceColors, colorSeparatedExportMeshes, canIntersectShapes, buildIntersectionShapeFromSelection, groupedShape, quaternionForShape, rotationFromQuaternion, cleanShapePatch, restoreGroupedChildren, restoreGroupedChildrenForEdges, buildGroupedShapeFromSelection } from "@/lib/editorBooleans";
 import { meshPartCount } from "@/lib/meshPartCount";
-import { articulateShapesOffThread, buildGroupedShapeOffThread, lidForShapesOffThread, exportMeshesTo3mfOffThread, exportSolidVolumeOffThread, simplifyTrianglePositionsOffThread, splitShapesByPlaneOffThread, subscribeGeometryBusy, warmGeometryWorker } from "@/lib/geometryWorker";
+import { articulateShapesOffThread, buildGroupedShapeOffThread, checkClearanceOffThread, lidForShapesOffThread, exportMeshesTo3mfOffThread, exportSolidVolumeOffThread, simplifyTrianglePositionsOffThread, splitShapesByPlaneOffThread, subscribeGeometryBusy, warmGeometryWorker } from "@/lib/geometryWorker";
 import { buildSketchLoftFromSelection, canSketchLoft } from "@/lib/sketchLoft";
 import { handleViewArrowKey } from "@/lib/viewArrowKeys";
 import { escapeWasHandled } from "@/lib/escapeHandled";
@@ -3271,11 +3273,33 @@ export function LayerlingEditor({
     preview: WorkplaneShape | null;
   } | null>(null);
   // Fork (build 33): Fit check - the parts it checks, and what they share drawn in red on top.
-  const [fitCheck, setFitCheck] = useState<{ clearance: number; ids: string[] | null } | null>(null);
-  const [fitReport, setFitReport] = useState<FitReport | null>(null);
-  const [fitBusy, setFitBusy] = useState(false);
-  const [fitOverlay, setFitOverlay] = useState<WorkplaneShape[]>([]);
-  const fitRunRef = useRef(0);
+  // The clearance check (Spiel prüfen): it only reads the design. Its overlaps show red inside their bodies, seen through.
+  const [clearanceTool, setClearanceTool] = useState<ClearanceToolState | null>(null);
+  const clearanceAbortRef = useRef<AbortController | null>(null);
+  const clearanceShown = useMemo(
+    () => (clearanceTool?.result ? reclassifyClearance(clearanceTool.result, clearanceTool.settings.threshold) : null),
+    [clearanceTool?.result, clearanceTool?.settings.threshold],
+  );
+  const clearanceStale = useMemo(() => {
+    const checked = clearanceTool?.checked;
+    if (!checked) return false;
+    const scope = clearanceTool.scopeIds;
+    const current = scope ? shapes.filter((shape) => scope.includes(shape.id)) : shapes;
+    return current.length !== checked.size || current.some((shape) => checked.get(shape.id) !== shape);
+  }, [clearanceTool?.checked, clearanceTool?.scopeIds, shapes]);
+  const clearanceOverlapShapes = useMemo(
+    () => (clearanceTool?.result?.overlaps ?? []).flatMap((overlap, index): WorkplaneShape[] => {
+      const shape = clearanceMeshShape(`clearance-overlap-${index}`, t("clearance.kind.overlap"), "#e5484d", overlap.positions);
+      return shape ? [{ ...shape, locked: true, previewOnly: true }] : [];
+    }),
+    [clearanceTool?.result],
+  );
+  const clearanceGhostIds = useMemo(() => {
+    const result = clearanceTool?.result;
+    if (!result?.overlaps.length) return null;
+    const keys = new Set(result.overlaps.flatMap((overlap) => [overlap.a, overlap.b]));
+    return new Set(result.parts.filter((part) => keys.has(part.key)).map((part) => part.id));
+  }, [clearanceTool?.result]);
   const viewportShapes = useMemo(() => {
     let result = baseViewportShapes;
     if (intersectPreviewIds) {
@@ -3292,13 +3316,12 @@ export function LayerlingEditor({
       // Fork (build 38): the dragged text shows only where it will land, on the surface under the pointer.
       result = [...result.filter((shape) => shape.id !== dragTextGhost.id), dragTextGhost.ghost];
     }
-    if (fitCheck && fitOverlay.length) {
+    if (clearanceGhostIds && clearanceOverlapShapes.length && !clearanceStale) {
       // The overlapping parts see-through, so the red overlap inside them shows.
-      const overlapping = new Set((fitReport?.findings ?? []).filter((finding) => finding.kind === "overlap").flatMap((finding) => [finding.a, finding.b]));
-      result = [...result.map((shape) => (overlapping.has(shape.id) ? { ...shape, transparent: true } : shape)), ...fitOverlay];
+      result = [...result.map((shape) => (clearanceGhostIds.has(shape.id) ? { ...shape, transparent: true } : shape)), ...clearanceOverlapShapes];
     }
     return result;
-  }, [baseViewportShapes, dragTextGhost, fitCheck, fitOverlay, fitReport, intersectPreviewIds, intersectPreviewShape, surfaceTextTool?.editingId, surfaceTextTool?.preview]);
+  }, [baseViewportShapes, clearanceGhostIds, clearanceOverlapShapes, clearanceStale, dragTextGhost, intersectPreviewIds, intersectPreviewShape, surfaceTextTool?.editingId, surfaceTextTool?.preview]);
   // A revolve sketch on the base plate is a side view: the bodies are shown from the front, as the profile is drawn (#525).
   // Opened again to edit a body that stands upright, it is the same side view: that body stands at its height, not on the plate's workplane.
   const editedRevolveShape = sketchActive && sketchOperation === "revolve" && editingSketchShapeId ? shapes.find((shape) => shape.id === editingSketchShapeId) : undefined;
@@ -11036,48 +11059,112 @@ export function LayerlingEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [applySurfaceText, surfaceTextTool]);
 
-  /** Fork (build 33): opens or closes Fit check, on the selected parts (two or more) or else on every visible part. */
-  const toggleFitCheck = useCallback(() => {
-    if (fitCheck) {
-      setFitCheck(null);
-      return;
+  // Another tool opens its panel where this one stands, and what it applies changes the design anyway: the check gives way,
+  // and does not open over it.
+  const otherToolPanelOpen = Boolean(
+    arrayTool || scalePercentTool || simplifyToolId || holePatternTool || faceTool || supportRibTool || mateTool || cookieCutterTool || flexiTool
+    || lidTool || cutOutTool || punchTool || shellTool || deleteFaceTool || splitSession || edgeModifier,
+  );
+  /**
+   * Checks the selection, or every visible object when nothing is selected (as the export takes them). A new check
+   * stops the one still running; its result belongs to the design as it was, and the panel says when that changes.
+   */
+  const runClearanceCheck = useCallback(async (settings: ClearanceSettings) => {
+    const scopeIds = selectedIdsRef.current.length ? [...selectedIdsRef.current] : null;
+    const source = scopeIds ? shapesRef.current.filter((shape) => scopeIds.includes(shape.id)) : shapesRef.current;
+    clearanceAbortRef.current?.abort();
+    const controller = new AbortController();
+    clearanceAbortRef.current = controller;
+    setClearanceTool((current) => current ? { ...current, settings, scopeIds, running: true, error: null } : current);
+    try {
+      const result = await checkClearanceOffThread(source, settings, controller.signal);
+      if (clearanceAbortRef.current !== controller) return;
+      setClearanceTool((current) => current ? { ...current, result, running: false, error: null, checked: new Map(source.map((shape) => [shape.id, shape])), activeRow: null } : current);
+    } catch (error) {
+      if (clearanceAbortRef.current !== controller) return;
+      const message = error instanceof Error ? localizedError(error.message) : String(error);
+      setClearanceTool((current) => current ? { ...current, running: false, error: t("clearance.failed", { message }) } : current);
     }
-    const solids = selectedShapes.filter((shape) => !shape.hole && !isNonSolidShapeKind(shape.kind));
-    setFitCheck({ clearance: 0.3, ids: solids.length >= 2 ? solids.map((shape) => shape.id) : null });
-  }, [fitCheck, selectedShapes]);
+  }, []);
 
-  // Checked again a moment after every change, so parts can be moved apart while it is open.
-  useEffect(() => {
-    if (!fitCheck) {
-      fitRunRef.current += 1;
-      setFitReport(null);
-      setFitOverlay([]);
-      setFitBusy(false);
+  const closeClearanceCheck = useCallback(() => {
+    clearanceAbortRef.current?.abort();
+    clearanceAbortRef.current = null;
+    setClearanceTool(null);
+  }, []);
+
+  const toggleClearanceCheck = useCallback(() => {
+    if (clearanceTool) {
+      closeClearanceCheck();
       return;
     }
-    const run = fitRunRef.current + 1;
-    fitRunRef.current = run;
-    setFitBusy(true);
-    const timer = window.setTimeout(async () => {
-      const ids = fitCheck.ids ? new Set(fitCheck.ids) : null;
-      // A support rib reaches into its part on purpose (Discussion #1385): left out of the fit check.
-      const parts = expandBundles(shapes).filter((shape) => !shape.hidden && !shape.hole && !isNonSolidShapeKind(shape.kind) && !isSupportRib(shape) && (!ids || ids.has(shape.id)));
-      try {
-        // Fork (build 37): in the background, so a big assembly keeps the window working.
-        const report = await checkFitInBackground(parts, fitCheck.clearance);
-        if (fitRunRef.current !== run) return;
-        setFitReport(report);
-        setFitOverlay(report.findings.flatMap((finding, index) => finding.positions?.length
-          ? [{ ...shapeWithWorldPositions(meshShapeFromPositions(t("fitCheck.overlapName"), "#e5322d", finding.positions), finding.positions), id: `fit-overlap-${index}`, locked: true, previewOnly: true } as WorkplaneShape]
-          : []));
-      } catch (error) {
-        if (fitRunRef.current === run) noticeError(error);
-      } finally {
-        if (fitRunRef.current === run) setFitBusy(false);
-      }
-    }, 300);
+    if (otherToolPanelOpen) {
+      setNotice(t("clearance.otherTool"));
+      return;
+    }
+    const scope = selectedShapes.length ? selectedShapes : shapes;
+    if (!clearanceSourceShapes(scope).length) {
+      setNotice(t("clearance.nothing"));
+      return;
+    }
+    const settings = readClearanceSettings(getPrinterPlay());
+    setClearanceTool({ settings, result: null, running: true, error: null, checked: null, scopeIds: null, activeRow: null, request: 0 });
+    void runClearanceCheck(settings);
+  }, [clearanceTool, closeClearanceCheck, otherToolPanelOpen, runClearanceCheck, selectedShapes, shapes]);
+
+  /** The threshold only moves the line between too tight and fine; the switch for separate parts checks again. */
+  const changeClearanceSettings = useCallback((patch: Partial<ClearanceSettings>) => {
+    if (!clearanceTool) return;
+    const settings = { ...clearanceTool.settings, ...patch };
+    // Only what was changed is kept: a minimum gap never set by hand goes on following the printer's play.
+    writeClearanceSettings(patch);
+    if (settings.splitParts !== clearanceTool.settings.splitParts) {
+      void runClearanceCheck(settings);
+      return;
+    }
+    setClearanceTool((current) => current ? { ...current, settings } : current);
+  }, [clearanceTool, runClearanceCheck]);
+
+  const showClearanceRow = useCallback((key: string) => {
+    setClearanceTool((current) => current ? { ...current, activeRow: key, request: current.request + 1 } : current);
+  }, []);
+
+  const clearanceMark = useMemo(
+    () => (clearanceShown && clearanceTool?.activeRow && !clearanceStale ? clearanceMarkFor(clearanceShown, clearanceTool.activeRow, workspaceSettings, clearanceTool.request) : null),
+    [clearanceShown, clearanceStale, clearanceTool?.activeRow, clearanceTool?.request, workspaceSettings],
+  );
+  // The two parts of the row shown are outlined; an overlap is not: its bodies are see-through already, and the tint of
+  // the outline would hide the red of the common volume.
+  const clearanceHighlightIds = useMemo(
+    () => (clearanceShown && clearanceTool?.activeRow && clearanceMark?.kind !== "overlap" ? clearanceRowIds(clearanceShown, clearanceTool.activeRow) : null),
+    [clearanceMark?.kind, clearanceShown, clearanceTool?.activeRow],
+  );
+  useEffect(() => () => clearanceAbortRef.current?.abort(), []);
+  // Escape closes the clearance check, as it closes the other tool panels.
+  useEffect(() => {
+    if (!clearanceTool) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select")) return;
+      closeClearanceCheck();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [clearanceTool, closeClearanceCheck]);
+  useEffect(() => {
+    if (otherToolPanelOpen) closeClearanceCheck();
+  }, [closeClearanceCheck, otherToolPanelOpen]);
+  const clearanceToolOpenRef = useRef(false);
+  clearanceToolOpenRef.current = Boolean(clearanceTool);
+  const canCheckClearance = useMemo(() => clearanceSourceShapes(selectedShapes.length ? selectedShapes : shapes).length > 0, [selectedShapes, shapes]);
+
+  // Build 110: checked again a moment after every change, so parts can be moved apart while it is open (as Fit check did).
+  useEffect(() => {
+    if (!clearanceTool || clearanceTool.running || !clearanceStale) return;
+    const timer = window.setTimeout(() => void runClearanceCheck(clearanceTool.settings), 400);
     return () => window.clearTimeout(timer);
-  }, [fitCheck, shapes]);
+  }, [clearanceStale, clearanceTool, runClearanceCheck]);
 
   /** Shows what the selected shapes share, and keeps showing it while they are moved one by one (#372). */
   const toggleIntersectPreview = useCallback(() => {
@@ -16254,8 +16341,8 @@ export function LayerlingEditor({
         build33={{
           canHull: !selectionLocked && selectedShapes.some((shape) => !shape.hole && !isNonSolidShapeKind(shape.kind)) && (selectedShapes.length >= 2 || Boolean(selectedShapes[0]?.groupedShapes?.length) || selectedShapes[0]?.kind === "mesh"),
           onHull: () => void hullSelected(),
-          fitActive: Boolean(fitCheck),
-          onFitCheck: toggleFitCheck,
+          fitActive: Boolean(clearanceTool),
+          onFitCheck: toggleClearanceCheck,
           canRound: !selectionLocked && selectedShapes.length === 1 && !selectedShapes[0].hole && !isNonSolidShapeKind(selectedShapes[0].kind),
           roundActive: Boolean(meshRoundTool),
           onRound: toggleMeshRound,
@@ -16582,7 +16669,8 @@ export function LayerlingEditor({
           onMirrorSelection={mirrorSelectionAcross}
           onSelectShape={selectShape}
           onShapeContextMenu={historyViewState ? undefined : openShapeContextMenu}
-          highlightIds={menuHighlightIds}
+          highlightIds={clearanceHighlightIds ?? menuHighlightIds}
+          clearanceMark={clearanceMark}
           onSetPlacementWorkplane={setViewportPlacementWorkplane}
           onToggleWorkplaneTool={activateWorkplaneTool}
           onInteractionActiveChange={updateProjectInteractionActive}
@@ -17167,17 +17255,24 @@ export function LayerlingEditor({
           onClearConnectors={() => setSplitConnectorPoints([])}
         />
       ) : null}
-      {fitCheck ? (
-        <FitCheckPanel
-          clearance={fitCheck.clearance}
-          report={fitReport}
-          busy={fitBusy}
-          scope={{ kind: fitCheck.ids ? "selected" : "all", count: fitCheck.ids?.length ?? expandBundles(shapes).filter((shape) => !shape.hidden && !shape.hole && !isNonSolidShapeKind(shape.kind)).length }}
-          names={new Map(expandBundles(shapes).map((shape) => [shape.id, displayShapeName(shape)]))}
+      {clearanceTool ? (
+        <ClearancePanel
+          scope={!clearanceTool.scopeIds
+            ? t("clearance.scope.all")
+            : clearanceTool.scopeIds.length === 1
+              ? shapes.find((shape) => shape.id === clearanceTool.scopeIds?.[0])?.name ?? t("clearance.scope.all")
+              : t("clearance.scope.selection", { count: clearanceTool.scopeIds.length })}
+          settings={clearanceTool.settings}
           workspace={workspaceSettings}
-          onClearanceChange={(clearance) => setFitCheck((current) => current ? { ...current, clearance: Math.max(0, Math.min(2, clearance)) } : current)}
-          onSelectPair={(a, b) => selectShape([a, b])}
-          onClose={() => setFitCheck(null)}
+          result={clearanceShown}
+          running={clearanceTool.running}
+          stale={clearanceStale && !clearanceTool.running}
+          error={clearanceTool.error}
+          activeRow={clearanceTool.activeRow}
+          onChange={changeClearanceSettings}
+          onCheck={() => void runClearanceCheck(clearanceTool.settings)}
+          onRow={showClearanceRow}
+          onClose={closeClearanceCheck}
         />
       ) : null}
       {surfaceTextTool ? (

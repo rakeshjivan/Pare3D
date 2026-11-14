@@ -64,6 +64,7 @@ export const GUIDE_SECTIONS = {
   offset: { chapter: "edges", en: "offsetting-bodies" },
   cutOut: { chapter: "solids", en: "cutting-one-body-out-of-another" },
   punch: { chapter: "solids", en: "punching-an-outline-through-a-body" },
+  clearanceCheck: { chapter: "printing", en: "checking-clearance" },
   flexi: { chapter: "threads", en: "flexi-joints" },
   lid: { chapter: "edges", en: "a-lid-for-an-open-body" },
   vase: { chapter: "shapes", en: "a-vase" },
@@ -113,7 +114,7 @@ export const GUIDE_SECTIONS = {
   readyParts: { chapter: "shapes", en: "ready-made-parts" },
   // Fork (build 33).
   hull: { chapter: "solids", en: "hull-wrapping-parts-in-one-body" },
-  fitCheck: { chapter: "printing", en: "fit-check-overlaps-and-tight-gaps" },
+  fitCheck: { chapter: "printing", en: "checking-clearance" },
   meshRound: { chapter: "files", en: "rounding-a-mesh" },
   meshSculpt: { chapter: "files", en: "sculpting-a-mesh" },
   // Fork (build 55).
