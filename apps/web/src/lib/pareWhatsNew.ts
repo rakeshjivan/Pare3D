@@ -4,6 +4,14 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 108,
+    items: [
+      "Dark build plate: the plate and its grid can be drawn in dark greys while the rest of the screen stays light. Use the moon button in the view controls, or Settings.",
+      "Support ribs for a part printed tilted: under Modify > More and in the right-click menu. The ribs are left out of the fit and print checks.",
+      "The \"Your plate is empty\" card no longer covers the top of an empty plate.",
+    ],
+  },
+  {
     build: 107,
     items: [
       "Pare 3D is now CAD Studio only.",
