@@ -4,6 +4,17 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 109,
+    items: [
+      "Smoother view: shadows are drawn again only when a part changes, and dragging no longer makes the page work out its layout on every frame.",
+      "The mesh tools are one Mesh button with a menu, so the toolbar has more room.",
+      "Note, Import, Parameters and Settings show their names on a wide window.",
+      "The column on the left is split into view, plate and measuring.",
+      "Menus in the toolbar close with Escape and never stay open over a window.",
+      "No more \"Selection cleared\" message when you press Escape.",
+    ],
+  },
+  {
     build: 108,
     items: [
       "Dark build plate: the plate and its grid can be drawn in dark greys while the rest of the screen stays light. Use the moon button in the view controls, or Settings.",
