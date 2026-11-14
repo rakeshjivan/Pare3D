@@ -233,7 +233,9 @@ export const SKETCH_PALETTE_ICONS = {
 };
 
 /** Build 71: the groups folded first when the toolbar would wrap - the least used first. */
-const FOLD_ORDER = ["arrange", "mesh", "combine", "clipboard", "history"] as const;
+const FOLD_ORDER = ["arrange", "combine", "clipboard", "history"] as const;
+/** Build 109: groups that are always one button with a drop-down - the mesh tools only work on an imported mesh. */
+const ALWAYS_FOLDED: readonly string[] = ["mesh"];
 
 export function SecondaryToolbar({
   toolbarMode,
@@ -679,8 +681,20 @@ export function SecondaryToolbar({
       const target = event.target as Element | null;
       if (!target?.closest?.(`[data-fold="${openFold}"]`)) setOpenFold(null);
     };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenFold(null);
+    };
+    const close = () => setOpenFold(null);
     window.addEventListener("pointerdown", onDown);
-    return () => window.removeEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", close);
+    window.addEventListener("layerling:open-workspace-settings", close);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("layerling:open-workspace-settings", close);
+    };
   }, [openFold]);
   useEffect(() => {
     const reset = () => setFoldedGroups([]);
@@ -972,7 +986,7 @@ export function SecondaryToolbar({
   type FoldTool = { id: string; label: string; icon: ComponentType<{ width?: number; height?: number }>; action: () => void; enabled: boolean; active?: boolean };
   /** A toolbar group: its buttons, or - folded - one button that opens them as a list. */
   const renderGroup = (group: string, label: string, tools: readonly FoldTool[], render: () => ReactNode, extraClass = "", inert?: boolean) => {
-    if (!foldedGroups.includes(group)) {
+    if (!foldedGroups.includes(group) && !ALWAYS_FOLDED.includes(group)) {
       return (
         <div className={`toolbar-section ${extraClass}`} data-group={group} inert={inert}>
           <div className="toolbar-section-label">{label}</div>
@@ -1834,17 +1848,21 @@ export function SecondaryToolbar({
                   disabled={historyViewActive}
                 >
                   <MessageSquareText className="title-icon" aria-hidden="true" />
+                  <span className="title-label" aria-hidden="true">{t("editor.tool.note")}</span>
                 </button>
                 <button className="action-icon-button" aria-label={t("editor.import")} title={`${t("editor.import")} (${COMMAND_SHORTCUTS.import})`} data-tip={topTip(t("editor.import"), "bring in STL, 3MF, STEP, SVG or images", COMMAND_SHORTCUTS.import)} onClick={() => onTopPanel("import")} disabled={historyViewActive}>
                   <Import className="title-icon" aria-hidden="true" />
+                  <span className="title-label" aria-hidden="true">{t("editor.import")}</span>
                 </button>
                 {/* Build 71: Export is the blue button beside these. */}
                 {/* Fork (build 37): the design's named values. */}
                 <button className="action-icon-button" aria-label={t("parameters.title")} title={t("parameters.title")} data-layerling-tool="parameters" data-tip={topTip(t("parameters.title"), "named sizes any field can use - change one, every part follows")} onClick={() => window.dispatchEvent(new Event(OPEN_PARAMETERS_EVENT))} disabled={historyViewActive}>
                   <Variable className="title-icon" aria-hidden="true" />
+                  <span className="title-label" aria-hidden="true">{t("parameters.title")}</span>
                 </button>
                 <button className="action-icon-button" aria-label={t("editor.workspaceSettings")} title={t("editor.workspaceSettings")} data-tip={topTip(t("editor.workspaceSettings"), "units, grid, plate and appearance")} onClick={() => window.dispatchEvent(new Event("layerling:open-workspace-settings"))}>
                   <LucideSettings className="title-icon" aria-hidden="true" />
+                  <span className="title-label" aria-hidden="true">{t("editor.settingsShort")}</span>
                 </button>
               </div>
             </div>

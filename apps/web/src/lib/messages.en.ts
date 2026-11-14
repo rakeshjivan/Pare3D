@@ -891,6 +891,7 @@ export const MESSAGES_EN = {
   "editor.import": "Import",
   "editor.export": "Export",
   "editor.workspaceSettings": "Workspace settings",
+  "editor.settingsShort": "Settings",
   "editor.keyboardShortcuts": "Keyboard shortcuts",
   "editor.bugReport": "Bug report",
   "editor.bugReportHint": "Save a bug report as a ZIP: the design with its version, browser and the last messages, to attach in the forum or on GitHub",
