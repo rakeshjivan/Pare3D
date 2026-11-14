@@ -1,0 +1,92 @@
+---
+title: Measuring and notes
+summary: Tape measure, ruler and framing square, distances to the origin, notes that stay attached to a part, and reference points that things snap to.
+---
+
+To build a part exactly, you need to measure. Pare 3D has several tools for that. None of them ends up in an export. Wall thickness and gaps inside a part are best measured in the [section view](chapter:view-and-workplane) with {{ui:camera.sectionMeasure}}.
+
+## The tape measure
+
+The tape measure sits at the lower end of the camera bar on the left edge ({{ui:camera.tapeTools}}). It measures distances between corners, edges and faces. A click on it opens five buttons. If they cover what you want to measure, drag them by the grip on the left anywhere on the workplane; a double-click on the grip puts them back:
+
+![The tape measure with its buttons: add measurement, move measuring points, remove measurement, whole edges, delete all measurements.](shot:tape-menu)
+
+1. **{{ui:camera.addMeasurement}}:** Click one point, drag to the next and click it. The distance is labelled. On an opposing edge or face, the second point snaps in at a right angle to the first when the pointer comes near - or anywhere on that edge or face while you hold [[Shift]]. Along the same face or on the workplane, [[Shift]] keeps the measurement straight along the main axis.
+2. **{{ui:camera.moveMeasurement}}:** Grab the points and move them, the number follows.
+3. **{{ui:camera.deleteMeasurement}}:** Afterwards click a measurement to remove it. While **{{ui:camera.addMeasurement}}** is active, holding [[Shift]] or [[Ctrl]] ([[Cmd]] on a Mac) and clicking a measurement point or line deletes it right away without switching modes.
+4. **{{ui:camera.tapeWholeEdges}}:** A click on an edge measures all of it, the length of a circle for example. With this switched off, a click puts a point on the edge instead, and the second point goes anywhere, so you can measure the diameter or any other distance. [[Alt]] turns the switch round for one click. On a circle, the point across from the first one snaps in when the pointer comes near, and the points sit on the true circle, so the diameter comes out exact.
+5. **{{ui:camera.deleteAllMeasurements}}:** Removes every measurement at once. Because this cannot be undone, Pare 3D asks first; with no measurements there is nothing to do.
+6. **{{ui:camera.tapeMarkMiddle}}:** Under the number of every measurement sits a small crosshair button. It puts a [reference point](#reference-points) in the middle of the measurement: after a click on a round edge, such as the rim of a hole, in the centre of that circle - on an imported mesh too, where nothing else marks the middle of a hole - and for a diameter or any straight measurement halfway along it. A shape you drag then snaps to the point with its centre. A point that is there already is not made twice. The tape measure snaps to a reference point like to a corner, so you can measure from the centre of a circle or from the middle of a line: mark it, then click the point.
+7. **{{ui:camera.tapeTypeLength}}:** When at least one end of a straight measurement sits on a body, its number can be clicked. Type a new length and press [[Enter]]: the body at the second point moves along the measured line until the distance is exactly that, as with the ruler in Tinkercad. If only the body at the first point is selected, that one moves instead. The measuring points stay on the body, so the measurement follows. Measure from a corner, an edge or a [reference point](#reference-points), such as the centre of a circle, to place parts at an exact distance.
+
+[[Esc]] leaves measuring mode.
+
+## The ruler
+
+You fetch the {{ui:shape.ruler}} from the shape library. It is purely a measuring tool: it appears in no export and can neither be grouped nor cut. For every body that touches or overlaps the ruler, it shows the extent as a floating number right in the view. You can change that number right there, and the body follows. Stand the ruler up or tip it, and it measures along its own direction: upright beside a body it shows the body's height. The floating plus symbol creates a copy of the measured shape; it is there while the ruler lies flat. Its printed scale is in millimetres; once the unit is switched to inches (the switch at the bottom right), it is in inches, with a line every sixteenth of an inch and the whole inches numbered.
+
+## The framing square
+
+Sometimes you measure better at a right angle. Click {{ui:camera.cornerRulerTool}} in the camera bar and then the workplane. A framing square with two arms at a right angle, with tick marks like a try square, is placed there. It has no body of its own either. Click close to the corner of a body, and its corner snaps exactly there.
+
+The framing square lies on the workplane. If that sits on the side of a body, the square lies on that side too, see [View and workplane](chapter:view-and-workplane). That is how you dimension on a vertical wall: put the workplane on the wall, place the square at its top left corner and click the handle until the arms point right and down.
+
+- **Dragging the handle** moves it.
+- **A short click on the handle** turns it by 90°.
+- **The ×** beside it removes it.
+- **The small button left of the handle** switches what is measured from: the outside of a body (endpoint, an icon with lines) or its middle (midpoint, a crosshair). A small switch of the same kind sits beside each green number and sets that number alone: for a standing cylinder the middle in the two arms and the bottom in height, for a lying one the middle across and an end along. When all three agree again, the button at the handle shows the common mode.
+
+If bodies stand at one of the arms, the framing square shows their dimensions automatically. That works on the base plate only, not on the side of a body.
+
+When you select a body, the framing square shows in green how far it is from the corner, along both arms and in height. Click a green number to type a distance, and the body moves exactly there. With several bodies selected, they count as one: the ruler measures their shared outline, and a typed value moves them all together without changing their positions relative to each other.
+
+The guide lines of the green numbers run along the floor, the plane the framing square lies in, to the point below or beside the body; the height has its own arrow. The switch of each number sits in the frame of the number. The arms and the ticks are lines in the room: a body in front of them hides them, as a real square would be hidden. The small eye below the handle switches that: with the eye struck through, bodies hide the square (the start); with the eye open, the square stays in view over everything. The numbers on the arms fade where a body stands in front of them.
+
+With the midpoint, the green numbers count to the middle of the body, in height as well. That way you place a sphere with its centre exactly 15 mm from an edge, without subtracting the radius. On a wall you place a hole 40 mm from the left and 190 mm from the top like this: select the hole, switch to midpoint, type 40 and 190. The height there counts outward from the wall.
+
+Both the tape measure and the framing square stay where they are while you sketch and come back to the 3D view. They are not saved with the design and not in the history, and they go when you reload the page.
+
+## Distances to the origin and while moving
+
+In the settings under {{ui:workspace.appearance}} there are two switches for live dimensions:
+
+- {{ui:workspace.showMoveDimensions}} shows by how much you move while dragging.
+- {{ui:workspace.showOriginDimensions}} shows the distances of the selection to the origin of the plate, also with several selected bodies.
+
+With {{ui:workspace.dimensionsAlwaysVisible}} the dimensions stay visible permanently.
+
+## Notes
+
+A note records what the geometry does not say: "This screw is 0.3 mm too tight", "print the lid yet", "dimension from Peter". Place one with {{ui:editor.tool.note}} or the [[N]] key.
+
+- If you place the note **on a body**, it travels with it.
+- If you place it **beside**, it stays on the workplane ({{ui:note.free}}).
+- {{ui:note.detach}} releases an attached note from the body.
+- {{ui:editor.tool.group}} takes an attached note into the group; {{ui:editor.tool.ungroup}} hands it to the visible part under it, a group inside included. While a group is open with {{ui:group.edit}}, its notes move with the part under them and go back to the group with {{ui:group.done}}; cancelling puts them back as they were.
+- If its body is deleted, or no visible body is under it any more, the note stays where it stood, on the workplane.
+- Dragging the pin moves the note. A click on the pin folds the card away, only the small number stays; another click opens it again. A click into the text edits it.
+- While you write, [[Enter]] keeps the text and [[Esc]] puts it back to how it was before you started; [[Shift]]+[[Enter]] starts a new line.
+
+Notes are saved in the design, appear in no export and can be shown or hidden with {{ui:visibility.notes}} (in {{ui:editor.visibilityOptions}}, the arrow beside the eye icon) or with [[Shift]]+[[N]].
+
+## Reference points
+
+A reference point is a bare mark in space, like a pencil mark or a layout point in a workshop: it belongs to no body, is never printed, and other things snap to it. Right-click a body and choose {{ui:contextMenu.markCenter}}, {{ui:contextMenu.markCorners}} or {{ui:contextMenu.markMidpoints}}: the points appear on the top face of the body (of the whole selection, if you selected several).
+
+- Drag a point to move it: it snaps to the corners, the middles of the edges and faces of bodies, to their real corners and to other points; hold [[Alt]] to let it go free. Or click it to see its coordinates and type new ones; they use the unit you set. Each card can be dragged away by its title if it covers something, on its own: the others stay where they are, and a double-click on the title puts it back. The card you touched last stands in front of the others. **Delete all** in a card, or **Delete all reference points** in the right-click menu (of a body, or of an empty spot of the 3D view), deletes every point at once. {{ui:common.delete}} removes it.
+- The tape measure can mark a point too: {{ui:camera.tapeMarkMiddle}}, the crosshair button under a measurement, puts one in its middle, in the centre of a round hole for example. And it measures from a point: the tape snaps to reference points like to corners.
+- When you drag a shape, its edges and its centre snap to a point, like they snap to other shapes ({{ui:workspace.objectSnap}}). The framing square snaps to points too.
+- Points are saved in the design, appear in no export, and are shown or hidden together with the notes by {{ui:visibility.notes}} ([[Shift]]+[[N]]).
+- An AI can mark, list and remove them with `layerling_add_reference_points`, `layerling_list_reference_points` and `layerling_remove_reference_points`.
+
+## Parameters: named sizes
+
+A design can have **{{ui:parameters.title}}**: named sizes such as `wall = 2` or `width = 60` that any number field can use, the way OpenSCAD's customiser or Fusion's parameters work. Open them with the **{{ui:parameters.title}}** button in the title row (next to Export).
+
+1. Click **{{ui:parameters.add}}**, give it a name (letters, digits and `_`, starting with a letter) and a value in the design's unit. A note says what it is for.
+2. Type the name into any number field - alone (`width`) or in a sum (`width - 2 * wall`, `height / 2 + 0.4`). The field remembers it.
+3. Change the value in the Parameters window and every field that uses it follows at once, on every part. Renaming a parameter renames it in every field that uses it.
+
+Each parameter shows how many fields use it. Removing one leaves those fields at the values they have. Undo takes back the parts' changes; the parameter's value itself stays as you set it.
+
+Good uses: a box and its lid that share `width` and `depth`, wall thickness on every part of an enclosure, a clearance used by all the holes for one bolt.

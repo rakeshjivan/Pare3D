@@ -1,0 +1,1943 @@
+
+/* Fork: one-click switch between my printers in Settings. */
+.workspace-modal .my-printer-switch {
+  height: auto !important;
+  min-height: 32px;
+  max-height: none !important;
+  width: max-content !important;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.workspace-modal .my-printer-switch button {
+  height: auto !important;
+  min-height: 30px;
+  line-height: 1.2 !important;
+}
+.my-printer-switch {
+  display: inline-flex;
+  gap: 0;
+  margin: 6px 0 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.my-printer-switch button {
+  padding: 6px 14px;
+  font: 600 13px var(--font-ui);
+  color: var(--foreground);
+  background: var(--panel);
+  border: 0;
+  cursor: pointer;
+}
+.my-printer-switch button + button { border-left: 1px solid var(--border-strong); }
+.my-printer-switch button.active { color: #fff; background: var(--primary); }
+
+/* ---------------------------------------------------------------------------
+ * Fork: toolbar.
+ * Manage and Help move up into the title row, so the tools stay on one row.
+ * Combine, Modify and Arrange only show while something is selected.
+ * ------------------------------------------------------------------------ */
+.title-row-tools {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  min-width: 0;
+}
+.title-row-tools .toolbar-actions-section {
+  display: flex;
+  align-items: center;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.title-row-tools .toolbar-actions-section + .toolbar-actions-section {
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
+}
+.title-row-tools .toolbar-section-label { display: none; }
+.title-row-tools .action-buttons {
+  display: flex;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  align-items: center;
+  border: 0;
+  background: transparent;
+}
+.title-row-tools .action-icon-button,
+.toolbar-title-row-actions .tc-guide-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  min-width: 0;
+  padding: 0;
+  color: var(--toolbar-label);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  transform: none;
+}
+.title-row-tools .action-icon-button:hover,
+.toolbar-title-row-actions .tc-guide-button:hover { color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.title-row-tools .action-icon-button.active { color: #fff; background: var(--primary); }
+.title-icon { width: 20px !important; height: 20px !important; stroke-width: 2 !important; }
+.toolbar-title-row-actions .tc-guide-button { color: var(--primary); margin-right: 4px; }
+
+/* Tool names under the pointer, straight away instead of the slow browser tooltip. */
+.secondary-toolbar .toolbar-icon[aria-label],
+.secondary-toolbar .action-icon-button[aria-label] {
+  position: relative;
+}
+.secondary-toolbar .toolbar-icon[aria-label]:hover::after,
+.secondary-toolbar .action-icon-button[aria-label]:hover::after {
+  content: attr(aria-label);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 60;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  color: #fff;
+  background: #2a3442;
+  border-radius: 6px;
+  font: 600 11px/1.3 var(--font-ui);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(20, 30, 45, 0.25);
+}
+
+/* ---------------------------------------------------------------------------
+ * Fork: the Shapes panel docked down the right side while pinned.
+ * ------------------------------------------------------------------------ */
+:root { --shape-dock-width: 232px; }
+
+.shape-menu-dropdown.shape-menu-docked {
+  position: fixed !important;
+  /* The panel lives inside the toolbar, which --toolbar-scale scales: undo that here. */
+  top: calc(var(--editor-toolbar-height) / var(--toolbar-scale, 1)) !important;
+  right: 0 !important;
+  bottom: calc(var(--editor-footer-height) / var(--toolbar-scale, 1)) !important;
+  left: auto !important;
+  width: calc(var(--shape-dock-width) / var(--toolbar-scale, 1)) !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+  transform: none !important;
+  border-width: 0 0 0 1px !important;
+  border-radius: 0 !important;
+  box-shadow: -2px 0 10px rgba(20, 30, 45, 0.06) !important;
+  display: flex;
+  flex-direction: column;
+}
+.shape-menu-dropdown.shape-menu-docked .shape-menu-title { cursor: default; }
+.shape-menu-dropdown.shape-menu-docked .shape-menu-resize { display: none; }
+.shape-menu-dropdown.shape-menu-docked .shape-menu-body {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+}
+.shape-menu-dropdown.shape-menu-docked .shape-menu-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 8px;
+}
+.shape-menu-dropdown.shape-menu-docked .shape-menu-item {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 6px 2px 5px !important;
+  gap: 3px !important;
+}
+.shape-menu-dropdown.shape-menu-docked .shape-menu-item img { width: 46px !important; height: 46px !important; flex: 0 0 auto; }
+.shape-menu-dropdown.shape-menu-docked .shape-menu-item span:not(.shape-menu-thumb) {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  writing-mode: horizontal-tb !important;
+  font-size: 10.5px !important;
+  line-height: 1.15 !important;
+  text-align: center !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere;
+}
+
+html[data-shape-dock="on"] .workplane-stage { margin-right: var(--shape-dock-width); }
+html[data-shape-dock="on"] .edge-modifier-panel,
+html[data-shape-dock="on"] .split-panel { right: calc(var(--shape-dock-width) + 14px); }
+html[data-shape-dock="on"] .top-action-panel { right: calc(var(--shape-dock-width) + 18px); }
+
+/* ---------------------------------------------------------------------------
+ * Fork: Simple mode hides the advanced tools.
+ * ------------------------------------------------------------------------ */
+.simple-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+  padding: 4px 8px;
+  color: var(--toolbar-label);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+.simple-mode-switch:hover { background: var(--subbar); }
+.simple-mode-track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  background: var(--muted);
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+.simple-mode-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+.simple-mode-switch.active { color: var(--primary); }
+.simple-mode-switch.active .simple-mode-track { background: var(--primary); }
+.simple-mode-switch.active .simple-mode-thumb { transform: translateX(12px); }
+
+html[data-simple="on"] .toolbar-workspace-tabs button:nth-child(2),
+html[data-simple="on"] [data-layerling-tool="history"],
+html[data-simple="on"] [data-layerling-tool="bundle"],
+html[data-simple="on"] [data-layerling-tool="intersect"],
+html[data-simple="on"] [data-layerling-tool="intersect-preview"],
+html[data-simple="on"] [data-layerling-tool="pivot"],
+html[data-simple="on"] [data-layerling-tool="array"],
+html[data-simple="on"] [data-layerling-tool="holePattern"],
+html[data-simple="on"] [data-layerling-tool="faceTool"],
+html[data-simple="on"] [data-layerling-tool="split"],
+html[data-simple="on"] [data-layerling-tool="chamfer"],
+html[data-simple="on"] [data-layerling-tool="hollow"],
+html[data-simple="on"] [data-layerling-tool="deleteFace"],
+html[data-simple="on"] [data-layerling-tool="simplify"],
+html[data-simple="on"] [data-layerling-tool="snap"],
+html[data-simple="on"] [data-layerling-tool="layFlat"],
+html[data-simple="on"] [data-layerling-tool="mateFaces"] {
+  display: none !important;
+}
+
+/* Fork: automatic backup line in the storage notice. */
+.auto-backup-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+  color: var(--foreground);
+  font: 600 13px var(--font-ui);
+}
+.auto-backup-control svg { color: var(--primary); }
+.auto-backup-control button {
+  padding: 3px 10px;
+  color: #fff;
+  background: var(--primary);
+  border: 0;
+  border-radius: 6px;
+  font: 600 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.auto-backup-control button.quiet {
+  color: var(--primary);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+}
+
+/* Fork: first-run hint on an empty plate. */
+.empty-plate-hint {
+  position: fixed;
+  top: calc(var(--editor-toolbar-height) + 26px);
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 12px 20px;
+  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 6px 22px rgba(20, 30, 45, 0.1);
+  font: 500 13px var(--font-ui);
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.empty-plate-hint strong { font-size: 15px; color: var(--primary); }
+html[data-shape-dock="on"] .empty-plate-hint { left: calc((100vw - var(--shape-dock-width)) / 2); }
+html[data-theme="dark"] .empty-plate-hint { background: rgba(30, 30, 30, 0.92); }
+
+/* No hint over an open dialog. */
+html:has([aria-modal="true"]) .empty-plate-hint { display: none; }
+/* Build 70: nor over an open menu (the Send menu reached down over it). */
+html:has([role="menu"]) .empty-plate-hint { display: none; }
+html:has(.edge-modifier-panel) .empty-plate-hint { display: none; }
+
+/* Fork: Send to Bambu Studio. */
+.bambu-send {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  margin-right: 8px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(20, 30, 45, 0.12);
+}
+.bambu-send button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  background: var(--primary);
+  border: 0;
+  font: 600 12.5px var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bambu-send-main { padding: 6px 10px; border-radius: 8px 0 0 8px; }
+.export-button .bambu-send-main { padding: 6px 14px; border-radius: 8px; }
+.bambu-send-format {
+  padding: 6px 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border-radius: 0 8px 8px 0;
+  font-size: 11px !important;
+}
+.bambu-send button:hover { filter: brightness(1.08); }
+/* Build 70: which slicer, filament or resin. */
+.bambu-send-menu .bambu-send-heading { margin: 2px 6px 4px; font: 600 11px var(--font-ui); color: var(--muted, #66707c); text-transform: uppercase; letter-spacing: 0.04em; }
+.bambu-send-slicers { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 2px 6px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.bambu-send-slicer-group { display: flex; flex-direction: column; gap: 2px; }
+.bambu-send-kind { margin: 0 4px 2px; font: 600 11px var(--font-ui); color: var(--muted, #66707c); }
+.bambu-send-menu .bambu-send-slicer-group button { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 4px; padding: 5px 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--foreground, #1d2430); font: 500 12px var(--font-ui); text-align: left; cursor: pointer; }
+.bambu-send-menu .bambu-send-slicer-group button.active { border-color: var(--primary); color: var(--primary); background: rgba(31, 111, 235, 0.08); font-weight: 600; }
+.bambu-send-menu .bambu-send-slicer-group em { font-style: normal; font-size: 10px; color: var(--muted, #66707c); }
+.bambu-send-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  width: 270px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(20, 30, 45, 0.18);
+}
+.bambu-send-menu button {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 8px 10px;
+  color: var(--foreground);
+  background: transparent;
+  border-radius: 7px;
+  text-align: left;
+  white-space: normal;
+}
+.bambu-send-menu button:hover { background: var(--subbar); filter: none; }
+.bambu-send-menu button[aria-checked="true"] strong { color: var(--primary); }
+.bambu-send-menu span { font-weight: 500; color: var(--muted-strong); font-size: 12px; }
+/* Always words, never just the icon: shorter on narrower windows. */
+.bambu-send-short { display: none; }
+@media (max-width: 1500px) {
+  .bambu-send-long { display: none; }
+  .bambu-send-short { display: inline; }
+}
+/* The design name keeps room to be read. */
+.toolbar-title-row label:has(input) { min-width: 150px; flex-shrink: 1; }
+/* The open menu stays above status messages. */
+.secondary-toolbar:has(.bambu-send-menu) { z-index: 90; }
+
+/* Fork: update available. */
+.pare-update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  color: #fff;
+  background: var(--primary);
+  border-radius: 10px;
+  font: 600 13.5px var(--font-ui);
+}
+.pare-update-banner a {
+  margin-left: auto;
+  padding: 4px 12px;
+  color: var(--primary);
+  background: #fff;
+  border-radius: 6px;
+  text-decoration: none;
+}
+.pare-update-banner button {
+  display: inline-flex;
+  padding: 4px;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+ * Fork: Tinkercad-friendly toolbar - a short name under every icon instead of
+ * the group headings, and Pare 3D's own bolder icons.
+ * ------------------------------------------------------------------------ */
+:root { --fork-accent: var(--primary); }
+.fork-accent { fill: var(--fork-accent); }
+.toolbar-icon.disabled .fork-accent,
+.toolbar-icon:disabled .fork-accent { fill: currentColor; opacity: 0.22; }
+
+/* Names under the icons do not fit with every tool on show; the instant hover name gives each
+   tool's name and shortcut instead. The spans stay for screen readers' sake (aria-hidden) and
+   for a wider layout later. */
+.tool-label { display: none; }
+/* With names visible, the instant hover name only adds the full name and shortcut. */
+.secondary-toolbar .toolbar-icon:has(.tool-label):hover::after { top: calc(100% + 4px); }
+
+/* Fork: "Coming from Tinkercad?" guide. */
+.tc-guide-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  color: var(--foreground);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: 500 14px var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.tc-guide-card:hover { border-color: var(--primary); }
+.tc-guide-card svg { color: var(--primary); flex: 0 0 auto; }
+.tc-guide-card strong { color: var(--primary); margin-right: 4px; }
+.tc-guide-button svg { color: var(--primary); }
+.tc-guide-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 35, 0.4);
+}
+.tc-guide {
+  display: flex;
+  flex-direction: column;
+  width: min(860px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  color: var(--foreground);
+  background: var(--panel);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(15, 23, 35, 0.3);
+  font-family: var(--font-ui);
+}
+.tc-guide header { display: flex; align-items: center; gap: 10px; padding: 18px 20px 6px; }
+.tc-guide header svg { color: var(--primary); }
+.tc-guide h2 { margin: 0; font-size: 20px; }
+.tc-guide-close { margin-left: auto; display: inline-flex; padding: 6px; color: var(--muted-strong); background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+.tc-guide-close:hover { background: var(--subbar); }
+.tc-guide-intro { margin: 0; padding: 0 20px 12px; color: var(--muted-strong); font-size: 14px; line-height: 1.45; }
+.tc-guide-tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--border); }
+.tc-guide-tabs button { padding: 9px 14px; color: var(--muted-strong); background: transparent; border: 0; border-bottom: 2px solid transparent; font: 600 13.5px var(--font-ui); cursor: pointer; }
+.tc-guide-tabs button[aria-selected="true"] { color: var(--primary); border-bottom-color: var(--primary); }
+.tc-guide-body { overflow-y: auto; padding: 6px 20px 10px; }
+.tc-guide-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tc-guide-table th { position: sticky; top: 0; padding: 10px 8px 6px; color: var(--muted-strong); background: var(--panel); font-size: 11.5px; letter-spacing: 0.03em; text-align: left; text-transform: uppercase; }
+.tc-guide-table td { padding: 9px 8px; border-top: 1px solid var(--border); vertical-align: top; line-height: 1.4; }
+.tc-guide-table td:first-child { width: 28%; font-weight: 600; }
+.tc-guide-table td:last-child { width: 20%; white-space: nowrap; }
+.tc-guide-table kbd { padding: 2px 6px; background: var(--subbar); border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; font: 600 12px var(--font-ui); }
+.tc-guide footer { padding: 10px 20px 14px; color: var(--muted-strong); font-size: 11.5px; border-top: 1px solid var(--border); }
+
+/* Fork: printer picker on the plate (bottom left, beside the navigation bar). */
+.printer-picker {
+  position: absolute;
+  left: 84px;
+  bottom: 14px;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(360px, calc(100% - 420px));
+  padding: 6px 12px 6px 10px;
+  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(20, 30, 45, 0.08);
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+.printer-picker:hover { border-color: var(--primary); }
+.printer-picker > svg { color: var(--primary); flex: 0 0 auto; }
+.printer-picker-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.printer-picker-text strong { overflow: hidden; font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.printer-picker-text span { color: var(--muted-strong); font-size: 11px; }
+/* The real list is the browser's own: searchable by typing, and it fits any screen. */
+.printer-picker select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+html[data-theme="dark"] .printer-picker { background: rgba(30, 30, 30, 0.92); }
+
+/* Each icon's accent takes its group's colour, so it sits with the coloured frames. */
+.toolbar-section { --fork-accent: var(--group-color, var(--primary)); }
+/* Narrower windows: icons a touch smaller so every tool still fits on one row. */
+@media (max-width: 1440px) {
+  html:not([data-toolbar-size]) { --toolbar-scale: 0.88; }
+}
+@media (max-width: 1300px) {
+  html:not([data-toolbar-size]) { --toolbar-scale: 0.76; }
+}
+/* Build 15: the top bar fits a 1280-wide window - the theme and language switches show their icons only,
+   and the design name keeps room for a few words instead of being squeezed under the Bambu button. */
+@media (max-width: 1366px) {
+  .toolbar-title-row .theme-switch-label,
+  .toolbar-title-row .theme-chevron { display: none; }
+  .toolbar-title-row .theme-switch-button { padding: 0 6px; }
+}
+.toolbar-project-name { min-width: 150px; }
+
+/* Fork: Print fit for holes. */
+.print-fit-card {
+  margin: 0 12px 12px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-family: var(--font-ui);
+}
+.print-fit-heading { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.print-fit-heading strong { font-size: 14px; color: var(--foreground); }
+.print-fit-heading span { font-size: 12px; line-height: 1.35; color: var(--muted-strong); }
+.print-fit-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.print-fit-options button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 7px 2px;
+  color: var(--foreground);
+  background: var(--subbar);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: 600 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.print-fit-options button small { font-weight: 500; font-size: 10.5px; color: var(--muted-strong); }
+.print-fit-options button:hover:not(:disabled) { border-color: var(--primary); }
+.print-fit-options button.active { color: #fff; background: var(--primary); border-color: var(--primary); }
+.print-fit-options button.active small { color: rgba(255, 255, 255, 0.85); }
+.print-fit-status, .print-fit-note { margin: 8px 0 0; font: 500 12px/1.35 var(--font-ui); color: var(--muted-strong); }
+.print-fit-note { margin: 0 12px 12px; }
+
+/* Fork: cut connectors in the Split panel. */
+.split-connectors {
+  margin: 4px 0 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.split-connectors legend { padding: 0; font: 700 13px var(--font-ui); color: var(--foreground); }
+.split-connector-choice { display: flex; gap: 4px; }
+.split-connector-choice button {
+  flex: 1;
+  padding: 6px 8px;
+  color: var(--foreground);
+  background: var(--subbar);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: 600 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.split-connector-choice button:hover:not(:disabled) { border-color: var(--primary); }
+.split-connector-choice button.active { color: #fff; background: var(--primary); border-color: var(--primary); }
+.split-connector-hint, .split-connector-status { margin: 0; font: 500 12px/1.35 var(--font-ui); color: var(--muted-strong); }
+.split-connector-status.warning { color: #c2410c; }
+.split-connector-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.split-connector-number { display: flex; flex-direction: column; gap: 3px; font: 600 12px var(--font-ui); color: var(--muted-strong); }
+.split-connector-number input { width: 100%; }
+.split-connector-row { display: flex; align-items: center; gap: 8px; font: 600 12px var(--font-ui); color: var(--muted-strong); }
+.split-connector-row > span { flex: 0 0 92px; }
+.split-connector-row .split-connector-choice { flex: 1; }
+.split-connector-flip { display: flex; align-items: center; gap: 6px; font: 500 12.5px var(--font-ui); color: var(--foreground); }
+/* With connectors the panel can outgrow the window: Cancel and Split model stay in view. */
+.split-panel .split-panel-footer {
+  position: sticky;
+  bottom: -1px;
+  z-index: 1;
+  margin-top: 4px;
+  padding-top: 10px;
+  padding-bottom: 4px;
+  background: var(--panel);
+  /* The second, solid shadow fills the panel's own padding below, so nothing shows under the buttons. */
+  box-shadow: 0 -8px 12px -10px rgba(15, 23, 42, 0.25), 0 24px 0 0 var(--panel);
+}
+.split-connector-manual { display: flex; align-items: flex-start; gap: 8px; }
+.split-connector-manual p { flex: 1; margin: 0; font: 500 12px/1.35 var(--font-ui); color: var(--muted-strong); }
+.split-connector-clear {
+  flex: none;
+  padding: 5px 9px;
+  color: var(--foreground);
+  background: var(--subbar);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+.split-connector-clear:hover { border-color: var(--primary); }
+.workplane-wrap.split-connector-pick canvas { cursor: crosshair; }
+
+/* Fork: ready-made parts in the Shapes panel. */
+.ready-parts { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; font-family: var(--font-ui); }
+.ready-parts-heading {
+  display: flex; align-items: center; gap: 4px; width: 100%;
+  padding: 4px 2px; background: none; border: 0; cursor: pointer;
+  font: 700 12px var(--font-ui); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-strong);
+}
+.ready-parts-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.ready-part {
+  display: grid; grid-template-columns: 38px 1fr auto auto; align-items: center; gap: 8px;
+  padding: 8px; background: var(--subbar); border: 1px solid var(--border); border-radius: 10px;
+}
+.ready-part-icon { flex: none; width: 38px; height: 38px; color: var(--toolbar-icon, #3d4654); --fork-accent: var(--primary); }
+.ready-part > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ready-part strong { font-size: 12.5px; color: var(--foreground); }
+.ready-part span { font-size: 11px; line-height: 1.3; color: var(--muted-strong); }
+.ready-part-size {
+  padding: 4px 2px; font: 600 12px var(--font-ui); color: var(--foreground);
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+}
+.ready-part-add, .ready-part-make {
+  padding: 5px 9px; color: #fff; background: var(--primary); border: 1px solid var(--primary);
+  border-radius: 7px; font: 600 12px var(--font-ui); cursor: pointer; white-space: nowrap;
+}
+.ready-part-add:hover, .ready-part-make:hover { filter: brightness(1.08); }
+.ready-part-box { grid-template-columns: 38px 1fr auto; }
+.ready-part-form { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px dashed var(--border); border-radius: 10px; }
+.ready-part-form p { margin: 0; font: 600 12px var(--font-ui); color: var(--muted-strong); }
+.ready-part-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ready-part-field { display: flex; flex-direction: column; gap: 2px; font: 600 11.5px var(--font-ui); color: var(--muted-strong); }
+.ready-part-input { display: flex; align-items: center; gap: 4px; }
+.ready-part-input input {
+  width: 100%; padding: 4px 6px; font: 600 12.5px var(--font-ui); color: var(--foreground);
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px; text-align: right;
+}
+.ready-part-input small { font-size: 11px; color: var(--muted-strong); }
+.ready-part-fit { display: flex; align-items: center; gap: 4px; font: 600 11.5px var(--font-ui); color: var(--muted-strong); }
+.ready-part-fit > span { margin-right: 4px; }
+.ready-part-fit button {
+  flex: 1; padding: 5px 4px; color: var(--foreground); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 7px; font: 600 12px var(--font-ui); cursor: pointer;
+}
+.ready-part-fit button.active { color: #fff; background: var(--primary); border-color: var(--primary); }
+.ready-part-make { align-self: stretch; padding: 7px; }
+/* With a size picker: the text gets the full width, the picker and Add sit under it. */
+.ready-part.has-size { grid-template-columns: 38px 1fr auto; grid-template-rows: auto auto; row-gap: 6px; }
+.ready-part.has-size > svg { grid-row: 1 / span 2; align-self: start; }
+.ready-part.has-size > div { grid-column: 2 / span 2; }
+.ready-part.has-size .ready-part-size { grid-column: 2; grid-row: 2; justify-self: end; }
+.ready-part.has-size .ready-part-add { grid-column: 3; grid-row: 2; }
+
+/* Fork: Scribble in the Sketch tab. */
+.sketch-freehand-preview {
+  fill: none;
+  stroke: var(--primary, #1477d2);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.sketch-freehand-icon { width: 22px; height: 22px; stroke-width: 1.8; }
+.ready-part-check { display: flex; align-items: center; gap: 6px; font: 600 12px var(--font-ui); color: var(--foreground); }
+.ready-part-note { margin: 0; font: 500 11px/1.35 var(--font-ui) !important; color: var(--muted-strong) !important; }
+.ready-part-note.warning { color: #c2410c !important; }
+
+/* Fork: mouse ears on a solid's panel. */
+.mouse-ears-card { margin: 0 12px 12px; padding: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; font-family: var(--font-ui); }
+.mouse-ears-row { display: flex; gap: 6px; margin-top: 8px; }
+.mouse-ears-row select { flex: 1; padding: 6px; font: 600 12.5px var(--font-ui); color: var(--foreground); background: var(--subbar); border: 1px solid var(--border); border-radius: 8px; }
+.mouse-ears-row button { padding: 6px 12px; color: #fff; background: var(--primary); border: 1px solid var(--primary); border-radius: 8px; font: 600 12.5px var(--font-ui); cursor: pointer; }
+.mouse-ears-row button:disabled { opacity: 0.5; cursor: default; }
+
+/* Fork: Space out, shown with the Align tool. */
+.distribute-panel {
+  position: fixed;
+  top: calc(128px * var(--toolbar-scale, 1));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.14);
+  font: 600 12px var(--font-ui);
+  color: var(--muted-strong);
+}
+.distribute-panel > strong { font-size: 13px; color: var(--foreground); }
+.distribute-row { display: flex; align-items: center; gap: 8px; }
+.distribute-choice { display: flex; gap: 3px; }
+.distribute-choice button, .distribute-actions button {
+  padding: 5px 9px; color: var(--foreground); background: var(--subbar);
+  border: 1px solid var(--border); border-radius: 7px; font: 600 12px var(--font-ui); cursor: pointer;
+}
+.distribute-choice button.active { color: #fff; background: var(--primary); border-color: var(--primary); }
+.distribute-input { display: inline-flex; align-items: center; gap: 4px; }
+.distribute-input input { width: 52px; padding: 4px 6px; text-align: right; font: 600 12.5px var(--font-ui); color: var(--foreground); background: var(--subbar); border: 1px solid var(--border); border-radius: 6px; }
+.distribute-actions { display: flex; gap: 6px; }
+.distribute-actions button { display: inline-flex; align-items: center; gap: 5px; }
+.distribute-actions button:hover:not(:disabled) { border-color: var(--primary); }
+.distribute-actions button:disabled { opacity: 0.45; cursor: default; }
+
+/* Fork: Shapes | Ready-made parts tabs in the Shapes panel. */
+.shape-menu-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin: 2px 0 10px;
+  padding: 3px;
+  background: var(--subbar);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.shape-menu-tabs button {
+  padding: 7px 6px;
+  color: var(--muted-strong);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  font: 700 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.shape-menu-tabs button.active { color: #fff; background: var(--primary); }
+.shape-menu-tabs button:not(.active):hover { color: var(--foreground); }
+.ready-parts { margin-top: 0; border-top: 0; padding-top: 0; }
+.ready-parts-intro { margin: 0 2px 8px; font: 500 12px/1.35 var(--font-ui); color: var(--muted-strong); }
+
+/* Fork: the MAKE toolbar section. */
+/* Build 22: dark lines like the other tools, one soft indigo highlight - no more solid crimson. */
+.toolbar-section[data-group="make"] { --group-color: #6366c9; }
+.toolbar-section[data-group="make"] .toolbar-icon:not(.disabled):not(:disabled) { color: var(--toolbar-icon); }
+.toolbar-section[data-group="make"] .toolbar-icon:not(.disabled):not(:disabled):hover { color: var(--group-color); }
+.fork-accent-line { stroke: var(--fork-accent); }
+.toolbar-icon.disabled .fork-accent-line,
+.toolbar-icon:disabled .fork-accent-line { stroke: currentColor; opacity: 0.4; }
+
+/* Fork: lithophane and Voronoi panels. */
+/* Build 70: as tall as the window below the toolbar allows (the toolbar can be two rows), like every tool panel. */
+.lithophane-panel, .voronoi-panel { max-height: calc(100dvh - var(--editor-toolbar-height) - 28px); overflow-y: auto; }
+.lithophane-pick {
+  display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+  padding: 9px; color: var(--primary); background: var(--subbar); border: 1px dashed var(--primary);
+  border-radius: 9px; font: 700 13px var(--font-ui); cursor: pointer;
+}
+.lithophane-preview { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; background: #1f2937; border-radius: 10px; }
+.lithophane-preview canvas { max-width: 100%; border-radius: 4px; box-shadow: 0 0 22px rgba(255, 214, 150, 0.35); }
+.lithophane-preview span { font: 500 11px var(--font-ui); color: #d1d5db; }
+.voronoi-preview { background: var(--subbar); }
+.voronoi-plate { fill: var(--primary); opacity: 0.9; }
+.voronoi-cell { fill: var(--panel); stroke: var(--primary); }
+.voronoi-border { fill: none; stroke: var(--primary); }
+.lithophane-field { display: flex; flex-direction: column; gap: 4px; font: 600 12px var(--font-ui); color: var(--muted-strong); }
+.lithophane-choice { display: flex; gap: 4px; }
+.lithophane-choice button {
+  flex: 1; padding: 6px 4px; color: var(--foreground); background: var(--subbar);
+  border: 1px solid var(--border); border-radius: 7px; font: 600 12px var(--font-ui); cursor: pointer;
+}
+.lithophane-choice button.active { color: #fff; background: var(--primary); border-color: var(--primary); }
+.lithophane-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lithophane-number { display: flex; flex-direction: column; gap: 2px; font: 600 11.5px var(--font-ui); color: var(--muted-strong); }
+.lithophane-number > span:last-child { display: flex; align-items: center; gap: 4px; }
+.lithophane-number input {
+  width: 100%; padding: 5px 6px; text-align: right; font: 600 12.5px var(--font-ui); color: var(--foreground);
+  background: var(--subbar); border: 1px solid var(--border); border-radius: 6px;
+}
+.lithophane-number small { font-size: 11px; }
+.lithophane-slider { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 8px; font: 600 12px var(--font-ui); color: var(--muted-strong); }
+.lithophane-check { display: flex; align-items: center; gap: 6px; font: 600 12px var(--font-ui); color: var(--foreground); }
+.lithophane-info { margin: 0; font: 500 11.5px/1.4 var(--font-ui); color: var(--muted-strong); }
+.lithophane-info.warning { color: #c2410c; }
+
+/* Fork: the build number by the tagline, and the update line on the home screen. */
+.pare-build-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  font: 700 10px/16px var(--font-ui);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-radius: 6px;
+  vertical-align: 1px;
+}
+.pare-version-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font: 600 12.5px var(--font-ui);
+  color: var(--muted-strong);
+  background: var(--subbar);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  /* Build 106: wraps inside a narrow menu instead of running off its side (a sideways scroll). */
+  flex-wrap: wrap;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  line-height: 1.35;
+}
+.pare-version-status svg { flex: none; }
+.pare-version-status.current svg { color: #16a34a; }
+.pare-version-status.ready, .pare-version-status.download { color: var(--foreground); border-color: var(--primary); }
+.pare-version-status button, .pare-version-status a {
+  margin-left: 2px; padding: 3px 9px; color: #fff; background: var(--primary); border: 0; border-radius: 999px;
+  font: 700 12px var(--font-ui); text-decoration: none; cursor: pointer;
+}
+.pare-version-status .spin { animation: pare-spin 1s linear infinite; }
+@keyframes pare-spin { to { transform: rotate(360deg); } }
+
+/* Fork (audit #4): one Help menu. */
+.help-menu { position: relative; display: inline-flex; }
+.help-menu-button { width: auto !important; gap: 4px; padding: 0 8px !important; }
+.help-menu-label { font: 600 13px var(--font-ui); }
+.help-menu-list {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 1200; width: 270px;
+  display: flex; flex-direction: column; padding: 6px; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+}
+.help-menu-list button, .help-menu-list a,
+.action-buttons .help-menu-list button {
+  display: flex; align-items: flex-start; justify-content: flex-start; gap: 10px; padding: 8px 10px; text-align: left;
+  width: 100%; height: auto; text-transform: none; line-height: 1.25; box-shadow: none;
+  color: var(--foreground); background: none; border: 0; border-radius: 8px; text-decoration: none; cursor: pointer;
+}
+.help-menu-list button:hover, .help-menu-list a:hover,
+.action-buttons .help-menu-list button:hover { background: var(--subbar); box-shadow: none; }
+.help-menu-list svg { margin-top: 2px; color: var(--primary); flex: none; }
+.help-menu-list span { display: flex; flex-direction: column; gap: 1px; }
+.help-menu-list strong { font: 600 13px var(--font-ui); }
+.help-menu-list small { font: 500 11.5px var(--font-ui); color: var(--muted-strong); }
+/* The help section's own label row has nothing to say about a single button. */
+.toolbar-actions-section[data-group="help"] .action-buttons { gap: 2px; }
+
+/* Build 15: Print fit and Mouse ears folded under the sizes. */
+.print-helpers .print-fit-card,
+.print-helpers .mouse-ears-card { margin: 0 0 4px; border: 0; background: transparent; }
+.origin-dimension-axis { opacity: 0.6; font-weight: 700; margin-right: 2px; }
+
+/* Build 16: the hover name carries the shortcut, and greyed-out tools still say what they are
+   (a click on them still does nothing - the button stays disabled). */
+.secondary-toolbar .toolbar-icon[data-tip]:hover::after { content: attr(data-tip); white-space: normal; width: max-content; max-width: 230px; text-align: center; }
+.secondary-toolbar .toolbar-icon:disabled { pointer-events: auto; cursor: default; }
+.secondary-toolbar .toolbar-icon:disabled:hover { background: transparent; }
+
+/* Build 16: names under the icons - always in Simple mode (fewer tools, so they fit), and for
+   anyone who turns on "Show tool names" in the Help menu. */
+html[data-simple="on"] .secondary-toolbar .toolbar-icon:has(.tool-label),
+html[data-tool-names="on"] .secondary-toolbar .toolbar-icon:has(.tool-label) {
+  width: auto;
+  min-width: var(--toolbar-icon-size);
+  height: auto;
+  padding: 2px 3px 1px;
+  grid-template-rows: var(--toolbar-icon-size) auto;
+  row-gap: 0;
+}
+html[data-simple="on"] .secondary-toolbar .toolbar-icon .tool-label,
+html[data-tool-names="on"] .secondary-toolbar .toolbar-icon .tool-label {
+  display: block;
+  margin-top: -3px;
+  color: var(--foreground);
+  font: 600 10px/1.15 var(--font-ui);
+  white-space: nowrap;
+  opacity: 0.8;
+}
+html[data-simple="on"] .secondary-toolbar .toolbar-icon.disabled .tool-label,
+html[data-tool-names="on"] .secondary-toolbar .toolbar-icon.disabled .tool-label { opacity: 0.4; }
+
+/* Build 16/17: first-run question and starter designs on the home screen. */
+.first-run-card,
+.starter-designs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  color: var(--foreground);
+  background: var(--panel, #fff);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-family: var(--font-ui);
+  box-sizing: border-box;
+}
+.first-run-card { border-color: var(--primary); }
+.first-run-card > svg { color: var(--primary); flex: none; }
+.first-run-text, .starter-designs-heading { display: flex; flex-direction: column; gap: 3px; flex: 1 1 320px; min-width: 0; font-size: 13px; }
+.first-run-text strong, .starter-designs-heading strong { font-size: 15px; }
+.first-run-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.first-run-actions button {
+  padding: 7px 12px;
+  color: var(--foreground);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: 600 13px var(--font-ui);
+  cursor: pointer;
+}
+.first-run-actions button.primary { color: #fff; background: var(--primary); border-color: var(--primary); }
+.starter-designs-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; width: 100%; }
+.starter-design {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--foreground);
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: var(--font-ui);
+}
+.starter-design:hover { border-color: var(--primary); }
+.starter-design svg { color: var(--primary); flex: none; }
+.starter-design span { display: flex; flex-direction: column; gap: 2px; }
+.starter-design strong { font-size: 14px; }
+.starter-design small { font-size: 12px; opacity: 0.7; }
+
+/* Build 16: a narrower inspector on laptop screens, so the plate keeps more room. */
+@media (max-width: 1366px) and (min-width: 721px) {
+  .shape-inspector { width: 284px; }
+}
+
+/* Build 17: the sketch's "Make it 3D by" choice, and a Help menu without its word in the compact sketch ribbon. */
+.sketch-operation-button svg { width: 18px; height: 18px; }
+.sketch-operation-button.active { color: var(--primary); }
+.sketch-toolbar-ribbon .help-menu-label { display: none; }
+.sketch-toolbar-ribbon .help-menu-button { padding: 0 !important; width: var(--toolbar-icon-size) !important; }
+/* The title row is its own layer (z-index 2): while the Help menu is open it comes above the docked Shapes panel. */
+.toolbar-title-row:has(.help-menu-list) { z-index: 100; }
+.help-menu-button.active, .help-menu-button.active .help-menu-label { color: var(--primary) !important; }
+
+/* Instant names for the camera bar (InstantTips). */
+.instant-tip {
+  position: fixed;
+  z-index: 2000;
+  max-width: 240px;
+  padding: 4px 8px;
+  color: #fff;
+  background: #2a3442;
+  border-radius: 6px;
+  font: 600 11px/1.3 var(--font-ui);
+  transform: translateY(-50%);
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(20, 30, 45, 0.25);
+}
+.secondary-toolbar .action-icon-button[data-tip]:hover::after { content: attr(data-tip); white-space: normal; width: max-content; max-width: 230px; text-align: center; }
+.dashboard-action-tile:disabled { opacity: 0.45; cursor: default; }
+
+/* Fork: the shape panel floats over the view as a card, like Tinkercad's - as tall as what it
+   holds, so the plate shows round and below it - rather than a full-height strip. Desktop widths only. */
+@media (min-width: 721px) {
+  .shape-inspector:not(.floating) {
+    top: 10px;
+    right: 10px;
+    bottom: auto;
+    max-height: calc(100% - 20px);
+    border: 1px solid #e9e2d6;
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(86, 62, 36, 0.14);
+  }
+  html[data-theme="dark"] .shape-inspector:not(.floating) { border-color: rgba(255, 255, 255, 0.08); }
+}
+
+/* Build 19: "Simple mode" where the top bar has room; just "Simple" on laptop widths. */
+@media (max-width: 1366px) { .simple-mode-word { display: none; } }
+
+/* Build 19: overall size of a multi-selection. */
+.selection-size-card { padding: 12px 14px; }
+.selection-size-heading { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; font-family: var(--font-ui); }
+.selection-size-heading strong { font-size: 15px; }
+.selection-size-heading span { font-size: 12px; opacity: 0.75; }
+.selection-size-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.selection-size-field { display: flex; flex-direction: column; gap: 3px; font: 600 12px var(--font-ui); position: relative; }
+.selection-size-field input {
+  width: 100%; box-sizing: border-box; padding: 6px 22px 6px 6px; font: 700 13px var(--font-ui); font-variant-numeric: tabular-nums;
+  color: inherit; background: var(--background, #fff); border: 1px solid var(--border); border-radius: 8px;
+}
+.selection-size-field small { position: absolute; right: 6px; bottom: 8px; font-size: 10px; opacity: 0.6; }
+.selection-size-error { margin: 8px 0 0; color: #c0392b; font: 600 12px var(--font-ui); }
+
+/* Build 19: the one-time Fast mode suggestion. */
+.fast-mode-hint {
+  position: fixed; left: 50%; bottom: 44px; z-index: 900; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; max-width: min(620px, calc(100vw - 32px));
+  padding: 10px 12px 10px 14px; color: var(--foreground); background: var(--panel, #fff);
+  border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18); font-family: var(--font-ui);
+}
+.fast-mode-hint > svg { color: var(--primary); flex: none; }
+.fast-mode-hint span { display: flex; flex-direction: column; gap: 2px; }
+.fast-mode-hint strong { font-size: 14px; }
+.fast-mode-hint small { font-size: 12px; opacity: 0.75; }
+.fast-mode-hint button.primary { flex: none; padding: 7px 12px; color: #fff; background: var(--primary); border: 0; border-radius: 8px; font: 600 13px var(--font-ui); cursor: pointer; }
+.fast-mode-hint-close { flex: none; display: grid; place-items: center; width: 28px; height: 28px; color: inherit; background: none; border: 0; border-radius: 6px; cursor: pointer; }
+.fast-mode-hint-close:hover { background: var(--subbar); }
+
+/* Build 19: "Ready to print?" */
+.print-check-backdrop { position: fixed; inset: 0; z-index: 1500; display: grid; place-items: center; background: rgba(15, 23, 42, 0.28); }
+.print-check {
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 80px); overflow: auto; color: var(--foreground);
+  background: var(--panel, #fff); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3); font-family: var(--font-ui);
+}
+.print-check header { display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px; }
+.print-check header div { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.print-check header strong { font-size: 17px; }
+.print-check header span { font-size: 13px; opacity: 0.75; }
+.print-check header .ok { color: #2f9e44; } .print-check header .warn { color: #d9822b; } .print-check header .bad { color: #c0392b; }
+.print-check-close { display: grid; place-items: center; width: 30px; height: 30px; color: inherit; background: none; border: 0; border-radius: 8px; cursor: pointer; }
+.print-check-close:hover { background: var(--subbar); }
+.print-check ul { list-style: none; margin: 0; padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
+.print-check li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; line-height: 1.4; }
+.print-check li > svg { flex: none; margin-top: 2px; }
+.print-check li.problem > svg { color: #c0392b; } .print-check li.advice > svg { color: #d9822b; }
+.print-check li span { flex: 1; }
+.print-check li button { flex: none; padding: 4px 10px; color: var(--primary); background: none; border: 1px solid var(--border); border-radius: 7px; font: 600 12px var(--font-ui); cursor: pointer; }
+.print-check footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 16px 16px; }
+.print-check footer button { padding: 8px 14px; border-radius: 9px; font: 600 13px var(--font-ui); cursor: pointer; border: 1px solid var(--border); background: none; color: var(--foreground); }
+.print-check footer button.primary { color: #fff; background: var(--primary); border-color: var(--primary); }
+.bambu-send-menu strong svg { vertical-align: -2px; }
+
+/* ---------------------------------------------------------------------------
+ * Build 20: a calmer toolbar. One quiet tile per group instead of a coloured frame, group
+ * names in sentence case and a muted grey; the group colour stays only on the icons.
+ * ------------------------------------------------------------------------ */
+.secondary-toolbar .toolbar-section-tools,
+.secondary-toolbar .toolbar-section .action-buttons {
+  background: var(--toolbar-tile);
+  border: 1px solid color-mix(in srgb, var(--foreground, #333) 11%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 1px 1px rgba(20, 30, 45, 0.04);
+}
+.secondary-toolbar .toolbar-section-label {
+  color: color-mix(in srgb, var(--foreground, #333) 58%, transparent);
+  font: 600 11px/16px var(--font-ui);
+  text-transform: none;
+  text-shadow: none;
+  letter-spacing: 0;
+}
+.secondary-toolbar .toolbar-section-label::first-letter { text-transform: uppercase; }
+html[data-theme="dark"] .secondary-toolbar .toolbar-section-tools,
+html[data-theme="dark"] .secondary-toolbar .toolbar-section .action-buttons {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+html[data-theme="dark"] .secondary-toolbar .toolbar-section-label { color: rgba(240, 232, 222, 0.6); text-shadow: none; }
+/* The group a tool is in still shows: a hairline of its colour under each tile. */
+.secondary-toolbar .toolbar-section-tools::after,
+.secondary-toolbar .toolbar-section .action-buttons::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--group-color);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.secondary-toolbar .toolbar-section .action-buttons { position: relative; }
+
+/* Build 20: "Saved" beside the design name; just the tick on laptop widths. */
+.save-status { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; flex: none; color: color-mix(in srgb, var(--foreground, #333) 55%, transparent); font: 600 12px var(--font-ui); white-space: nowrap; }
+.save-status.saved svg { color: #2f9e44; }
+.save-status.error { color: #c0392b; }
+.save-status .spin { animation: pare-spin 0.9s linear infinite; }
+@keyframes pare-spin { to { transform: rotate(360deg); } }
+@media (max-width: 1366px) { .save-status-text { display: none; } .save-status { margin-left: 6px; } }
+
+/* Build 20: menus and panels ease in instead of popping (off for "reduce motion"). */
+@keyframes pare-pop { from { opacity: 0; transform: translateY(-4px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes pare-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pare-rise { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: no-preference) {
+  .help-menu-list, .bambu-send-menu, .project-card-menu, .theme-dropdown-menu, .viewport-context-menu, .shape-context-menu { animation: pare-pop 140ms ease-out both; transform-origin: top right; }
+  .print-check { animation: pare-pop 180ms ease-out both; }
+  .print-check-backdrop, .workspace-modal-backdrop { animation: pare-fade 160ms ease-out both; }
+  .shape-inspector:not(.moving) { animation: pare-fade 140ms ease-out both; }
+  .fast-mode-hint { animation: pare-rise 220ms ease-out both; }
+  .first-run-card, .starter-designs { animation: pare-fade 240ms ease-out both; }
+  .toolbar-icon, .action-icon-button, .starter-design, .dashboard-action-tile { transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease; }
+  .starter-design:hover, .dashboard-action-tile:not(:disabled):hover { transform: translateY(-1px); }
+}
+
+/* Build 20: What's new. */
+.whats-new-build { padding: 0 20px 4px; }
+.whats-new-build h3 { margin: 6px 0 6px; font: 700 13px var(--font-ui); color: var(--primary); }
+.whats-new-build ul { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; line-height: 1.45; }
+.whats-new .print-check ul, .whats-new-build ul li { border: 0; padding: 0; display: list-item; }
+.object-gap-label {
+  position: absolute; z-index: 6; transform: translate(-50%, -140%); padding: 2px 7px; pointer-events: none;
+  color: #fff; background: #e0347c; border-radius: 6px; font: 700 11px/1.4 var(--font-ui); white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+/* Build 20: "Working…" while slow jobs run. */
+.busy-indicator {
+  position: fixed; left: 50%; top: 132px; z-index: 950; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; color: #fff; background: rgba(32, 42, 56, 0.92);
+  border-radius: 999px; font: 600 13px var(--font-ui); box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25); pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * Build 20: accessibility basics - greyed-out tools still readable, and a clear ring
+ * round whatever has the keyboard focus (only when using the keyboard).
+ * ------------------------------------------------------------------------ */
+:root { --toolbar-icon-disabled: #9aa3ad; }
+html[data-theme="dark"] { --toolbar-icon-disabled: #7f776d; }
+.toolbar-icon.disabled .fork-accent,
+.toolbar-icon:disabled .fork-accent { opacity: 0.38; }
+.toolbar-icon.disabled svg, .toolbar-icon:disabled svg { opacity: 0.85; }
+:where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.toolbar-icon:focus-visible, .action-icon-button:focus-visible { outline-offset: 1px; }
+
+/* Build 20: search in Settings. */
+.settings-search { position: relative; margin: 0 0 10px; }
+.settings-search label { display: flex; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--background, #fff); }
+.settings-search label svg { opacity: 0.6; flex: none; }
+.settings-search input { width: 100%; min-width: 0; border: 0; outline: none; background: transparent; color: inherit; font: 500 13px var(--font-ui); }
+.settings-search-results { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; margin: 0; padding: 4px; list-style: none; background: var(--panel, #fff); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16); }
+.settings-search-results button { width: 100%; padding: 7px 9px; text-align: left; color: inherit; background: none; border: 0; border-radius: 7px; font: 500 13px var(--font-ui); cursor: pointer; }
+.settings-search-results button:hover { background: var(--subbar); }
+.settings-search-results .empty { padding: 7px 9px; font-size: 12px; opacity: 0.7; }
+@keyframes pare-hit { 0%, 100% { background: transparent; } 30% { background: color-mix(in srgb, var(--primary) 16%, transparent); } }
+.settings-search-hit { animation: pare-hit 1.6s ease; border-radius: 8px; }
+
+/* Build 21: enclosure maker ports. */
+.enclosure-port { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; margin: 0 0 6px; border: 1px solid var(--border); border-radius: 8px; position: relative; }
+.enclosure-port select { min-width: 0; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--background, #fff); color: inherit; font: 500 12px var(--font-ui); }
+.enclosure-port-remove { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--panel, #fff); color: inherit; cursor: pointer; line-height: 1; }
+.enclosure-port-add { margin: 0 0 8px; padding: 5px 10px; border: 1px dashed var(--border); border-radius: 8px; background: none; color: var(--primary); font: 600 12px var(--font-ui); cursor: pointer; }
+
+/* Build 21: photo to outline. */
+.trace-preview { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; }
+.trace-preview svg { width: 100%; max-height: 220px; background: #f3f4f6; border: 1px solid var(--border); border-radius: 8px; }
+.trace-preview span { font: 500 12px var(--font-ui); opacity: 0.8; }
+/* Fork (build 21): the enclosure's mounting row wraps instead of squeezing its buttons. */
+.enclosure-mounting { flex-wrap: wrap; row-gap: 6px; }
+.enclosure-mounting button { white-space: nowrap; }
+
+/* Fork (build 22): the home screen's backup line - one quiet row, not a big box. */
+.backup-strip {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 18px; padding: 7px 10px 7px 12px;
+  font: 500 12.5px var(--font-ui); color: var(--muted-strong);
+  background: var(--subbar); border: 1px solid var(--border); border-radius: 8px;
+}
+.backup-strip > svg { flex: none; color: #16a34a; }
+.backup-strip.attention > svg { color: #d97706; }
+.backup-strip-text { min-width: 0; }
+.backup-strip-help { display: inline-flex; opacity: 0.7; }
+.backup-strip-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.backup-strip-actions button,
+.files-row-actions button,
+.saved-file-toast button {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px;
+  font: 600 12px var(--font-ui); color: var(--primary);
+  background: transparent; border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+}
+.backup-strip-actions button:hover,
+.files-row-actions button:hover,
+.saved-file-toast button:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); border-color: color-mix(in srgb, var(--primary) 22%, transparent); }
+.backup-strip-actions button.quiet,
+.files-row-actions button.quiet { color: var(--muted-strong); }
+
+/* Fork (build 22): an app installed before build 22 - one small line with the link. */
+.older-app-notice {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 7px 10px 7px 12px;
+  font: 500 12.5px var(--font-ui); color: #7c4a03;
+  background: #fff8eb; border: 1px solid #f3d39b; border-radius: 8px;
+}
+.older-app-notice a { font-weight: 700; color: #9a5b00; white-space: nowrap; }
+.older-app-notice button { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: auto; color: inherit; background: none; border: 0; border-radius: 5px; cursor: pointer; }
+.older-app-notice button:hover { background: rgba(124, 74, 3, 0.1); }
+:root[data-theme="dark"] .older-app-notice { color: #fcd9a0; background: #3a2a10; border-color: #6b4a14; }
+:root[data-theme="dark"] .older-app-notice a { color: #ffd28a; }
+
+/* Fork (build 22): Settings > Files. */
+.files-settings { display: flex; flex-direction: column; gap: 10px; }
+.files-row {
+  display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 10px;
+  padding: 10px 12px; background: var(--subbar); border: 1px solid var(--border); border-radius: 9px;
+}
+.files-row > svg { color: var(--muted-strong); }
+.files-row-text { display: flex; flex-direction: column; min-width: 0; }
+.files-row-text strong { font-size: 13px; color: var(--foreground); }
+.files-row-text span { font-size: 12.5px; color: var(--muted-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-row-actions { display: flex; gap: 4px; }
+.files-ask { display: flex; align-items: center; gap: 8px; margin: -2px 0 4px 12px; font-size: 13px; color: var(--foreground); }
+.files-settings-note { margin: 2px 0 0; font-size: 12px; color: var(--muted-strong); }
+
+/* Fork (build 22): "Saved to …" after an export or backup. */
+.saved-file-toast {
+  position: fixed; left: 50%; bottom: 22px; z-index: 80; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px; max-width: min(560px, calc(100vw - 32px));
+  padding: 7px 8px 7px 14px; font: 500 13px var(--font-ui); color: var(--foreground);
+  background: var(--panel, #fff); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.16);
+  animation: saved-file-in 180ms ease-out;
+}
+.saved-file-toast > svg { flex: none; color: #16a34a; }
+.saved-file-toast > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saved-file-toast .saved-file-close { width: 26px; padding: 0; justify-content: center; color: var(--muted-strong); }
+@keyframes saved-file-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .saved-file-toast { animation: none; } }
+
+/* Fork (build 23): the depth beside the pointer while a face is pulled. */
+.face-pull-readout {
+  position: absolute; z-index: 30; pointer-events: none;
+  padding: 3px 8px; font: 700 12.5px var(--font-ui); color: #fff;
+  background: #2f6fd6; border-radius: 6px; box-shadow: 0 3px 10px rgba(15, 23, 42, 0.25);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.face-pull-readout.pocket { background: #d9480f; }
+
+/* Fork (build 25): the Blend panel. */
+.blend-hint { margin: -2px 0 8px; padding: 0 14px; font: 500 11.5px/1.35 var(--font-ui); color: var(--muted-strong); }
+.blend-twist { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.blend-twist-buttons { display: flex; gap: 4px; }
+.blend-twist-buttons button { display: inline-grid; place-items: center; min-width: 30px; height: 28px; padding: 0 8px; color: var(--foreground); background: var(--subbar); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: 600 12px var(--font-ui); }
+.blend-twist-buttons button.quiet { color: var(--muted-strong); background: transparent; border-color: transparent; }
+
+/* Fork (build 28): the rotation rows wear the colour of the arrow that turns the part the same way -
+   red about X, green about Y, blue about Z (height). The arrows keep their axis whatever the view. */
+.range-property[data-property="rotateX"] { --axis-colour: #d6363c; }
+.range-property[data-property="rotateY"] { --axis-colour: #2f9a4b; }
+.range-property[data-property="rotateZ"] { --axis-colour: #2f6fe0; }
+html[data-theme="dark"] .range-property[data-property="rotateX"] { --axis-colour: #ff6b70; }
+html[data-theme="dark"] .range-property[data-property="rotateY"] { --axis-colour: #5fd47c; }
+html[data-theme="dark"] .range-property[data-property="rotateZ"] { --axis-colour: #6aa0ff; }
+.range-property[data-property^="rotate"] .range-property-name { color: var(--axis-colour); }
+.range-property[data-property^="rotate"] .range-property-name::before {
+  content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 50%;
+  background: var(--axis-colour); vertical-align: 0;
+}
+.range-property[data-property^="rotate"] .range-control input[type="range"]::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, var(--axis-colour) 0 var(--slider-pos), color-mix(in srgb, var(--axis-colour) 16%, transparent) var(--slider-pos) 100%);
+}
+.range-property[data-property^="rotate"] .range-control input[type="range"]::-webkit-slider-thumb { border-color: var(--axis-colour); }
+.range-property[data-property^="rotate"] .range-control input[type="range"]::-moz-range-progress { background: var(--axis-colour); }
+.range-property[data-property^="rotate"] .range-control input[type="range"]::-moz-range-thumb { border-color: var(--axis-colour); }
+.blend-hollow { display: flex; align-items: flex-start; gap: 9px; margin: 4px 14px 10px; cursor: pointer; }
+.blend-hollow input { margin-top: 2px; accent-color: var(--accent, #1662b3); }
+.blend-hollow span { display: grid; gap: 2px; }
+.blend-hollow strong { font: 600 13px var(--font-ui); color: var(--foreground); }
+.blend-hollow small { font: 500 11.5px/1.35 var(--font-ui); color: var(--muted-strong); }
+
+/* Fork (build 30): the check after importing a mesh that is not watertight. */
+.mesh-check-card { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 40; display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: start; max-width: min(560px, calc(100% - 32px)); padding: 12px 14px; background: var(--panel, #fff); color: var(--foreground); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(20, 30, 45, 0.18); font: 500 13px/1.4 var(--font-ui); }
+.mesh-check-card svg { color: #c27803; margin-top: 1px; }
+.mesh-check-card p { margin: 0; }
+.mesh-check-actions { grid-column: 2; display: flex; gap: 8px; justify-content: flex-end; }
+.mesh-check-actions button { height: 30px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--border); background: var(--subbar, #f4f6f8); color: var(--foreground); font: 600 12.5px var(--font-ui); cursor: pointer; }
+.mesh-check-actions button.primary { background: var(--accent, #1662b3); border-color: var(--accent, #1662b3); color: #fff; }
+.blend-warning { color: #b45309; font-weight: 600; }
+html[data-theme="dark"] .blend-warning { color: #fbbf24; }
+
+/* Fork (build 32): the fillet and chamfer window - sizes to click, "Largest that fits", More options. */
+.edge-size-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 12px; }
+.edge-size-presets button,
+.edge-more-toggle,
+.edge-modifier-secondary-action,
+.edge-modifier-error-action {
+  min-height: 28px; padding: 0 10px; border: 1px solid var(--border, #d8c8b7); border-radius: 7px;
+  background: var(--subbar, #f4f6f8); color: var(--foreground); font: 600 12px var(--font-ui); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.edge-size-presets button { min-width: 38px; justify-content: center; }
+.edge-size-presets button.active { border-color: var(--accent, #1662b3); color: var(--accent, #1662b3); background: color-mix(in srgb, var(--accent, #1662b3) 10%, transparent); }
+.edge-size-presets button:disabled,
+.edge-modifier-secondary-action:disabled { opacity: 0.5; cursor: default; }
+.edge-size-presets .edge-size-largest { margin-left: auto; }
+.edge-more-toggle { width: 100%; justify-content: flex-start; margin: 10px 0 8px; background: transparent; }
+.edge-more-options { display: grid; gap: 4px; padding: 8px 0 2px; border-top: 1px solid var(--border, #e3e7ec); }
+.edge-modifier-secondary-action { justify-self: start; margin: 2px 0 8px; }
+.edge-modifier-error-action { display: flex; margin-top: 8px; background: #fff; color: #9f2730; border-color: #efc4c8; }
+html[data-theme="dark"] .edge-modifier-error-action { background: transparent; color: #ffb4b9; }
+.edge-kind-switch { margin-bottom: 8px; }
+.edge-kind-switch .shell-opening-options,
+.edge-more-options .shell-opening-options.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.edge-kind-switch .shell-opening-options.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.edge-kind-switch .shell-opening-options button,
+.edge-more-options .shell-opening-options.three button { padding-inline: 4px; }
+.edge-size-presets .edge-size-largest { margin-left: 0; flex: 1 0 auto; }
+
+/* Fork (build 32): Tinkercad's compact property row - the name small above, the value box riding on
+   the slider as its handle. The real thumb is as wide as the box and invisible, so dragging the box
+   drags the slider; a click without moving opens the box for typing (ShapeInspector RangeProperty). */
+.range-property.compact { --bubble-w: 80px; --bubble-h: 26px; gap: 1px; font-size: 12px; }
+.range-property.compact .range-property-header { min-height: 16px; }
+.range-property.compact .range-property-name { font-size: 12px; font-weight: 650; }
+.range-property.compact .range-control { height: 30px; padding: 0; }
+.range-property.compact .range-control input[type="range"] { height: 30px; }
+.range-property.compact .range-control input[type="range"]::-webkit-slider-runnable-track { height: 4px; }
+.range-property.compact .range-control input[type="range"]::-webkit-slider-thumb {
+  width: var(--bubble-w); height: var(--bubble-h); margin-top: calc((4px - var(--bubble-h)) / 2);
+  opacity: 0; border: 0; box-shadow: none; cursor: grab;
+}
+.range-property.compact .range-control input[type="range"]::-moz-range-track { height: 4px; }
+.range-property.compact .range-control input[type="range"]::-moz-range-thumb { width: var(--bubble-w); height: var(--bubble-h); opacity: 0; border: 0; }
+.range-property.compact .range-bubble {
+  position: absolute; top: 50%; left: calc((100% - var(--bubble-w)) * var(--slider-frac, 0));
+  transform: translateY(-50%); width: var(--bubble-w); min-width: 0; height: var(--bubble-h); min-height: 0;
+  padding: 0 8px; gap: 3px; justify-content: center; pointer-events: none;
+  background: var(--panel, #fff); border: 1.5px solid var(--accent, #1662b3); border-radius: calc(var(--bubble-h) / 2);
+  box-shadow: 0 1px 4px rgba(20, 30, 45, 0.18);
+}
+.range-property.compact.editing .range-bubble { pointer-events: auto; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #1662b3) 22%, transparent); }
+.range-property.compact .range-bubble input { width: 100%; height: calc(var(--bubble-h) - 3px); font-size: 12.5px; text-align: center; }
+.range-property.compact .range-bubble .range-value-unit { font-size: 10px; }
+.range-property.compact[data-property^="rotate"] .range-bubble { border-color: var(--axis-colour); }
+.range-property.compact .range-control input[type="range"]:disabled + .range-bubble { opacity: 0.55; }
+.property-list:has(> .range-property.compact) { gap: 8px; }
+/* Fork (build 32): the Make window's groups. */
+.ready-parts-category { margin: 14px 2px 4px; font: 700 11px/1.2 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-strong, #5b6673); }
+.ready-parts-list > .ready-parts-category:first-of-type { margin-top: 4px; }
+.ready-part-maker-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 9px; background: var(--subbar, #f4f6f8); color: var(--accent, #1662b3); }
+.ready-part-maker-icon svg { width: 24px; height: 24px; }
+
+/* Fork (build 33): Fit check results. */
+.fit-check-results { display: grid; gap: 6px; margin: 4px 0 8px; }
+.fit-check-summary { display: flex; align-items: center; gap: 6px; margin: 0; font: 600 12.5px/1.4 var(--font-ui); color: var(--foreground); }
+.fit-check-summary.ok { color: #1f8a4c; }
+.fit-check-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; max-height: 260px; overflow: auto; }
+.fit-check-item { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 7px 8px; text-align: left; border: 1px solid var(--border, #e3e7ec); border-radius: 8px; background: var(--panel, #fff); color: var(--foreground); cursor: pointer; }
+.fit-check-item:hover { border-color: var(--accent, #1662b3); }
+.fit-check-item span { display: grid; gap: 2px; }
+.fit-check-item strong { font: 600 12.5px var(--font-ui); }
+.fit-check-item small { font: 500 11.5px var(--font-ui); color: var(--muted-strong, #5b6673); }
+.fit-check-dot { width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; flex: 0 0 auto; }
+.fit-check-item.overlap .fit-check-dot { background: #e5322d; }
+.fit-check-item.tight .fit-check-dot { background: #e8a317; }
+.fit-check-note { margin: 0; font: 500 11.5px/1.4 var(--font-ui); color: var(--muted-strong, #5b6673); }
+html[data-theme="dark"] .fit-check-summary.ok { color: #5fd47c; }
+/* Fork (build 33): the Mesh tools menu hangs under its button. */
+.toolbar-mesh-section { position: relative; }
+.mesh-dropdown { position: absolute; top: calc(100% + 4px); left: 0; width: 290px; }
+.mesh-dropdown .visibility-dropdown-action { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; }
+.mesh-dropdown .visibility-dropdown-action:disabled { opacity: 0.45; cursor: default; }
+.mesh-dropdown { display: grid; gap: 4px; }
+.toolbar-overflow-section { position: relative; }
+.mesh-dropdown .visibility-dropdown-action.active { border-color: var(--accent, #1662b3); }
+
+/* Fork (build 34): text on any surface. */
+.surface-text-field { display: grid; gap: 4px; margin: 4px 0 8px; font: 600 12px var(--font-ui); color: var(--foreground); }
+.surface-text-field input, .surface-text-field select { height: 32px; padding: 0 10px; border: 1px solid var(--border, #d6dbe1); border-radius: 7px; background: var(--panel, #fff); color: var(--foreground); font: 500 14px var(--font-ui); }
+.surface-text-field input:focus, .surface-text-field select:focus { outline: none; border-color: var(--accent, #1662b3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #1662b3) 18%, transparent); }
+
+/* ---------------------------------------------------------------------------
+ * Build 35: a compact inspector - narrower, small Solid / Hole tiles side by side, shorter section
+ * headers in smaller type, and tighter slider rows.
+ * ------------------------------------------------------------------------ */
+@media (min-width: 721px) {
+  .shape-inspector { width: 268px; }
+}
+.shape-inspector .shape-inspector-header { min-height: 0; padding-top: 6px; padding-bottom: 6px; }
+.shape-inspector .shape-state-card { gap: 6px 8px; margin: 4px 8px 6px; padding: 8px; }
+.shape-inspector .shape-state-card button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.shape-inspector .shape-state-card button.active { background: color-mix(in srgb, currentColor 9%, transparent); }
+.shape-inspector .shape-state-card button > span:last-child { display: inline-flex; align-items: baseline; gap: 3px; }
+.shape-inspector .shape-state-card button .key-hint { display: inline; font-size: 10.5px; }
+.shape-inspector .large-solid-swatch,
+.shape-inspector .large-hole-swatch { width: 24px; height: 24px; border-width: 2px; border-radius: 6px; }
+.shape-inspector .large-solid-swatch { box-shadow: inset 0 0 0 2px white; }
+.shape-inspector .large-hole-swatch { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55); background: repeating-linear-gradient(135deg, #dedede 0 4px, #b8b8b8 4px 8px); }
+.shape-inspector .shape-state-card .check-property { margin-top: 0; font-size: 12px; }
+.shape-inspector .property-card { margin: 0 8px 5px; padding: 0 10px 10px; }
+.shape-inspector .property-card.collapsed { padding-bottom: 0; }
+.shape-inspector .property-card-header { height: 32px; font-size: 13.5px; font-weight: 600; }
+.shape-inspector .property-card-header svg { width: 16px; height: 16px; }
+.shape-inspector .range-property.compact { --bubble-w: 80px; --bubble-h: 22px; font-size: 11.5px; }
+.shape-inspector .range-property.compact .range-property-name { font-size: 11.5px; }
+.shape-inspector .range-property.compact .range-control,
+.shape-inspector .range-property.compact .range-control input[type="range"] { height: 24px; }
+.shape-inspector .range-property.compact .range-bubble input { font-size: 11.5px; height: calc(var(--bubble-h) - 2px); }
+.shape-inspector .range-property.compact .range-bubble .range-value-unit { font-size: 9.5px; }
+.shape-inspector .property-list:has(> .range-property.compact) { gap: 4px; }
+.shape-inspector .inspector-snap-dock { padding-top: 6px; padding-bottom: 6px; }
+
+/* Build 35: the sketch's right-click menu on a line or a point. */
+.sketch-context-menu {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 5px;
+  background: var(--panel-bg, #fff);
+  border: 1px solid color-mix(in srgb, var(--foreground, #333) 14%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(20, 30, 45, 0.18);
+  font: 500 13px/1.2 var(--font-ui);
+}
+.sketch-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  color: var(--foreground, #2a3442);
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  text-align: left;
+  cursor: pointer;
+}
+.sketch-context-menu button:hover:not(:disabled) { background: color-mix(in srgb, var(--primary, #1662b3) 10%, transparent); }
+.sketch-context-menu button:disabled { opacity: 0.4; cursor: default; }
+.sketch-context-menu button.danger { color: #c4352d; }
+.sketch-context-menu-gap { display: inline-block; width: 15px; }
+html[data-theme="dark"] .sketch-context-menu { background: #232a33; border-color: rgba(255, 255, 255, 0.1); }
+html[data-theme="dark"] .sketch-context-menu button { color: #e8ecf1; }
+
+/* ---------------------------------------------------------------------------
+ * Build 35: one icon language for the whole ribbon. Every icon is drawn the same way - a thin
+ * dark outline with a grey fill - whatever set it comes from; each group is framed in its own
+ * colour so it is found at a glance, and the tool in use is tinted softly in that colour.
+ * ------------------------------------------------------------------------ */
+:root {
+  --icon-ink: #2b3139;
+  --icon-fill: #d6dade;
+  --icon-fill-strong: #a9afb7;
+  --tile-top: #ffffff;
+  --tile-bottom: #f6f7f9;
+}
+html[data-theme="dark"] {
+  --icon-ink: #e4e8ee;
+  --icon-fill: #474f59;
+  --icon-fill-strong: #6b7480;
+  --tile-top: #2a3039;
+  --tile-bottom: #232931;
+}
+.toolbar-section[data-group="mesh"] { --group-color: #14a3a0; }
+.toolbar-section[data-group="visibility"] { --group-color: #6f7c8f; }
+.toolbar-section[data-group="help"],
+.toolbar-section[data-group="manage"] { --group-color: #5b83c4; }
+
+/* The group: a light tile framed in the group's colour, its name in that colour too. */
+.secondary-toolbar .toolbar-section-tools,
+.secondary-toolbar .toolbar-section .action-buttons {
+  background: linear-gradient(180deg, var(--tile-top), var(--tile-bottom));
+  border: 1.5px solid color-mix(in srgb, var(--group-color) 62%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(20, 30, 45, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.secondary-toolbar .toolbar-section-tools::after,
+.secondary-toolbar .toolbar-section .action-buttons::after { display: none !important; }
+.secondary-toolbar .toolbar-section-label { color: color-mix(in srgb, var(--group-color) 78%, var(--icon-ink)); font-weight: 650; }
+
+/* The icons: the same ink and the same weight of line everywhere. */
+.secondary-toolbar .toolbar-icon:not(:disabled):not(.disabled),
+.secondary-toolbar .toolbar-section[data-group] .toolbar-icon:not(:disabled):not(.disabled),
+.secondary-toolbar .action-icon-button:not(:disabled) { color: var(--icon-ink) !important; }
+.secondary-toolbar .toolbar-vector-art-icon { stroke-width: 2.05; }
+.secondary-toolbar .fork-icon { stroke-width: 2.3; }
+.secondary-toolbar svg.lucide { stroke-width: 1.6; }
+/* The grey fill: the faint body fills of both sets, and the part a tool acts on a shade deeper. */
+.secondary-toolbar .toolbar-icon svg [fill="currentColor"][opacity] { fill: var(--icon-fill); opacity: 1; }
+.secondary-toolbar .toolbar-icon .fork-accent { fill: var(--icon-fill-strong); opacity: 1; }
+.secondary-toolbar .toolbar-icon .fork-accent-line { stroke: var(--icon-ink); opacity: 1; }
+.secondary-toolbar .toolbar-icon:disabled,
+.secondary-toolbar .toolbar-icon.disabled { opacity: 0.38; }
+.secondary-toolbar .toolbar-icon:disabled .fork-accent,
+.secondary-toolbar .toolbar-icon.disabled .fork-accent { fill: var(--icon-fill); }
+
+/* Hover and the tool in use: a soft wash of the group's colour, the icon stays in ink. */
+.secondary-toolbar .toolbar-icon { border-radius: 8px; }
+.secondary-toolbar .toolbar-icon:not(:disabled):not(.disabled):hover { background: color-mix(in srgb, var(--group-color) 10%, transparent); }
+.secondary-toolbar .toolbar-icon.active,
+.secondary-toolbar .toolbar-icon[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--group-color) 17%, transparent) !important;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--group-color) 55%, transparent) !important;
+  color: var(--icon-ink) !important;
+}
+.secondary-toolbar .toolbar-icon.active svg [fill="currentColor"][opacity],
+.secondary-toolbar .toolbar-icon.active .fork-accent { fill: color-mix(in srgb, var(--group-color) 45%, var(--icon-fill)); }
+html[data-theme="dark"] .secondary-toolbar .toolbar-section-tools,
+html[data-theme="dark"] .secondary-toolbar .toolbar-section .action-buttons {
+  background: linear-gradient(180deg, var(--tile-top), var(--tile-bottom));
+  border-color: color-mix(in srgb, var(--group-color) 58%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+html[data-theme="dark"] .secondary-toolbar .toolbar-section-label { color: color-mix(in srgb, var(--group-color) 80%, #ffffff); }
+
+/* Build 36: sketch rules - marks on the lines, and their glyphs in the right-click menu. */
+.sketch-rule-mark { cursor: pointer; }
+.sketch-rule-mark rect { fill: #fff; stroke: #7c4dff; stroke-width: calc(1.2px * var(--sketch-screen-unit, 1)); vector-effect: non-scaling-stroke; }
+.sketch-rule-mark text { fill: #5b2fd6; font-family: var(--font-ui); font-weight: 700; pointer-events: none; }
+.sketch-rule-mark:hover rect { fill: #fdeaea; stroke: #c4352d; }
+.sketch-rule-mark:hover text { fill: #c4352d; }
+html[data-theme="dark"] .sketch-rule-mark rect { fill: #2a2140; }
+html[data-theme="dark"] .sketch-rule-mark text { fill: #c9b6ff; }
+.sketch-rule-glyph { display: inline-flex; justify-content: center; width: 15px; color: #5b2fd6; font-weight: 800; font-size: 12px; }
+.sketch-context-menu-divider { height: 1px; margin: 4px 6px; background: color-mix(in srgb, var(--foreground, #333) 12%, transparent); }
+/* Build 36: the Shapes button and any other ribbon button drawn with the same icons. */
+.secondary-toolbar .fork-accent { fill: var(--icon-fill-strong); opacity: 1; }
+.secondary-toolbar .shape-menu-trigger { color: var(--icon-ink) !important; }
+.secondary-toolbar .shape-menu-trigger svg [fill="currentColor"][opacity] { fill: var(--icon-fill); opacity: 1; }
+.secondary-toolbar .shape-menu-trigger.active { background: color-mix(in srgb, var(--group-color) 17%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--group-color) 55%, transparent); }
+
+/* Build 37: the feedback form and the "Report this problem" chip. */
+.feedback-backdrop { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 16px; background: rgba(15, 22, 32, 0.38); }
+.feedback-dialog {
+  display: flex; flex-direction: column; gap: 12px; width: min(460px, 100%); max-height: calc(100vh - 32px); overflow-y: auto;
+  padding: 18px 20px 16px; color: var(--foreground, #1f2730); background: var(--panel-bg, #fff);
+  border: 1px solid color-mix(in srgb, var(--foreground, #333) 12%, transparent); border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(15, 22, 32, 0.28); font: 14px/1.4 var(--font-ui);
+}
+.feedback-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.feedback-dialog header div { display: flex; flex-direction: column; gap: 2px; }
+.feedback-dialog header strong { font-size: 16px; }
+.feedback-dialog header span { font-size: 12.5px; opacity: 0.7; }
+.feedback-dialog header button { background: none; border: 0; color: inherit; cursor: pointer; opacity: 0.7; }
+.feedback-kinds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.feedback-kinds button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 6px; font: 600 12.5px var(--font-ui); color: inherit; background: none; border: 1.5px solid color-mix(in srgb, var(--foreground, #333) 14%, transparent); border-radius: 10px; cursor: pointer; }
+.feedback-kinds button.active { color: var(--primary, #1662b3); border-color: var(--primary, #1662b3); background: color-mix(in srgb, var(--primary, #1662b3) 8%, transparent); }
+.feedback-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; }
+.feedback-field input, .feedback-field textarea { font: 400 14px/1.4 var(--font-ui); padding: 8px 10px; color: inherit; background: var(--input-bg, #fff); border: 1px solid color-mix(in srgb, var(--foreground, #333) 18%, transparent); border-radius: 8px; resize: vertical; }
+.feedback-field input:focus, .feedback-field textarea:focus { outline: 2px solid color-mix(in srgb, var(--primary, #1662b3) 35%, transparent); border-color: var(--primary, #1662b3); }
+.feedback-error-sent { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; font-size: 12px; background: color-mix(in srgb, #c4352d 7%, transparent); border-radius: 8px; }
+.feedback-error-sent q { font-style: italic; opacity: 0.85; }
+.feedback-privacy { margin: 0; font-size: 11.5px; opacity: 0.65; }
+.feedback-dialog footer { display: flex; justify-content: flex-end; gap: 8px; }
+.feedback-dialog footer button, .feedback-sent button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; font: 600 13px var(--font-ui); border-radius: 9px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--foreground, #333) 16%, transparent); background: none; color: inherit; }
+.feedback-dialog .primary { color: #fff; background: var(--primary, #1662b3); border-color: var(--primary, #1662b3); }
+.feedback-dialog .primary:disabled { opacity: 0.45; cursor: default; }
+.feedback-sent { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 8px 6px; text-align: center; }
+.feedback-sent svg { color: #2fbf71; }
+.feedback-chip { position: fixed; left: 16px; bottom: 42px; z-index: 1500; display: flex; align-items: center; background: var(--panel-bg, #fff); border: 1px solid color-mix(in srgb, #c4352d 40%, transparent); border-radius: 999px; box-shadow: 0 6px 18px rgba(20, 30, 45, 0.16); overflow: hidden; }
+.feedback-chip button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; font: 600 12.5px var(--font-ui); color: #c4352d; background: none; border: 0; cursor: pointer; }
+.feedback-chip-close { color: inherit !important; opacity: 0.55; padding-left: 4px !important; }
+.footer-feedback-link { margin-left: 14px; padding: 0; font: inherit; color: inherit; background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+html[data-theme="dark"] .feedback-dialog, html[data-theme="dark"] .feedback-chip { background: #222831; color: #e8ecf1; }
+html[data-theme="dark"] .feedback-field input, html[data-theme="dark"] .feedback-field textarea { background: #1a1f26; }
+
+/* Build 37: tool windows in the same compact style as the properties panel. */
+.edge-modifier-panel .edge-modifier-header strong { font-size: 15px; }
+.edge-modifier-panel .edge-modifier-header span { font-size: 11.5px; }
+.edge-modifier-panel .edge-modifier-target { padding: 8px 10px; }
+.edge-modifier-panel .edge-modifier-target strong { font-size: 12.5px; }
+.edge-modifier-panel .edge-modifier-target span { font-size: 11.5px; line-height: 1.4; }
+.edge-modifier-panel .range-property.compact { --bubble-w: 80px; --bubble-h: 22px; font-size: 11.5px; }
+.edge-modifier-panel .range-property.compact .range-property-name { font-size: 11.5px; }
+.edge-modifier-panel .range-property.compact .range-control,
+.edge-modifier-panel .range-property.compact .range-control input[type="range"] { height: 24px; }
+.edge-modifier-panel .range-property.compact .range-bubble input { font-size: 11.5px; height: calc(var(--bubble-h) - 2px); }
+.edge-modifier-panel .blend-hint,
+.edge-modifier-panel .edge-modifier-selection-help { font-size: 11.5px; }
+.edge-modifier-panel .edge-modifier-footer button { min-height: 32px; font-size: 13px; }
+
+/* Build 37: the Parameters window's table. */
+.parameters-panel { width: min(420px, calc(100vw - 32px)); }
+.parameters-table { display: flex; flex-direction: column; gap: 4px; }
+.parameters-row { display: grid; grid-template-columns: 1fr 76px 1.3fr 28px; gap: 6px; align-items: center; }
+.parameters-head span { font: 650 11px var(--font-ui); opacity: 0.65; }
+.parameters-row input { min-width: 0; padding: 5px 7px; font: 13px var(--font-ui); color: inherit; background: var(--input-bg, #fff); border: 1px solid color-mix(in srgb, var(--foreground, #333) 16%, transparent); border-radius: 7px; }
+.parameters-row input:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.parameters-row input:focus { outline: 2px solid color-mix(in srgb, var(--primary, #1662b3) 30%, transparent); border-color: var(--primary, #1662b3); }
+.parameters-row button { display: grid; place-items: center; width: 28px; height: 28px; color: inherit; background: none; border: 0; border-radius: 7px; opacity: 0.6; cursor: pointer; }
+.parameters-row button:hover { opacity: 1; color: #c4352d; background: color-mix(in srgb, #c4352d 8%, transparent); }
+.parameters-add { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 6px 12px; font: 600 12.5px var(--font-ui); color: var(--primary, #1662b3); background: none; border: 1px dashed color-mix(in srgb, var(--primary, #1662b3) 50%, transparent); border-radius: 8px; cursor: pointer; }
+html[data-theme="dark"] .parameters-row input { background: #1a1f26; }
+
+/* Build 45: the colour layer over a library icon sits exactly on the 46px icon in the docked library. */
+.shape-menu-dropdown.shape-menu-docked .shape-menu-item .shape-menu-thumb {
+  display: block !important;
+  width: 46px !important;
+  height: 46px !important;
+  flex: 0 0 auto;
+  margin-inline: auto;
+  line-height: 0;
+}
+
+/* Fork (build 48): Sculpt's drawing overlays */
+.sculpt-overlay { position: absolute; inset: 0; z-index: 30; cursor: crosshair; touch-action: none; }
+.sculpt-overlay svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.sculpt-overlay polygon { fill: rgba(31, 111, 235, 0.12); stroke: #1f6feb; stroke-width: 2; stroke-dasharray: 6 4; }
+.sculpt-overlay-hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); margin: 0; padding: 6px 12px; border-radius: 6px; background: rgba(20, 24, 31, 0.82); color: #fff; font-size: 13px; pointer-events: none; white-space: nowrap; }
+
+/* Fork (build 53): Sculpt's brush. */
+.sculpt-brush-overlay { cursor: none; }
+/* Build 82: the Select tool's lasso. */
+.sculpt-lasso-overlay polygon { fill: rgba(242, 163, 58, 0.14); stroke: #f2a33a; stroke-dasharray: 6 4; }
+.sculpt-lasso-overlay polyline { fill: none; stroke: #f2a33a; stroke-width: 2; stroke-dasharray: 6 4; }
+.sculpt-lasso-overlay circle { fill: #fff; stroke: #f2a33a; stroke-width: 2; }
+.sculpt-lasso-overlay circle.closing { fill: #f2a33a; }
+.sculpt-lasso-overlay.erase polygon { fill: rgba(31, 111, 235, 0.12); stroke: #1f6feb; }
+.sculpt-lasso-overlay.erase polyline, .sculpt-lasso-overlay.erase circle { stroke: #1f6feb; }
+.sculpt-brush-overlay polyline { fill: none; stroke: rgba(242, 163, 58, 0.45); stroke-linecap: round; stroke-linejoin: round; }
+.sculpt-brush-overlay circle { fill: none; stroke: #f2a33a; stroke-width: 1.5; }
+.sculpt-brush-overlay.erase polyline { stroke: rgba(31, 111, 235, 0.35); }
+.sculpt-brush-overlay.erase circle { stroke: #1f6feb; }
+/* Build 94: the dot at the brush's centre - where the change happens. */
+.sculpt-brush-overlay circle.brush-dot { fill: #f2a33a; stroke: rgba(0, 0, 0, 0.45); stroke-width: 0.75; }
+.sculpt-brush-overlay.erase circle.brush-dot { fill: #1f6feb; }
+.sculpt-area-tools { flex-wrap: wrap; }
+/* Build 69: the Sculpt panel - brushes and selection actions as small buttons, three to a row. */
+.mesh-sculpt-panel .sculpt-mode, .mesh-sculpt-panel .sculpt-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+.mesh-sculpt-panel .sculpt-mode button, .mesh-sculpt-panel .sculpt-buttons button { padding: 6px 8px; border: 1px solid var(--border, #d4dae3); border-radius: 6px; background: transparent; color: inherit; font-size: 12px; cursor: pointer; }
+.mesh-sculpt-panel .sculpt-mode button.active { border-color: var(--primary, #1f6feb); color: var(--primary, #1f6feb); background: rgba(31, 111, 235, 0.08); font-weight: 600; }
+.mesh-sculpt-panel button:disabled { opacity: 0.5; cursor: default; }
+.mesh-sculpt-panel .sculpt-divider { border-top: 1px solid var(--border, #d4dae3); margin: 10px 0 8px; }
+.mesh-sculpt-panel .sculpt-reach-label { display: block; margin-bottom: 4px; font: 600 12px var(--font-ui); }
+.mesh-sculpt-panel .sculpt-subtitle { display: block; font-size: 13px; margin-bottom: 6px; }
+
+/* Fork (build 55): the Texture panel's patterns, each with a small swatch drawn in CSS. */
+.surface-texture-patterns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+.surface-texture-patterns button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px 5px;
+  font-size: 11px;
+  font-weight: 650;
+  color: inherit;
+  background: transparent;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.surface-texture-patterns button.active {
+  border-color: var(--accent, #0a84ff);
+  box-shadow: 0 0 0 1px var(--accent, #0a84ff) inset;
+}
+.surface-texture-patterns button:disabled { opacity: 0.55; cursor: default; }
+.surface-texture-swatch {
+  width: 34px;
+  height: 22px;
+  border-radius: 4px;
+  background-color: #8c97a3;
+}
+.swatch-knurl { background: repeating-linear-gradient(45deg, #6f7a86 0 3px, #b9c2cc 3px 6px), #8c97a3; background-blend-mode: multiply; background-image: repeating-linear-gradient(45deg, #6f7a86 0 3px, #b9c2cc 3px 6px), repeating-linear-gradient(-45deg, #6f7a86 0 3px, #b9c2cc 3px 6px); }
+.swatch-ribs { background: repeating-linear-gradient(90deg, #6f7a86 0 2px, #c3cbd3 2px 5px); }
+.swatch-dimples { background: radial-gradient(circle at 50% 50%, #5f6a76 0 2.5px, transparent 3px) 0 0 / 8px 8px, #b9c2cc; }
+.swatch-hexagons { background: radial-gradient(circle, transparent 0 3px, #6f7a86 3.4px 4.2px, transparent 4.4px) 0 0 / 9px 8px, #b9c2cc; }
+.swatch-bricks { background: linear-gradient(#6f7a86 1px, transparent 1px) 0 0 / 12px 6px, linear-gradient(90deg, #6f7a86 1px, transparent 1px) 0 0 / 12px 12px, linear-gradient(90deg, #6f7a86 1px, transparent 1px) 6px 6px / 12px 12px, #c3cbd3; }
+.swatch-weave { background: repeating-linear-gradient(0deg, #8e98a3 0 3px, #c3cbd3 3px 6px), #8c97a3; background-image: linear-gradient(90deg, rgba(95, 106, 118, 0.8) 50%, transparent 50%), repeating-linear-gradient(0deg, #8e98a3 0 3px, #c3cbd3 3px 6px); background-size: 6px 6px, auto; }
+.swatch-stone { background: radial-gradient(circle at 20% 30%, #6f7a86 0 3px, transparent 4px), radial-gradient(circle at 70% 60%, #6f7a86 0 4px, transparent 5px), radial-gradient(circle at 45% 80%, #7d8893 0 2px, transparent 3px), #b9c2cc; }
+.swatch-leather { background: radial-gradient(circle, #b9c2cc 0 2px, #7d8893 2.6px) 0 0 / 5px 5px; }
+.swatch-wood { background: repeating-radial-gradient(ellipse at 0% 120%, #9a8a74 0 2px, #cbb99f 2px 4px); }
+.swatch-fuzzy { background: radial-gradient(circle, #6f7a86 0.6px, transparent 1px) 0 0 / 3px 3px, radial-gradient(circle, #6f7a86 0.6px, transparent 1px) 1.5px 1.5px / 3px 3px, #b9c2cc; }
+.swatch-picture { background: linear-gradient(135deg, #5f6a76 0 35%, #c3cbd3 35% 65%, #8c97a3 65%); }
+.surface-texture-picture { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.surface-texture-picture button { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Build 70: the right-click menu never runs off the bottom of a short window; it scrolls. */
+.shape-context-menu { max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* Build 71: the part's size above the folded cards. */
+.inspector-size-line { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 2px 2px 8px; font: 500 12px var(--font-ui); color: var(--muted-strong, #4a5462); }
+.inspector-size-line strong { font-weight: 700; color: var(--foreground, #1d2430); font-variant-numeric: tabular-nums; }
+
+/* Build 71: the Export window - where the file opens, its type, its name and folder. */
+.export-window { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 24px); }
+.export-window header { padding: 12px 16px 8px; }
+.export-window footer { position: sticky; bottom: 0; padding: 10px 16px 12px; background: var(--panel, #fff); border-top: 1px solid var(--border); }
+.export-window-first { display: flex; align-items: center; gap: 10px; }
+.export-window-first .export-window-option { flex: 1; }
+.export-window-first .export-window-default { margin-top: 0; white-space: nowrap; }
+.export-window-icon { color: var(--primary) !important; }
+.export-window-section { margin: 0 16px 8px; padding: 6px 10px 8px; border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+.export-window-section legend { padding: 0 6px; font: 700 12px var(--font-ui); letter-spacing: 0.02em; text-transform: uppercase; opacity: 0.75; }
+.export-window-option { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid transparent; }
+.export-window-option:hover { background: var(--subbar); }
+.export-window-option.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.export-window-option.unavailable { opacity: 0.5; cursor: not-allowed; }
+.export-window-option input { margin: 0; accent-color: var(--primary); }
+.export-window-option em { margin-left: auto; font-size: 11px; font-style: normal; opacity: 0.8; }
+.export-window-option span small { display: block; font-size: 11.5px; opacity: 0.72; line-height: 1.3; }
+.export-window-slicers { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; margin-top: 4px; }
+.export-window-kind { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.export-window-kind-label { font-size: 11.5px; font-weight: 600; opacity: 0.65; padding: 0 8px; }
+.export-window-formats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.export-window-formats .export-window-option { align-items: flex-start; border-color: var(--border); }
+.export-window-formats .export-window-option.active { border-color: var(--primary); }
+.export-window-formats input { margin-top: 2px; }
+.export-window-default { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 12px; opacity: 0.85; cursor: pointer; }
+.export-window-default input { margin: 0; accent-color: var(--primary); }
+.export-window-check { margin: 2px 16px 10px 18px; font-size: 13px; opacity: 1; }
+.export-window-more { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--primary); font: 600 12.5px var(--font-ui); cursor: pointer; }
+.export-window-more:hover { text-decoration: underline; }
+.export-window-note { margin: 6px 0 0; font-size: 12px; opacity: 0.75; line-height: 1.35; }
+.export-window-name { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.export-window-name input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; font: inherit; color: inherit; background: var(--background, transparent); }
+.export-window-name em { font-style: normal; opacity: 0.65; }
+.export-window-folder { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; }
+.export-window-folder span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.export-window-folder button { padding: 4px 10px; border: 1px solid var(--border); border-radius: 7px; background: none; color: inherit; font: 600 12px var(--font-ui); cursor: pointer; }
+.export-window footer button.primary { display: inline-flex; align-items: center; gap: 6px; }
+.export-window footer button:disabled { opacity: 0.5; cursor: not-allowed; }
+@media (max-width: 480px) { .export-window-slicers, .export-window-formats { grid-template-columns: 1fr; } .export-window-first { flex-wrap: wrap; } }
+.export-window-scope { margin: 0 16px 8px; padding-top: 6px; padding-bottom: 6px; }
+/* Build 72: the Parts choice. */
+.export-window-parts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 6px; margin-top: 6px; }
+.export-window-parts .export-window-kind-label { grid-column: 1 / -1; }
+.export-window-parts .export-window-option { align-items: flex-start; border-color: var(--border); }
+.export-window-parts .export-window-option.active { border-color: var(--primary); }
+.export-window-parts input { margin-top: 2px; }
+@media (max-width: 480px) { .export-window-parts { grid-template-columns: 1fr; } }
+/* Build 73: while a brush covers the view (Sculpt's brushes), the view cube and the view
+   buttons stay above it, so the view can still be turned between strokes. */
+.workplane-stage:has(.sculpt-brush-overlay) .view-cube,
+.workplane-stage:has(.sculpt-brush-overlay) .camera-controls { z-index: 31; }
+
+/* Build 75: files dragged onto the window - a frame round it and a card saying they will be imported.
+   It takes no pointer events, so the drop still reaches whatever lies under it. */
+.file-drop-overlay {
+  position: fixed; inset: 0; z-index: 9000; pointer-events: none;
+  border: 3px dashed var(--accent, #1662b3); border-radius: 10px; margin: 6px;
+  background: color-mix(in srgb, var(--accent, #1662b3) 8%, transparent);
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 18vh;
+}
+.file-drop-card {
+  display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center;
+  padding: 16px 24px; border-radius: 10px; max-width: min(420px, 90vw);
+  background: var(--panel-bg, #fff); color: var(--text, #1d2433);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+.file-drop-card strong { font-size: 16px; }
+.file-drop-card span { font-size: 13px; opacity: 0.75; }
+
+/* Build 75: What's new on the start page, and its window scrolling through every build. */
+.dashboard-whats-new {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--panel, #fff);
+  color: var(--foreground); font: 600 13px var(--font-ui); cursor: pointer;
+}
+.dashboard-whats-new:hover { border-color: var(--primary); color: var(--primary); }
+.dashboard-whats-new svg { color: #d9822b; }
+.print-check.whats-new { display: flex; flex-direction: column; overflow: hidden; }
+.whats-new .whats-new-builds { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-bottom: 8px; overscroll-behavior: contain; }
+.whats-new-current {
+  margin-left: 8px; padding: 1px 8px; border-radius: 999px; font: 600 11px var(--font-ui);
+  color: #fff; background: var(--primary); vertical-align: 1px;
+}
+@media (max-width: 720px) { .dashboard-whats-new span { display: none; } }
+
+.sculpt-buttons button.danger:not(:disabled) { color: #c0392b; border-color: color-mix(in srgb, #c0392b 45%, var(--border, #dde3ea)); }
+
+/* Build 85: the view's look - workplane, no workplane, dark (Meshmixer). */
+.view-look-switch { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--line, #d7dde2); border-radius: 8px; margin-right: 6px; }
+.view-look-switch button { display: inline-grid; place-items: center; width: 26px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--muted, #6b7780); cursor: pointer; }
+.view-look-switch button svg { width: 15px; height: 15px; }
+.view-look-switch button:hover { background: var(--subbar); }
+.view-look-switch button.active { background: var(--primary); color: #fff; }
+
+/* Build 85: Sculpt's speed readout. */
+.sculpt-speed { position: fixed; left: 72px; bottom: 44px; z-index: 40; min-width: 250px; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 28, 0.86); color: #f2f5f7; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+.sculpt-speed strong { display: block; margin-bottom: 4px; font-family: inherit; }
+.sculpt-speed dl { display: grid; grid-template-columns: auto auto; gap: 1px 12px; margin: 0; }
+.sculpt-speed dt { opacity: 0.75; }
+.sculpt-speed dd { margin: 0; text-align: right; }
+.sculpt-speed p { margin: 0; opacity: 0.8; }
+
+/* Build 92: Sculpt's list of what each tool does. */
+.sculpt-help-list { display: grid; gap: 10px; max-height: 340px; overflow-y: auto; padding: 8px 10px; margin: 4px 0 8px; border: 1px solid var(--border, #d4dae3); border-radius: 8px; background: var(--panel-subtle, rgba(127, 127, 127, 0.06)); font-size: 12px; }
+.sculpt-help-list h5 { margin: 0 0 4px; font-size: 12px; font-weight: 600; }
+.sculpt-help-list dl { display: grid; gap: 4px; margin: 0; }
+.sculpt-help-list dl > div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; }
+.sculpt-help-list dt { font-weight: 600; }
+.sculpt-help-list dd { margin: 0; color: var(--muted, #5b6573); }
+
+/* Build 94: Sculpt in tabs, and the bar of the selection's actions beside it in the view. */
+.sculpt-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 4px 0 8px; padding: 3px; border-radius: 9px; background: var(--surface-2, #eef1f5); }
+.sculpt-tabs button { border: 0; background: transparent; padding: 7px 4px; border-radius: 7px; font-weight: 600; color: var(--text, #2b3340); opacity: 1; cursor: pointer; }
+.sculpt-tabs button:hover:not(.active) { background: rgba(255, 255, 255, 0.6); }
+.sculpt-tabs button.active { background: var(--surface, #fff); color: var(--accent, #1f5fbf); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.sculpt-tools.two { grid-template-columns: repeat(2, 1fr); }
+.sculpt-view-aids { display: grid; gap: 4px; margin-top: 6px; }
+.sculpt-selection button.danger { color: #b42318; border-color: #e4a29b; }
+@media (max-width: 700px) { .sculpt-selection-bar:not(.placed) { left: 16px; top: 140px; } }
+.sculpt-selection-bar { position: fixed; z-index: 60; top: 180px; left: 110px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: min(780px, calc(100vw - 32px)); padding: 5px 6px; border-radius: 10px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22); pointer-events: auto; }
+.sculpt-selection-bar button { border: 1px solid var(--border, #d4dae3); background: #fff; border-radius: 7px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+.sculpt-selection-bar button.danger { color: #b42318; border-color: #e4a29b; }
+.sculpt-selection-bar button:hover { background: #f1f5fb; }
+.sculpt-selection-bar .sculpt-bar-grip { border: 0; background: transparent; padding: 4px 2px; cursor: grab; color: #7a8594; touch-action: none; }
+.sculpt-selection-bar .sculpt-bar-grip:active { cursor: grabbing; }
+.sculpt-bar-count { font-size: 12px; font-weight: 600; color: #3a4452; padding-right: 2px; white-space: nowrap; }
+.sculpt-bar-group { display: flex; gap: 4px; padding-left: 6px; border-left: 1px solid var(--border, #d4dae3); }
+.sculpt-selection-bar .sculpt-bar-done { display: inline-flex; align-items: center; gap: 4px; margin-left: 2px; background: var(--accent, #1f5fbf); border-color: var(--accent, #1f5fbf); color: #fff; font-weight: 600; }
+.sculpt-selection-bar .sculpt-bar-done:hover { background: #194f9f; }
+
+.sculpt-radial { position: fixed; z-index: 70; width: 0; height: 0; pointer-events: none; }
+.sculpt-radial button { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; min-width: 74px; padding: 6px 9px; border-radius: 999px; border: 1px solid var(--border, #d4dae3); background: rgba(255, 255, 255, 0.97); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2); font-size: 12px; font-weight: 600; cursor: pointer; }
+.sculpt-radial button.active { color: var(--accent, #1f5fbf); border-color: var(--accent, #1f5fbf); }
+.sculpt-radial button.hover { background: var(--accent, #1f5fbf); color: #fff; }
+.sculpt-radial-hint { position: absolute; top: 132px; transform: translate(-50%, -50%); white-space: nowrap; font-size: 11px; color: #fff; background: rgba(0, 0, 0, 0.55); padding: 2px 7px; border-radius: 6px; }
+
+/* Build 99: the gimbal - arrows to move along, rings to turn on (Meshmixer, Medit, Bambu Studio). */
+.gimbal-overlay { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.gimbal-overlay > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.gimbal-overlay .gimbal-hit { pointer-events: stroke; stroke: transparent; stroke-width: 16; fill: none; cursor: grab; }
+.gimbal-overlay .gimbal-hit:active { cursor: grabbing; }
+.gimbal-overlay .gimbal-line { pointer-events: none; fill: none; stroke-width: 3; stroke-linecap: round; }
+.gimbal-ring .gimbal-line { stroke-width: 2.5; opacity: 0.9; }
+.gimbal-overlay .axis-x .gimbal-line, .gimbal-head.axis-x path { stroke: #e0352b; fill: #e0352b; }
+.gimbal-overlay .axis-y .gimbal-line, .gimbal-head.axis-y path { stroke: #2aa52f; fill: #2aa52f; }
+.gimbal-overlay .axis-z .gimbal-line, .gimbal-head.axis-z path { stroke: #2f6fe0; fill: #2f6fe0; }
+.gimbal-ring .gimbal-line { fill: none !important; }
+.gimbal-overlay g:hover .gimbal-line { stroke-width: 4.5; opacity: 1; }
+.gimbal-overlay .faint { opacity: 0.18; }
+.gimbal-middle { fill: #fff; stroke: #3a4452; stroke-width: 1.5; pointer-events: none; }
+.gimbal-overlay.locked .gimbal-hit { cursor: not-allowed; }
+.gimbal-overlay.locked .gimbal-line { opacity: 0.35; }
+.snap-units.handle-style { margin-left: 6px; }
+
+/* Build 99: the footer's build number, beside Open source and Licences & credits. */
+.dashboard-legal .footer-build { color: inherit; opacity: 0.85; }
+.dashboard-legal-group > .footer-build + a, .dashboard-legal-group > a + a { margin-left: 10px; }
+
+/* Build 101: handles hidden from the right-click menu - said on screen, with the way back. */
+.handles-hidden-chip { position: fixed; z-index: 55; left: 50%; top: 150px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18); font-size: 12px; }
+.handles-hidden-chip button { border: 0; border-radius: 999px; padding: 4px 10px; background: var(--accent, #2f5fb3); color: #fff; font: inherit; cursor: pointer; }
+
+/* Build 104: a clicked toolbar button shows no hover name over what it opened (see InstantTips). */
+.secondary-toolbar [data-tip][data-tip-off]:hover::after,
+.secondary-toolbar [data-tip][data-tip-off]:hover::before {
+  display: none !important;
+}
+
+/* Build 104: a tool's panel takes the place of the part's settings while it is open, instead of
+   lying half over them in the same corner (both came up at the top right). */
+.layerling-editor:has(.edge-modifier-panel:not(.floating)) .shape-inspector:not(.floating),
+.layerling-editor:has(.split-panel:not(.floating)) .shape-inspector:not(.floating) {
+  visibility: hidden;
+}
+
+/* Build 104: CAD Studio's messages at the bottom centre of the view, clear of the view cube and the
+   object list they used to sit over at the top left. */
+.layerling-editor .editor-status {
+  top: auto;
+  bottom: calc(var(--editor-footer-height) + 22px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+/* Build 104: with the "does not fit the build volume" pill showing at the bottom centre, a message
+   stands just above it instead of on top of it. */
+.layerling-editor:has(.bed-overhang-warning) .editor-status {
+  bottom: calc(var(--editor-footer-height) + 78px);
+}
+/* Build 104: CAD Studio has no Box / Gimbal switch; the gimbal is a right-click choice there. */
+.layerling-editor .snap-units.handle-style {
+  display: none;
+}
+/* Build 104: a ready part's how-to, folded until asked for. */
+.ready-part-howto { margin: 0 0 8px; padding: 0 2px; }
+.ready-part-howto summary {
+  cursor: pointer;
+  width: fit-content;
+  font: 600 12px/1.4 var(--font-ui);
+  color: var(--accent, #2456d3);
+  list-style: none;
+}
+.ready-part-howto summary::-webkit-details-marker { display: none; }
+.ready-part-howto summary::before { content: "▸ "; }
+.ready-part-howto[open] summary::before { content: "▾ "; }
+.ready-part-howto .ready-part-note { margin-top: 6px; padding: 8px 10px; background: color-mix(in srgb, currentColor 4%, transparent); border-radius: 8px; }
+/* Build 104 (gimbal 2): the outer ring that turns as seen, the gimbal's buttons and its readout. */
+.gimbal-view-ring .gimbal-line { stroke: #8a929e; stroke-width: 1.8; stroke-dasharray: 2 5; opacity: 0.75; }
+.gimbal-view-ring:hover .gimbal-line { stroke: #4b5361; stroke-dasharray: none; }
+.gimbal-chips-holder { overflow: visible; pointer-events: none; }
+.gimbal-chips {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(20, 30, 45, 0.14);
+  border-radius: 9px;
+  box-shadow: 0 6px 18px rgba(10, 15, 25, 0.12);
+}
+.gimbal-chips button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 7px;
+  color: #2b3442;
+  font: 600 11.5px/1 var(--font-ui, system-ui, sans-serif);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.gimbal-chips button:hover { background: rgba(36, 86, 211, 0.1); color: #1d47b4; }
+.gimbal-chips .gimbal-space { padding: 0 9px; border-right: 1px solid rgba(20, 30, 45, 0.12); border-radius: 6px 0 0 6px; }
+.gimbal-readout { white-space: nowrap; }
+
+.gimbal-overlay .gimbal-hit.gimbal-hit-area { pointer-events: all; fill: transparent; stroke: none; }
+.gimbal-overlay .gimbal-label { font: 700 10.5px/1 var(--font-ui, system-ui, sans-serif); paint-order: stroke; stroke: rgba(255, 255, 255, 0.92); stroke-width: 3px; pointer-events: none; }
+.gimbal-overlay .axis-x .gimbal-label { fill: #c22a22; }
+.gimbal-overlay .axis-y .gimbal-label { fill: #23852a; }
+.gimbal-overlay .axis-z .gimbal-label { fill: #2459c0; }
+

@@ -1,0 +1,2163 @@
+/**
+ * Build 73: live Sculpt - a mesh that can be shaped while the brush moves, as in Meshmixer.
+ *
+ * The working copy of a part is an editable triangle mesh (corners shared, triangles that can be
+ * split, collapsed and flipped). Two uniform grids index it: one of corners, for "every corner within
+ * the brush", and one of triangles, for "where does this ray meet the surface". A brush stroke is a
+ * stream of dabs; each dab moves only the corners within the brush that are joined (over the surface)
+ * to the point under the cursor, then refreshes their normals and the few changed parts of the GPU
+ * buffers. Nothing walks the whole mesh during a stroke.
+ *
+ * Refine (dynamic topology): after each dab the triangles under the brush are kept near a target edge
+ * length - edges longer than 4/3 of it split, shorter than 4/5 collapse, edges flipped towards six
+ * neighbours a corner, corners relaxed along the surface (Botsch & Kobbelt 2004, "A remeshing approach
+ * to multiresolution modeling"; the method of Ryan Schmidt's Meshmixer and geometry3Sharp Remesher).
+ * The same steps over the whole part, with corners pulled back onto the original surface, are Remesh.
+ */
+import * as THREE from "three";
+import { NearestSurface } from "./nearestSurface";
+
+/**
+ * Build 89: Meshmixer's brushes. "smooth" is RobustSmooth (weighted by the triangles' shape, so uneven
+ * triangles do not throw it off); "shrinkSmooth" the plain smooth of builds 73-88 (each corner to its
+ * neighbours' plain average, which pulls the surface in), "bubbleSmooth" smooths
+ * and keeps the volume (bumps round off rather than sink); "drag" pulls the surface along the stroke;
+ * "draw2" raises the surface to a set height above where it was when the stroke began, and no further.
+ */
+export type LiveBrush = "draw" | "draw2" | "drag" | "inflate" | "deflate" | "smooth" | "shrinkSmooth" | "bubbleSmooth" | "flatten" | "pinch" | "crease" | "move" | "mask" | "attract";
+type DabBrush = Exclude<LiveBrush, "move" | "mask">;
+export type Vec3 = [number, number, number];
+
+/**
+ * Build 91: a cell's key wraps every 1024 cells on each axis, so it is always a small integer - the
+ * keys of build 73 (up to 2^51) were stored as boxed numbers, and keeping triangles in their cells was
+ * the largest single cost of a refining stroke. Cells far apart can share a key; everything read from
+ * the grid is checked against the real positions, so that only adds a candidate now and then.
+ */
+const K = 1024, WRAP = 1023;
+
+/** A uniform grid of items by cell (cell size `h`). */
+class Grid {
+  cells = new Map<number, number[]>();
+  constructor(public h: number) {}
+  key(ix: number, iy: number, iz: number) { return ((ix & WRAP) * K + (iy & WRAP)) * K + (iz & WRAP); }
+  cellOf(x: number, y: number, z: number) { return this.key(Math.floor(x / this.h), Math.floor(y / this.h), Math.floor(z / this.h)); }
+  add(key: number, item: number) { const list = this.cells.get(key); if (list) list.push(item); else this.cells.set(key, [item]); }
+  remove(key: number, item: number) {
+    const list = this.cells.get(key);
+    if (!list) return;
+    const at = list.indexOf(item);
+    if (at < 0) return;
+    list[at] = list[list.length - 1];
+    list.pop();
+    if (!list.length) this.cells.delete(key);
+  }
+}
+
+/** Corners (x y z alive, four numbers each) and triangles (a b c alive) to put back, with the counts in use. */
+export type LivePatch = { vCount: number; tCount: number; verts: Int32Array; vData: Float64Array; tris: Int32Array; tData: Int32Array };
+
+export class LiveMesh {
+  /** Corner positions (x y z), capacity-sized; `vCount` in use, `vAlive` 0 for removed corners. */
+  pos: Float64Array;
+  vCount = 0;
+  vAlive: Uint8Array;
+  /** Triangles (three corner numbers), capacity-sized; `tCount` in use, `tAlive` 0 for removed ones. */
+  tri: Int32Array;
+  tCount = 0;
+  tAlive: Uint8Array;
+  /** The triangles at each corner. */
+  vTris: number[][] = [];
+  private vCell: Float64Array;
+  private tCells: number[][] = [];
+  /** Each triangle's grid box when last binned (x0 y0 z0 x1 y1 z1), so an unchanged box is skipped. */
+  private tBox: Int32Array;
+  private vGrid: Grid;
+  private tGrid: Grid;
+  /** For drawing: Float32 positions and normals per corner, an index per triangle. */
+  geometry: THREE.BufferGeometry;
+  private gPos!: THREE.BufferAttribute;
+  private gNrm!: THREE.BufferAttribute;
+  private gIdx!: THREE.BufferAttribute;
+  /** Build 90: a colour per corner - white, or tinted where the corner is frozen. */
+  private gCol!: THREE.BufferAttribute;
+  /**
+   * Build 90: how frozen each corner is (Meshmixer's Freeze), 0 free to 1 frozen: brushes move a corner
+   * only by its free part, and refining leaves the triangles of frozen corners as they are.
+   */
+  mask: Float32Array;
+  /** Set once anything was frozen: from then on the colours go to the graphics card with the positions. */
+  private maskShown = false;
+  private dirtyC = new Set<number>();
+  private dirtyV = new Set<number>();
+  private dirtyT = new Set<number>();
+  /** Set when triangles were added or removed (the index buffer and draw range change). */
+  topologyChanged = false;
+  /** Counts every change to the triangles (split, collapse, flip): a stroke compares it to know whether it changed them. */
+  topologyEdits = 0;
+
+  constructor(points: ArrayLike<number>, triangles: ArrayLike<number>) {
+    const n = points.length / 3, m = triangles.length / 3;
+    this.pos = new Float64Array(Math.ceil(n * 1.5 + 4096) * 3);
+    this.pos.set(points);
+    this.vCount = n;
+    this.vAlive = new Uint8Array(this.pos.length / 3).fill(1, 0, n);
+    this.tri = new Int32Array(Math.ceil(m * 1.5 + 8192) * 3);
+    this.tri.set(triangles);
+    this.tCount = m;
+    this.tAlive = new Uint8Array(this.tri.length / 3).fill(1, 0, m);
+    this.vCell = new Float64Array(this.pos.length / 3);
+    this.mask = new Float32Array(this.pos.length / 3);
+    this.tBox = new Int32Array(this.tri.length * 2).fill(2147483647);
+    // The grid cell: about three edges, at least 0.5 mm.
+    let edge = 0;
+    const sample = Math.min(m, 20000);
+    for (let s = 0; s < sample; s += 1) {
+      const t = Math.floor((s * m) / sample) * 3;
+      edge += this.dist(this.tri[t], this.tri[t + 1]);
+    }
+    const h = Math.max(0.5, (sample ? edge / sample : 1) * 3);
+    this.vGrid = new Grid(h);
+    this.tGrid = new Grid(h);
+    for (let v = 0; v < n; v += 1) this.vTris.push([]);
+    for (let t = 0; t < m; t += 1) for (let k = 0; k < 3; k += 1) this.vTris[this.tri[t * 3 + k]].push(t);
+    for (let v = 0; v < n; v += 1) { this.vCell[v] = this.cellOfVertex(v); this.vGrid.add(this.vCell[v], v); }
+    for (let t = 0; t < m; t += 1) { this.tCells.push([]); this.placeTriangle(t); }
+    this.geometry = new THREE.BufferGeometry();
+    this.allocateGpu();
+    this.refreshAllNormals();
+  }
+
+  /** A mesh from a triangle soup (9 numbers a triangle), corners welded within 1e-5 mm. */
+  static fromSoup(soup: ArrayLike<number>): LiveMesh {
+    // Build 75: welded through a numeric hash table on the rounded corner, not a Map of text keys -
+    // a large scan (a million corners) opens in a fraction of the time.
+    const corners = Math.floor(soup.length / 9) * 3;
+    let cap = 1024;
+    while (cap < corners * 2) cap *= 2;
+    const mask = cap - 1;
+    const table = new Int32Array(cap).fill(-1);
+    const keys = new Float64Array(corners * 3);
+    const points = new Float64Array(corners * 3);
+    const tris = new Int32Array(corners);
+    let count = 0, made = 0;
+    const ids = [0, 0, 0];
+    for (let i = 0; i + 8 < soup.length; i += 9) {
+      for (let k = 0; k < 3; k += 1) {
+        const x = soup[i + k * 3], y = soup[i + k * 3 + 1], z = soup[i + k * 3 + 2];
+        const rx = Math.round(x * 1e5), ry = Math.round(y * 1e5), rz = Math.round(z * 1e5);
+        let h = (Math.imul(rx | 0, 73856093) ^ Math.imul(ry | 0, 19349663) ^ Math.imul(rz | 0, 83492791)) & mask;
+        let id = -1;
+        for (;;) {
+          const at = table[h];
+          if (at < 0) break;
+          if (keys[at * 3] === rx && keys[at * 3 + 1] === ry && keys[at * 3 + 2] === rz) { id = at; break; }
+          h = (h + 1) & mask;
+        }
+        if (id < 0) {
+          id = count; count += 1; table[h] = id;
+          keys[id * 3] = rx; keys[id * 3 + 1] = ry; keys[id * 3 + 2] = rz;
+          points[id * 3] = x; points[id * 3 + 1] = y; points[id * 3 + 2] = z;
+        }
+        ids[k] = id;
+      }
+      if (ids[0] !== ids[1] && ids[1] !== ids[2] && ids[0] !== ids[2]) { tris[made] = ids[0]; tris[made + 1] = ids[1]; tris[made + 2] = ids[2]; made += 3; }
+    }
+    return new LiveMesh(points.subarray(0, count * 3), tris.subarray(0, made));
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Basics
+
+  dist(a: number, b: number) {
+    const p = this.pos;
+    const x = p[a * 3] - p[b * 3], y = p[a * 3 + 1] - p[b * 3 + 1], z = p[a * 3 + 2] - p[b * 3 + 2];
+    return Math.sqrt(x * x + y * y + z * z);
+  }
+  private cellOfVertex(v: number) { return this.vGrid.cellOf(this.pos[v * 3], this.pos[v * 3 + 1], this.pos[v * 3 + 2]); }
+  /**
+   * Build 91: a triangle that moved or changed is put back in its grid cells once, when the grid is next
+   * read (pick, or the end of the frame) - a refining stroke touched each triangle many times over in a
+   * frame (seven million times in a test stroke) and binned it again every time.
+   */
+  private binTriangle(t: number) {
+    if (this.bulk) return;
+    if (this.binDirtyMark.length < this.tri.length / 3) { const next = new Int32Array(this.tri.length / 3); next.set(this.binDirtyMark); this.binDirtyMark = next; }
+    if (this.binDirtyMark[t] === this.binGeneration) return;
+    this.binDirtyMark[t] = this.binGeneration;
+    if (this.binDirtyCount === this.binDirty.length) { const next = new Int32Array(this.binDirty.length * 2); next.set(this.binDirty); this.binDirty = next; }
+    this.binDirty[this.binDirtyCount++] = t;
+  }
+  private binDirty = new Int32Array(4096);
+  private binDirtyCount = 0;
+  private binDirtyMark = new Int32Array(0);
+  private binGeneration = 1;
+  /** The triangles waiting to go back in their cells, put there now. */
+  settleBins() {
+    const count = this.binDirtyCount;
+    if (!count) return;
+    this.binDirtyCount = 0;
+    this.binGeneration += 1;
+    for (let i = 0; i < count; i += 1) this.placeTriangle(this.binDirty[i]);
+  }
+  private placeTriangle(t: number) {
+    if (this.bulk) return;
+    const cells = this.tCells[t];
+    const box = this.tBox, o = t * 6;
+    if (!this.tAlive[t]) {
+      for (const c of cells) this.tGrid.remove(c, t);
+      cells.length = 0;
+      box[o] = 2147483647;
+      return;
+    }
+    const h = this.tGrid.h, p = this.pos, a = this.tri[t * 3] * 3, b = this.tri[t * 3 + 1] * 3, c = this.tri[t * 3 + 2] * 3;
+    const lx = Math.min(p[a], p[b], p[c]), hx = Math.max(p[a], p[b], p[c]);
+    const ly = Math.min(p[a + 1], p[b + 1], p[c + 1]), hy = Math.max(p[a + 1], p[b + 1], p[c + 1]);
+    const lz = Math.min(p[a + 2], p[b + 2], p[c + 2]), hz = Math.max(p[a + 2], p[b + 2], p[c + 2]);
+    let x0: number, x1: number, y0: number, y1: number, z0: number, z1: number;
+    if (hx - lx < h * 0.5 && hy - ly < h * 0.5 && hz - lz < h * 0.5) {
+      // Build 91: a small triangle (under half a cell each way, as nearly all are) in the one cell of its
+      // middle - pick() looks a cell round every point of the ray, which still finds it. One cell instead
+      // of up to eight, and it changes cell far less often as a brush moves it.
+      x0 = x1 = Math.floor((lx + hx) / 2 / h); y0 = y1 = Math.floor((ly + hy) / 2 / h); z0 = z1 = Math.floor((lz + hz) / 2 / h);
+    } else {
+      x0 = Math.floor(lx / h); x1 = Math.floor(hx / h); y0 = Math.floor(ly / h); y1 = Math.floor(hy / h); z0 = Math.floor(lz / h); z1 = Math.floor(hz / h);
+    }
+    if (box[o] === x0 && box[o + 1] === y0 && box[o + 2] === z0 && box[o + 3] === x1 && box[o + 4] === y1 && box[o + 5] === z1 && cells.length) return;
+    box[o] = x0; box[o + 1] = y0; box[o + 2] = z0; box[o + 3] = x1; box[o + 4] = y1; box[o + 5] = z1;
+    for (const key of cells) this.tGrid.remove(key, t);
+    cells.length = 0;
+    // A huge triangle (a base plate) in at most 4000 cells; past that only its corners' cells.
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1) > 4000) {
+      for (const v of [a, b, c]) { const key = this.tGrid.cellOf(p[v], p[v + 1], p[v + 2]); if (!cells.includes(key)) { cells.push(key); this.tGrid.add(key, t); } }
+      return;
+    }
+    for (let ix = x0; ix <= x1; ix += 1) for (let iy = y0; iy <= y1; iy += 1) for (let iz = z0; iz <= z1; iz += 1) {
+      const key = this.tGrid.key(ix, iy, iz);
+      cells.push(key);
+      this.tGrid.add(key, t);
+    }
+  }
+  /** The triangles round the given corners put in their grid cells again, each once. */
+  private rebin(corners: ArrayLike<number>, count = corners.length) {
+    // Build 85: each triangle once, by a stamp per triangle rather than a set made on every dab.
+    if (this.binMark.length < this.tri.length / 3) this.binMark = new Int32Array(this.tri.length / 3);
+    const mark = this.binMark, stamp = ++this.binStamp;
+    for (let i = 0; i < count; i += 1) for (const t of this.vTris[corners[i]]) if (mark[t] !== stamp) { mark[t] = stamp; this.binTriangle(t); }
+  }
+  private binMark = new Int32Array(0);
+  private binStamp = 0;
+  /** Build 85: scratch for the brushes, kept between dabs so a stroke makes next to no garbage. */
+  private faceScratch = new THREE.Vector3();
+  private normalMark = new Int32Array(0);
+  private normalStamp = 0;
+  private normalList = new Int32Array(4096);
+  private dabN = new THREE.Vector3();
+  private dabArea = new THREE.Vector3();
+  private dabCen = new THREE.Vector3();
+  private dabMoves = new Float64Array(4096);
+  private dabCorners = new Int32Array(1024);
+  private dabCornerW = new Float64Array(1024);
+  private dabW = new Float64Array(4096);
+  /** After a corner moved: its grid cell, and the cells of its triangles. */
+  private moved(v: number) {
+    if (this.bulk) { this.dirtyV.add(v); return; }
+    const cell = this.cellOfVertex(v);
+    if (cell !== this.vCell[v]) { this.vGrid.remove(this.vCell[v], v); this.vGrid.add(cell, v); this.vCell[v] = cell; }
+    this.dirtyV.add(v);
+  }
+  /**
+   * Build 92: room made before a refining stroke for the corners and triangles it may add, so the
+   * buffers are not made again (and sent to the graphics card whole) in the middle of it.
+   */
+  reserve(corners: number, triangles = corners * 2) { this.growVertices(corners); this.growTriangles(triangles); }
+  private growVertices(extra: number) {
+    if ((this.vCount + extra) * 3 <= this.pos.length) return;
+    const cap = Math.ceil((this.vCount + extra) * 1.5);
+    const pos = new Float64Array(cap * 3); pos.set(this.pos); this.pos = pos;
+    const alive = new Uint8Array(cap); alive.set(this.vAlive); this.vAlive = alive;
+    const cell = new Float64Array(cap); cell.set(this.vCell); this.vCell = cell;
+    const mask = new Float32Array(cap); mask.set(this.mask); this.mask = mask;
+    if (this.paint) { const paint = new Float32Array(cap * 3).fill(1); paint.set(this.paint); this.paint = paint; }
+    this.allocateGpu();
+  }
+  private growTriangles(extra: number) {
+    if ((this.tCount + extra) * 3 <= this.tri.length) return;
+    const cap = Math.ceil((this.tCount + extra) * 1.5);
+    const tri = new Int32Array(cap * 3); tri.set(this.tri); this.tri = tri;
+    const box = new Int32Array(cap * 6).fill(2147483647); box.set(this.tBox); this.tBox = box;
+    const alive = new Uint8Array(cap); alive.set(this.tAlive); this.tAlive = alive;
+    this.allocateGpu();
+  }
+  private addVertex(x: number, y: number, z: number) {
+    this.growVertices(1);
+    const v = this.vCount++;
+    this.pos[v * 3] = x; this.pos[v * 3 + 1] = y; this.pos[v * 3 + 2] = z;
+    this.vAlive[v] = 1;
+    this.mask[v] = 0;
+    this.vTris[v] = [];
+    if (v < this.rim.length) this.rim[v] = -1;
+    if (!this.bulk) { this.vCell[v] = this.cellOfVertex(v); this.vGrid.add(this.vCell[v], v); }
+    this.dirtyV.add(v);
+    return v;
+  }
+  private addTriangle(a: number, b: number, c: number) {
+    this.growTriangles(1);
+    const t = this.tCount++;
+    this.tri[t * 3] = a; this.tri[t * 3 + 1] = b; this.tri[t * 3 + 2] = c;
+    this.tAlive[t] = 1;
+    this.vTris[a].push(t); this.vTris[b].push(t); this.vTris[c].push(t);
+    this.tCells[t] = [];
+    this.binTriangle(t);
+    this.dirtyT.add(t);
+    this.topologyChanged = true;
+    this.topologyEdits += 1;
+    return t;
+  }
+  private removeTriangle(t: number) {
+    if (!this.tAlive[t]) return;
+    this.note(t);
+    this.tAlive[t] = 0;
+    for (let k = 0; k < 3; k += 1) {
+      const list = this.vTris[this.tri[t * 3 + k]];
+      const at = list.indexOf(t);
+      if (at >= 0) { list[at] = list[list.length - 1]; list.pop(); }
+    }
+    this.binTriangle(t);
+    this.dirtyT.add(t);
+    this.topologyChanged = true;
+    this.topologyEdits += 1;
+  }
+  /** Replaces corner `from` with `to` in triangle t. */
+  private retarget(t: number, from: number, to: number) {
+    this.note(t);
+    for (let k = 0; k < 3; k += 1) if (this.tri[t * 3 + k] === from) this.tri[t * 3 + k] = to;
+    const list = this.vTris[from], at = list.indexOf(t);
+    if (at >= 0) { list[at] = list[list.length - 1]; list.pop(); }
+    this.vTris[to].push(t);
+    this.binTriangle(t);
+    this.dirtyT.add(t);
+  }
+  // ---------------------------------------------------------------------------------------------
+  // Undo: a stroke's changes as a pair of small patches (before and after), so a step back costs what
+  // the stroke touched, not a rebuild of the whole part.
+
+  private journal: Map<number, [number, number, number, number]> | null = null;
+  private journalT = 0;
+  private journalV = 0;
+  private journalPos: Float64Array | null = null;
+  private journalAlive: Uint8Array | null = null;
+  /** Triangle t as it was when the patch began, the first time it changes. */
+  private note(t: number) {
+    if (this.journal && t < this.journalT && !this.journal.has(t)) this.journal.set(t, [this.tri[t * 3], this.tri[t * 3 + 1], this.tri[t * 3 + 2], this.tAlive[t]]);
+  }
+  /** Starts recording changes (call before a stroke). */
+  beginPatch() {
+    this.beginStroke();
+    this.journal = new Map();
+    this.journalT = this.tCount;
+    this.journalV = this.vCount;
+    // Build 87: the copy goes into buffers kept from stroke to stroke - a fresh 5 MB copy at every
+    // stroke's start (on a large scan) was garbage the browser then had to clear up.
+    if (this.patchPos.length < this.vCount * 3) this.patchPos = new Float64Array(Math.ceil(this.vCount * 1.25) * 3);
+    if (this.patchAlive.length < this.vCount) this.patchAlive = new Uint8Array(Math.ceil(this.vCount * 1.25));
+    this.patchPos.set(this.pos.subarray(0, this.vCount * 3));
+    this.patchAlive.set(this.vAlive.subarray(0, this.vCount));
+    this.journalPos = this.patchPos;
+    this.journalAlive = this.patchAlive;
+  }
+  private patchPos = new Float64Array(0);
+  private patchAlive = new Uint8Array(0);
+  /** Ends recording: the patches that take the mesh back to the start and forward again, or null if nothing changed. */
+  endPatch(): { undo: LivePatch; redo: LivePatch } | null {
+    const journal = this.journal, oldPos = this.journalPos, oldAlive = this.journalAlive;
+    this.journal = null; this.journalPos = null; this.journalAlive = null;
+    if (!journal || !oldPos || !oldAlive) return null;
+    const oldV = this.journalV, oldT = this.journalT, p = this.pos;
+    const changed: number[] = [];
+    for (let v = 0; v < oldV; v += 1) {
+      if (p[v * 3] !== oldPos[v * 3] || p[v * 3 + 1] !== oldPos[v * 3 + 1] || p[v * 3 + 2] !== oldPos[v * 3 + 2] || this.vAlive[v] !== oldAlive[v]) changed.push(v);
+    }
+    if (!changed.length && !journal.size && this.vCount === oldV && this.tCount === oldT) return null;
+    const vertexData = (list: number[], from: Float64Array, alive: Uint8Array) => {
+      const out = new Float64Array(list.length * 4);
+      list.forEach((v, k) => { out[k * 4] = from[v * 3]; out[k * 4 + 1] = from[v * 3 + 1]; out[k * 4 + 2] = from[v * 3 + 2]; out[k * 4 + 3] = alive[v]; });
+      return out;
+    };
+    const undoTris = [...journal.keys()];
+    const undoTData = new Int32Array(undoTris.length * 4);
+    undoTris.forEach((t, k) => undoTData.set(journal.get(t)!, k * 4));
+    const redoVerts = changed.slice();
+    for (let v = oldV; v < this.vCount; v += 1) redoVerts.push(v);
+    const redoTris = undoTris.slice();
+    for (let t = oldT; t < this.tCount; t += 1) redoTris.push(t);
+    const redoTData = new Int32Array(redoTris.length * 4);
+    redoTris.forEach((t, k) => { redoTData[k * 4] = this.tri[t * 3]; redoTData[k * 4 + 1] = this.tri[t * 3 + 1]; redoTData[k * 4 + 2] = this.tri[t * 3 + 2]; redoTData[k * 4 + 3] = this.tAlive[t]; });
+    return {
+      undo: { vCount: oldV, tCount: oldT, verts: Int32Array.from(changed), vData: vertexData(changed, oldPos, oldAlive), tris: Int32Array.from(undoTris), tData: undoTData },
+      redo: { vCount: this.vCount, tCount: this.tCount, verts: Int32Array.from(redoVerts), vData: vertexData(redoVerts, p, this.vAlive), tris: Int32Array.from(redoTris), tData: redoTData },
+    };
+  }
+  /** Puts the corners and triangles a patch lists back as it has them. */
+  applyPatch(patch: LivePatch) {
+    this.box = null;
+    // Past the patch's counts: gone.
+    for (let t = patch.tCount; t < this.tCount; t += 1) if (this.tAlive[t]) this.removeTriangle(t);
+    for (let v = patch.vCount; v < this.vCount; v += 1) {
+      if (this.vAlive[v]) { this.vGrid.remove(this.vCell[v], v); this.vAlive[v] = 0; }
+      this.vTris[v] = [];
+    }
+    if (patch.vCount > this.vCount) {
+      this.growVertices(patch.vCount - this.vCount);
+      for (let v = this.vCount; v < patch.vCount; v += 1) { this.vAlive[v] = 0; this.vTris[v] = []; }
+    }
+    this.vCount = patch.vCount;
+    if (patch.tCount > this.tCount) {
+      this.growTriangles(patch.tCount - this.tCount);
+      for (let t = this.tCount; t < patch.tCount; t += 1) { this.tAlive[t] = 0; this.tCells[t] = []; this.tBox[t * 6] = 2147483647; }
+    }
+    this.tCount = patch.tCount;
+    // Corners first (positions, alive), then the triangles off their old corners and on to the new.
+    const moved: number[] = [];
+    for (let k = 0; k < patch.verts.length; k += 1) {
+      const v = patch.verts[k], d = patch.vData;
+      const was = this.vAlive[v], now = d[k * 4 + 3];
+      if (was) this.vGrid.remove(this.vCell[v], v);
+      this.pos[v * 3] = d[k * 4]; this.pos[v * 3 + 1] = d[k * 4 + 1]; this.pos[v * 3 + 2] = d[k * 4 + 2];
+      this.vAlive[v] = now;
+      if (now) { this.vCell[v] = this.cellOfVertex(v); this.vGrid.add(this.vCell[v], v); moved.push(v); }
+      this.dirtyV.add(v);
+    }
+    for (let k = 0; k < patch.tris.length; k += 1) {
+      const t = patch.tris[k];
+      if (!this.tAlive[t]) continue;
+      for (let j = 0; j < 3; j += 1) { const list = this.vTris[this.tri[t * 3 + j]], at = list.indexOf(t); if (at >= 0) { list[at] = list[list.length - 1]; list.pop(); } }
+    }
+    for (let k = 0; k < patch.tris.length; k += 1) {
+      const t = patch.tris[k], d = patch.tData;
+      this.tri[t * 3] = d[k * 4]; this.tri[t * 3 + 1] = d[k * 4 + 1]; this.tri[t * 3 + 2] = d[k * 4 + 2];
+      this.tAlive[t] = d[k * 4 + 3];
+      if (this.tAlive[t]) for (let j = 0; j < 3; j += 1) this.vTris[this.tri[t * 3 + j]].push(t);
+    }
+    for (let k = 0; k < patch.tris.length; k += 1) {
+      const t = patch.tris[k];
+      if (!this.tCells[t]) this.tCells[t] = [];
+      // A triangle given new corners in the same grid box keeps its cells: they are still right.
+      this.binTriangle(t);
+      this.dirtyT.add(t);
+      for (let j = 0; j < 3; j += 1) this.dirtyV.add(this.tri[t * 3 + j]);
+    }
+    this.rebin(moved);
+    this.rim.fill(-1);
+    if (patch.tris.length) { this.topologyChanged = true; this.topologyEdits += 1; }
+  }
+
+  /**
+   * Build 76: closes an open loop of corners (in the order its edges run along the surface's rim) with
+   * a fan from a new corner at its middle, facing the way the surface round it does. Returns the new corner.
+   */
+  fillLoop(loop: number[]): number {
+    let x = 0, y = 0, z = 0;
+    for (const v of loop) { x += this.pos[v * 3]; y += this.pos[v * 3 + 1]; z += this.pos[v * 3 + 2]; }
+    const c = this.addVertex(x / loop.length, y / loop.length, z / loop.length);
+    // A rim edge a -> b belongs to a triangle on the surface; the patch takes it the other way round.
+    for (let i = 0; i < loop.length; i += 1) this.addTriangle(loop[(i + 1) % loop.length], loop[i], c);
+    return c;
+  }
+  /**
+   * Build 76: the open edges, as loops in the direction their triangles run (a loop's edge a -> b is a
+   * triangle's own). At a corner two holes touch (a bow-tie) the next edge is found by walking round
+   * that corner's triangles from the one the loop came in on, so each hole comes out as its own loop.
+   */
+  rimLoops(): number[][] {
+    const key = (a: number, b: number) => a * 4294967296 + b;
+    // Triangle owning each directed edge.
+    const owner = new Map<number, number>();
+    for (let t = 0; t < this.tCount; t += 1) {
+      if (!this.tAlive[t]) continue;
+      for (let k = 0; k < 3; k += 1) owner.set(key(this.tri[t * 3 + k], this.tri[t * 3 + ((k + 1) % 3)]), t);
+    }
+    const rim: Array<[number, number]> = [];
+    for (const [k, t] of owner) {
+      const a = Math.floor(k / 4294967296), b = k - a * 4294967296;
+      if (!owner.has(key(b, a))) rim.push([a, b]);
+      void t;
+    }
+    const used = new Set<number>();
+    const third = (t: number, a: number, b: number) => { for (let k = 0; k < 3; k += 1) { const v = this.tri[t * 3 + k]; if (v !== a && v !== b) return v; } return -1; };
+    /** From the rim edge u -> v, the rim edge that leaves v next, walking round v. */
+    const nextOf = (u: number, v: number): number => {
+      let t = owner.get(key(u, v))!;
+      let from = u;
+      for (let guard = 0; guard < 256; guard += 1) {
+        const w = third(t, from, v);
+        if (w < 0) return -1;
+        // Leaving v in t is v -> w; the triangle on its other side holds w -> v.
+        const across = owner.get(key(w, v));
+        if (across === undefined) return w;
+        from = w;
+        t = across;
+      }
+      return -1;
+    };
+    const loops: number[][] = [];
+    for (const [a0, b0] of rim) {
+      if (used.has(key(a0, b0))) continue;
+      const loop: number[] = [];
+      let a = a0, b = b0, ok = false;
+      for (let guard = 0; guard < 1_000_000; guard += 1) {
+        used.add(key(a, b));
+        loop.push(a);
+        const c = nextOf(a, b);
+        if (c < 0) break;
+        if (b === a0 && c === b0) { ok = true; break; }
+        if (used.has(key(b, c))) { ok = b === a0; break; }
+        a = b; b = c;
+      }
+      if (ok && loop.length >= 3) loops.push(loop);
+    }
+    return loops;
+  }
+  /** Build 76: a new corner, and a new triangle (corners in the order the surface faces). */
+  addCorner(x: number, y: number, z: number) { return this.addVertex(x, y, z); }
+  addFace(a: number, b: number, c: number) { return this.addTriangle(a, b, c); }
+  /** Build 76: the corners joined to v (the public form of the neighbour walk, for fairing). */
+  around(v: number): number[] { return this.neighbours(v); }
+  /** Build 76: moves corner v to (x, y, z), keeping the grids and drawing right. */
+  moveTo(v: number, x: number, y: number, z: number) {
+    this.pos[v * 3] = x; this.pos[v * 3 + 1] = y; this.pos[v * 3 + 2] = z;
+    this.moved(v);
+  }
+  /** Build 76: puts the triangles round these corners in their grid cells again after `moveTo`. */
+  settle(corners: number[]) { this.rebin(corners); }
+
+  /** Whole-part work (Remesh, Offset): the grids are left alone while it runs and made again once at the end. */
+  private bulk = false;
+  beginBulk() { this.bulk = true; this.box = null; }
+  endBulk() {
+    this.box = null;
+    this.bulk = false;
+    let edge = 0, n = 0;
+    for (let t = 0; t < this.tCount && n < 20000; t += Math.max(1, Math.floor(this.tCount / 20000))) if (this.tAlive[t]) { edge += this.dist(this.tri[t * 3], this.tri[t * 3 + 1]); n += 1; }
+    const h = Math.max(0.5, (n ? edge / n : 1) * 3);
+    this.vGrid = new Grid(h);
+    this.tGrid = new Grid(h);
+    for (let v = 0; v < this.vCount; v += 1) if (this.vAlive[v]) { this.vCell[v] = this.cellOfVertex(v); this.vGrid.add(this.vCell[v], v); this.dirtyV.add(v); }
+    this.tBox.fill(2147483647);
+    for (let t = 0; t < this.tCount; t += 1) { this.tCells[t] = []; if (this.tAlive[t]) this.placeTriangle(t); }
+  }
+
+  /** The corners joined to v by an edge. */
+  neighbours(v: number): number[] {
+    if (this.stamp.length < this.vCount) { const next = new Int32Array(this.pos.length / 3); next.set(this.stamp); this.stamp = next; }
+    this.stampNow += 1;
+    const out: number[] = [];
+    const stamp = this.stamp, now = this.stampNow, tri = this.tri;
+    stamp[v] = now;
+    for (const t of this.vTris[v]) for (let k = 0; k < 3; k += 1) { const w = tri[t * 3 + k]; if (stamp[w] !== now) { stamp[w] = now; out.push(w); } }
+    return out;
+  }
+  private stamp = new Int32Array(0);
+  private stampNow = 0;
+  private regionMark = new Int32Array(0);
+  private regionNow = 0;
+  /** Whether each corner is on a rim: 1 yes, 0 no, -1 not known yet. A corner's own answer never changes
+   * under split, collapse or flip (they keep rims as rims), so it is worked out once. */
+  private rim = new Int8Array(0);
+  /** The (one or two) triangles on edge a-b. */
+  /** Build 85: whether a and b share a triangle (an edge), without making a list. */
+  private hasEdge(a: number, b: number) {
+    const tri = this.tri;
+    for (const t of this.vTris[a]) { const i = t * 3; if (tri[i] === b || tri[i + 1] === b || tri[i + 2] === b) return true; }
+    return false;
+  }
+  /** Whether triangle t runs a then b. */
+  private runsAB(t: number, a: number, b: number) {
+    const tri = this.tri;
+    for (let k = 0; k < 3; k += 1) if (tri[t * 3 + k] === a) return tri[t * 3 + ((k + 1) % 3)] === b;
+    return false;
+  }
+  /** The corner of t that is neither a nor b. */
+  private oppositeOf(t: number, a: number, b: number) {
+    for (let k = 0; k < 3; k += 1) { const v = this.tri[t * 3 + k]; if (v !== a && v !== b) return v; }
+    return -1;
+  }
+  private flipN1 = new THREE.Vector3();
+  private flipN2 = new THREE.Vector3();
+  private flipM1 = new THREE.Vector3();
+  private flipM2 = new THREE.Vector3();
+  edgeTriangles(a: number, b: number): number[] {
+    const out: number[] = [];
+    for (const t of this.vTris[a]) { const i = t * 3; if (this.tri[i] === b || this.tri[i + 1] === b || this.tri[i + 2] === b) out.push(t); }
+    return out;
+  }
+  /** Whether v is on an open edge (a scan's rim). */
+  onBoundary(v: number) {
+    if (this.rim.length <= v) { const next = new Int8Array(this.pos.length / 3).fill(-1); next.set(this.rim); this.rim = next; }
+    if (this.rim[v] >= 0) return this.rim[v] === 1;
+    // Round an inner corner there are as many neighbours as triangles; on a rim, one more (or the fan
+    // is not a single disc).
+    const on = this.neighbours(v).length !== this.vTris[v].length;
+    this.rim[v] = on ? 1 : 0;
+    return on;
+  }
+  private faceNormal(t: number, out = new THREE.Vector3()) {
+    const p = this.pos, a = this.tri[t * 3] * 3, b = this.tri[t * 3 + 1] * 3, c = this.tri[t * 3 + 2] * 3;
+    const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2];
+    const vx = p[c] - p[a], vy = p[c + 1] - p[a + 1], vz = p[c + 2] - p[a + 2];
+    return out.set(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
+  }
+  /** Whether t is a sliver: twice its area under 2% of its longest edge squared. `n` is its raw face normal. */
+  private isSliver(t: number, n: THREE.Vector3) {
+    const a = this.tri[t * 3], b = this.tri[t * 3 + 1], c = this.tri[t * 3 + 2];
+    const l2 = Math.max(this.dist2(a, b), this.dist2(b, c), this.dist2(c, a));
+    return n.lengthSq() < 0.0004 * l2 * l2;
+  }
+  private dist2(a: number, b: number) {
+    const p = this.pos;
+    const x = p[a * 3] - p[b * 3], y = p[a * 3 + 1] - p[b * 3 + 1], z = p[a * 3 + 2] - p[b * 3 + 2];
+    return x * x + y * y + z * z;
+  }
+  private isSliverOf(a: number, b: number, c: number) {
+    const p = this.pos;
+    const ux = p[b * 3] - p[a * 3], uy = p[b * 3 + 1] - p[a * 3 + 1], uz = p[b * 3 + 2] - p[a * 3 + 2];
+    const vx = p[c * 3] - p[a * 3], vy = p[c * 3 + 1] - p[a * 3 + 1], vz = p[c * 3 + 2] - p[a * 3 + 2];
+    const l2 = Math.max(this.dist2(a, b), this.dist2(b, c), this.dist2(c, a));
+    return (uy * vz - uz * vy) ** 2 + (uz * vx - ux * vz) ** 2 + (ux * vy - uy * vx) ** 2 < 0.0004 * l2 * l2;
+  }
+  /** Area-weighted unit normal at v. */
+  vertexNormal(v: number, out = new THREE.Vector3()) {
+    out.set(0, 0, 0);
+    const n = this.faceScratch;
+    for (const t of this.vTris[v]) out.add(this.faceNormal(t, n));
+    return out.lengthSq() > 0 ? out.normalize() : out.set(0, 0, 1);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Drawing
+
+  private allocateGpu() {
+    const vCap = this.pos.length / 3, tCap = this.tri.length / 3;
+    const positions = new Float32Array(vCap * 3), normals = new Float32Array(vCap * 3);
+    for (let i = 0; i < this.vCount * 3; i += 1) positions[i] = this.pos[i];
+    if (this.gNrm) normals.set((this.gNrm.array as Float32Array).subarray(0, Math.min(normals.length, this.gNrm.array.length)));
+    const index = new Uint32Array(tCap * 3);
+    for (let t = 0; t < this.tCount; t += 1) if (this.tAlive[t]) index.set(this.tri.subarray(t * 3, t * 3 + 3), t * 3);
+    this.gPos = new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage);
+    this.gNrm = new THREE.BufferAttribute(normals, 3).setUsage(THREE.DynamicDrawUsage);
+    this.gIdx = new THREE.BufferAttribute(index, 1).setUsage(THREE.DynamicDrawUsage);
+    const colors = new Float32Array(vCap * 3).fill(1);
+    this.gCol = new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage);
+    for (let v = 0; v < this.vCount; v += 1) if (this.mask[v] > 0 || this.paint) this.tint(v, colors);
+    this.geometry.setAttribute("color", this.gCol);
+    this.geometry.setAttribute("position", this.gPos);
+    this.geometry.setAttribute("normal", this.gNrm);
+    this.geometry.setIndex(this.gIdx);
+    this.geometry.setDrawRange(0, this.tCount * 3);
+    this.growBox(this.dirtyV);
+    this.dirtyV.clear(); this.dirtyT.clear();
+  }
+  /** Build 90: a frozen corner's colour - towards a soft blue as it is frozen (the material's colour times this). */
+  private tint(v: number, colors: Float32Array) {
+    const m = Math.max(0, Math.min(1, this.mask[v]));
+    // Build 92: over a paint (face groups, the deviation map) when one is shown.
+    const paint = this.paint;
+    const r = paint ? paint[v * 3] : 1, g = paint ? paint[v * 3 + 1] : 1, b = paint ? paint[v * 3 + 2] : 1;
+    colors[v * 3] = r * (1 - 0.55 * m); colors[v * 3 + 1] = g * (1 - 0.4 * m); colors[v * 3 + 2] = b * (1 - 0.05 * m);
+  }
+  /**
+   * Build 92: a colour per corner drawn over the part (face groups, the deviation map), or null for
+   * none; capacity-sized like the positions. New corners take the middle of the edge they split.
+   */
+  private paint: Float32Array | null = null;
+  setPaint(colors: Float32Array | null) {
+    if (colors && colors.length < this.pos.length) { const grown = new Float32Array(this.pos.length).fill(1); grown.set(colors.subarray(0, Math.min(colors.length, grown.length))); colors = grown; }
+    this.paint = colors;
+    for (let v = 0; v < this.vCount; v += 1) this.dirtyC.add(v);
+    this.maskShown = true;
+  }
+  get painted() { return this.paint !== null; }
+  private refreshAllNormals() {
+    const n = new THREE.Vector3(), arr = this.gNrm.array as Float32Array;
+    for (let v = 0; v < this.vCount; v += 1) { if (!this.vAlive[v]) continue; this.vertexNormal(v, n); arr[v * 3] = n.x; arr[v * 3 + 1] = n.y; arr[v * 3 + 2] = n.z; }
+    this.gNrm.needsUpdate = true;
+    this.geometry.computeBoundingSphere();
+  }
+  /** Copies what changed since the last call into the GPU buffers (as runs of indices). */
+  flushGpu() {
+    this.settleBins();
+    if (!this.dirtyV.size && !this.dirtyT.size && !this.dirtyC.size) return false;
+    // Normals of the changed corners and of their neighbours (their fans changed).
+    // Build 85: each corner once, by a stamp per corner, into a list kept between frames.
+    if (this.normalMark.length < this.pos.length / 3) this.normalMark = new Int32Array(this.pos.length / 3);
+    const mark = this.normalMark, stamp = ++this.normalStamp;
+    let list = this.normalList, count = 0;
+    const add = (v: number) => {
+      if (mark[v] === stamp) return;
+      mark[v] = stamp;
+      if (count === list.length) { const next = new Int32Array(list.length * 2); next.set(list); list = this.normalList = next; }
+      list[count++] = v;
+    };
+    for (const v of this.dirtyV) { if (!this.vAlive[v]) continue; add(v); for (const t of this.vTris[v]) for (let k = 0; k < 3; k += 1) add(this.tri[t * 3 + k]); }
+    for (const t of this.dirtyT) for (let k = 0; k < 3; k += 1) add(this.tri[t * 3 + k]);
+    const normalSet = list.subarray(0, count);
+    const p = this.gPos.array as Float32Array, nArr = this.gNrm.array as Float32Array, idx = this.gIdx.array as Uint32Array;
+    const n = this.dabN;
+    for (const v of this.dirtyV) { p[v * 3] = this.pos[v * 3]; p[v * 3 + 1] = this.pos[v * 3 + 1]; p[v * 3 + 2] = this.pos[v * 3 + 2]; }
+    for (const v of normalSet) { if (!this.vAlive[v]) continue; this.vertexNormal(v, n); nArr[v * 3] = n.x; nArr[v * 3 + 1] = n.y; nArr[v * 3 + 2] = n.z; }
+    for (const t of this.dirtyT) {
+      if (this.tAlive[t]) idx.set(this.tri.subarray(t * 3, t * 3 + 3), t * 3);
+      else { idx[t * 3] = 0; idx[t * 3 + 1] = 0; idx[t * 3 + 2] = 0; }
+    }
+    const ranges = (set: Iterable<number>, attribute: THREE.BufferAttribute, width: number) => {
+      const sorted = Int32Array.from(set).sort();
+      attribute.clearUpdateRanges();
+      let start = -1, end = -1;
+      for (const i of sorted) {
+        if (start < 0) { start = i; end = i; continue; }
+        // Build 85: runs joined across gaps of up to 8192 entries, so a frame sends a few larger pieces
+        // instead of dozens of small ones - each piece is a separate call to the graphics card, and in
+        // the Mac app (WebKit) every call crosses to another process, which cost more than the bytes.
+        if (i - end <= 8192) { end = i; continue; }
+        attribute.addUpdateRange(start * width, (end - start + 1) * width);
+        start = i; end = i;
+      }
+      if (start >= 0) attribute.addUpdateRange(start * width, (end - start + 1) * width);
+      attribute.needsUpdate = true;
+    };
+    ranges(this.dirtyV, this.gPos, 3);
+    if (this.maskShown) {
+      const changed = this.dirtyC, colors = this.gCol.array as Float32Array;
+      for (const v of this.dirtyV) changed.add(v);
+      for (const v of changed) this.tint(v, colors);
+      ranges(changed, this.gCol, 3);
+    }
+    this.dirtyC.clear();
+    ranges(normalSet, this.gNrm, 3);
+    if (this.dirtyT.size) ranges(this.dirtyT, this.gIdx, 3);
+    this.geometry.setDrawRange(0, this.tCount * 3);
+    this.dirtyV.clear(); this.dirtyT.clear();
+    this.topologyChanged = false;
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Queries
+
+  /** Where the ray first meets the surface: point, triangle and distance along the ray, or null. */
+  pick(origin: Vec3, direction: Vec3): { point: Vec3; triangle: number; t: number } | null {
+    this.settleBins();
+    const h = this.tGrid.h;
+    const d = new THREE.Vector3(...direction).normalize();
+    // Start where the ray enters the mesh's box.
+    const box = this.pickBounds();
+    const ray = new THREE.Ray(new THREE.Vector3(...origin), d);
+    const enter = ray.intersectBox(new THREE.Box3(new THREE.Vector3(...box.min).subScalar(h), new THREE.Vector3(...box.max).addScalar(h)), new THREE.Vector3());
+    if (!enter) return null;
+    let s = enter.distanceTo(ray.origin);
+    // Triangles already tried, by a stamp per triangle instead of a set made on every pick.
+    if (this.pickMark.length < this.tri.length / 3) this.pickMark = new Int32Array(this.tri.length / 3);
+    const mark = this.pickMark, stamp = ++this.pickStamp;
+    const dir: Vec3 = [d.x, d.y, d.z];
+    let best: { point: Vec3; triangle: number; t: number } | null = null;
+    const steps = Math.ceil((new THREE.Vector3(...box.max).sub(new THREE.Vector3(...box.min)).length() + 4 * h) / (h * 0.5)) + 4;
+    const p = new THREE.Vector3();
+    for (let step = 0; step < steps; step += 1) {
+      ray.at(s, p);
+      const cx = Math.floor(p.x / h), cy = Math.floor(p.y / h), cz = Math.floor(p.z / h);
+      for (let ox = -1; ox <= 1; ox += 1) for (let oy = -1; oy <= 1; oy += 1) for (let oz = -1; oz <= 1; oz += 1) {
+        const list = this.tGrid.cells.get(this.tGrid.key(cx + ox, cy + oy, cz + oz));
+        if (!list) continue;
+        for (let li = 0; li < list.length; li += 1) {
+          const t = list[li];
+          if (mark[t] === stamp) continue;
+          mark[t] = stamp;
+          const hit = this.rayTriangle(origin, dir, t);
+          if (hit !== null && (!best || hit < best.t)) best = { t: hit, triangle: t, point: [origin[0] + d.x * hit, origin[1] + d.y * hit, origin[2] + d.z * hit] };
+        }
+      }
+      const found = best as { t: number } | null;
+      if (found && found.t < s - h) break;
+      s += h * 0.5;
+    }
+    return best;
+  }
+  private rayTriangle(o: Vec3, d: Vec3, t: number): number | null {
+    const p = this.pos, a = this.tri[t * 3] * 3, b = this.tri[t * 3 + 1] * 3, c = this.tri[t * 3 + 2] * 3;
+    const e1x = p[b] - p[a], e1y = p[b + 1] - p[a + 1], e1z = p[b + 2] - p[a + 2];
+    const e2x = p[c] - p[a], e2y = p[c + 1] - p[a + 1], e2z = p[c + 2] - p[a + 2];
+    const px = d[1] * e2z - d[2] * e2y, py = d[2] * e2x - d[0] * e2z, pz = d[0] * e2y - d[1] * e2x;
+    const det = e1x * px + e1y * py + e1z * pz;
+    if (Math.abs(det) < 1e-12) return null;
+    const inv = 1 / det;
+    const tx = o[0] - p[a], ty = o[1] - p[a + 1], tz = o[2] - p[a + 2];
+    const u = (tx * px + ty * py + tz * pz) * inv;
+    if (u < 0 || u > 1) return null;
+    const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+    const v = (d[0] * qx + d[1] * qy + d[2] * qz) * inv;
+    if (v < 0 || u + v > 1) return null;
+    const dist = (e2x * qx + e2y * qy + e2z * qz) * inv;
+    return dist > 1e-9 ? dist : null;
+  }
+  /**
+   * Build 85: the box picking starts from, kept as corners move instead of found afresh by walking
+   * every corner of the mesh on every dab (that walk was most of a dab's time on a large scan).
+   * It only grows while a stroke goes on - a box a little too big costs a step or two of the ray.
+   */
+  private box: { min: Vec3; max: Vec3 } | null = null;
+  private pickMark = new Int32Array(0);
+  private pickStamp = 0;
+  private growBox(corners: Iterable<number>) {
+    const box = this.box;
+    if (!box) return;
+    for (const v of corners) {
+      if (!this.vAlive[v]) continue;
+      for (let k = 0; k < 3; k += 1) { const x = this.pos[v * 3 + k]; if (x < box.min[k]) box.min[k] = x; if (x > box.max[k]) box.max[k] = x; }
+    }
+  }
+  pickBounds() {
+    if (!this.box) { const b = this.bounds(); this.box = { min: [...b.min] as Vec3, max: [...b.max] as Vec3 }; }
+    else this.growBox(this.dirtyV);
+    return this.box;
+  }
+  bounds() {
+    const min: Vec3 = [Infinity, Infinity, Infinity], max: Vec3 = [-Infinity, -Infinity, -Infinity];
+    for (let v = 0; v < this.vCount; v += 1) {
+      if (!this.vAlive[v]) continue;
+      for (let k = 0; k < 3; k += 1) { const x = this.pos[v * 3 + k]; if (x < min[k]) min[k] = x; if (x > max[k]) max[k] = x; }
+    }
+    return { min, max };
+  }
+  /**
+   * The corners within `radius` of `centre` joined to `seed` (a triangle) over the surface without
+   * leaving the ball, with their distance from the centre. A thin wall's other side is not joined.
+   */
+  /**
+   * Build 91: the corners under a brush, gathered into arrays kept from dab to dab - `brushList` (the
+   * corners) and `brushDist` (each one's distance from the centre), `brushCount` long. A Map made for
+   * every dab (and every pass of a smooth) was most of the garbage a stroke left for the browser.
+   */
+  brushList = new Int32Array(4096);
+  brushDist = new Float64Array(4096);
+  brushCount = 0;
+  private brushMark = new Int32Array(0);
+  private brushStamp = 0;
+  private brushSeeds = [0, 0, 0];
+  gather(centre: Vec3, radius: number, seed: number | null): number {
+    if (this.brushMark.length < this.pos.length / 3) this.brushMark = new Int32Array(this.pos.length / 3);
+    const mark = this.brushMark, stamp = ++this.brushStamp, p = this.pos, tri = this.tri;
+    const cx = centre[0], cy = centre[1], cz = centre[2], r2 = radius * radius;
+    let list = this.brushList, dist = this.brushDist, count = 0;
+    const push = (v: number, dd: number) => {
+      if (count === list.length) {
+        const nl = new Int32Array(list.length * 2); nl.set(list); list = this.brushList = nl;
+        const nd = new Float64Array(dist.length * 2); nd.set(dist); dist = this.brushDist = nd;
+      }
+      mark[v] = stamp; list[count] = v; dist[count] = Math.sqrt(dd); count += 1;
+    };
+    const seeds = this.brushSeeds;
+    let seedCount = 0;
+    if (seed !== null && this.tAlive[seed]) { seeds[0] = tri[seed * 3]; seeds[1] = tri[seed * 3 + 1]; seeds[2] = tri[seed * 3 + 2]; seedCount = 3; }
+    else {
+      let best = -1, bd = Infinity;
+      const near = (radius + 2 * this.vGrid.h) ** 2;
+      this.forCornersNear(centre, radius, (v) => { const dd = (p[v * 3] - cx) ** 2 + (p[v * 3 + 1] - cy) ** 2 + (p[v * 3 + 2] - cz) ** 2; if (dd < bd && dd <= near) { bd = dd; best = v; } });
+      if (best >= 0) { seeds[0] = best; seedCount = 1; }
+    }
+    for (let k = 0; k < seedCount; k += 1) { const v = seeds[k]; if (mark[v] !== stamp) push(v, (p[v * 3] - cx) ** 2 + (p[v * 3 + 1] - cy) ** 2 + (p[v * 3 + 2] - cz) ** 2); }
+    // Out across the surface from the seeds (the list is its own queue).
+    for (let q = 0; q < count; q += 1) {
+      const fan = this.vTris[list[q]];
+      for (let f = 0; f < fan.length; f += 1) {
+        const t = fan[f] * 3;
+        for (let k = 0; k < 3; k += 1) {
+          const w = tri[t + k];
+          if (mark[w] === stamp) continue;
+          const dd = (p[w * 3] - cx) ** 2 + (p[w * 3 + 1] - cy) ** 2 + (p[w * 3 + 2] - cz) ** 2;
+          if (dd > r2) { mark[w] = stamp; continue; }
+          push(w, dd);
+        }
+      }
+    }
+    this.brushCount = count;
+    return count;
+  }
+  /** The corners under a brush, as a Map of distances (for callers outside the stroke's hot path). */
+  region(centre: Vec3, radius: number, seed: number | null): Map<number, number> {
+    const out = new Map<number, number>();
+    const r2 = radius * radius;
+    const d2 = (v: number) => (this.pos[v * 3] - centre[0]) ** 2 + (this.pos[v * 3 + 1] - centre[1]) ** 2 + (this.pos[v * 3 + 2] - centre[2]) ** 2;
+    let seeds: number[] = [];
+    if (seed !== null && this.tAlive[seed]) seeds = [this.tri[seed * 3], this.tri[seed * 3 + 1], this.tri[seed * 3 + 2]];
+    else {
+      // No triangle given: the nearest corner.
+      let best = -1, bd = Infinity;
+      const near = (radius + 2 * this.vGrid.h) ** 2;
+      this.forCornersNear(centre, radius, (v) => { const dd = d2(v); if (dd < bd && dd <= near) { bd = dd; best = v; } });
+      if (best >= 0) seeds = [best];
+    }
+    const queue: number[] = [];
+    for (const v of seeds) { out.set(v, Math.sqrt(d2(v))); queue.push(v); }
+    for (let q = 0; q < queue.length; q += 1) {
+      const v = queue[q];
+      for (const t of this.vTris[v]) for (let k = 0; k < 3; k += 1) {
+        const w = this.tri[t * 3 + k];
+        if (out.has(w)) continue;
+        const dd = d2(w);
+        if (dd > r2) continue;
+        out.set(w, Math.sqrt(dd));
+        queue.push(w);
+      }
+    }
+    return out;
+  }
+  forCornersNear(centre: Vec3, radius: number, each: (v: number) => void) {
+    const h = this.vGrid.h;
+    const x0 = Math.floor((centre[0] - radius) / h), x1 = Math.floor((centre[0] + radius) / h);
+    const y0 = Math.floor((centre[1] - radius) / h), y1 = Math.floor((centre[1] + radius) / h);
+    const z0 = Math.floor((centre[2] - radius) / h), z1 = Math.floor((centre[2] + radius) / h);
+    for (let ix = x0; ix <= x1; ix += 1) for (let iy = y0; iy <= y1; iy += 1) for (let iz = z0; iz <= z1; iz += 1) {
+      const list = this.vGrid.cells.get(this.vGrid.key(ix, iy, iz));
+      if (list) for (const v of list) each(v);
+    }
+  }
+  /** The average edge length round the given corners. */
+  averageEdge(corners: Iterable<number>) {
+    let total = 0, count = 0;
+    for (const v of corners) for (const w of this.neighbours(v)) { total += this.dist(v, w); count += 1; }
+    return count ? total / count : 0;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Brushes
+
+  /**
+   * One dab: the corners in `region` (distance from the centre) moved by `brush`. `normal` is the
+   * surface's facing at the centre, `step` the most a corner moves (mm), `strength` 0..1.
+   */
+  /** Loads a Map of corners and distances (as region() gives) as the brush's corners. */
+  private useRegion(region: Map<number, number>) {
+    if (this.brushList.length < region.size) { this.brushList = new Int32Array(region.size * 2); this.brushDist = new Float64Array(region.size * 2); }
+    let i = 0;
+    region.forEach((d, v) => { this.brushList[i] = v; this.brushDist[i] = d; i += 1; });
+    this.brushCount = i;
+  }
+  /**
+   * One dab of a brush over the corners `region` lists - or, with null, those the last gather() found
+   * (build 91: the stroke's way, no Map made).
+   */
+  dab(brush: DabBrush, centre: Vec3, normal: Vec3, radius: number, region: Map<number, number> | null, strength: number, step: number) {
+    if (region) this.useRegion(region);
+    const size = this.brushCount, list = this.brushList, dist = this.brushDist;
+    if (!size) return;
+    const inv = 1 / (radius * radius);
+    const p = this.pos;
+    const n = this.dabN;
+    // The brush's own facing: the weighted normal of what it covers.
+    const area = this.dabArea.set(0, 0, 0);
+    const cen = this.dabCen.set(0, 0, 0);
+    let total = 0;
+    if (this.dabW.length < size) this.dabW = new Float64Array(size * 2);
+    const weights = this.dabW;
+    const falloff = this.falloff;
+    const sample = Math.max(1, Math.ceil(size / 1500));
+    for (let i = 0; i < size; i += 1) {
+      const v = list[i], x = 1 - dist[i] * dist[i] * inv;
+      // Build 92: the brush's falloff (Meshmixer's brush shapes) - smooth (as before), sharp (a narrow
+      // peak, for fine lines) or flat (full strength over most of the brush, a short soft edge).
+      let f = x > 0 ? x * x : 0;
+      if (falloff === "sharp") f *= f;
+      else if (falloff === "flat") { const t = dist[i] / radius; f = t <= 0.6 ? 1 : t >= 1 ? 0 : (1 - (t - 0.6) / 0.4) ** 2 * (1 + 2 * ((t - 0.6) / 0.4)); }
+      const w = f * strength;
+      weights[i] = w;
+      // Build 92: the brush's facing and middle from at most about 1500 of its corners - on a finely
+      // refined patch a brush covers many thousands, and every one's normal was worked out for an average.
+      if (i % sample !== 0) continue;
+      this.vertexNormal(v, n);
+      area.addScaledVector(n, w);
+      cen.x += p[v * 3] * w; cen.y += p[v * 3 + 1] * w; cen.z += p[v * 3 + 2] * w;
+      total += w;
+    }
+    if (!total) return;
+    cen.divideScalar(total);
+    if (area.lengthSq() < 1e-12) area.set(...normal);
+    area.normalize();
+    // Moves are worked out from the positions before the dab, then applied together.
+    if (this.dabMoves.length < size * 3) this.dabMoves = new Float64Array(size * 6);
+    if (this.dabCorners.length < size) { this.dabCorners = new Int32Array(size * 2); this.dabCornerW = new Float64Array(size * 2); }
+    const moves = this.dabMoves, corners = this.dabCorners, cornerW = this.dabCornerW;
+    let count = 0;
+    const mask = this.mask;
+    const hold = this.holdBoundary;
+    for (let r = 0; r < size; r += 1) {
+      const v = list[r];
+      const w = weights[r] * (1 - mask[v]);
+      if (!(w > 0)) continue;
+      // Build 92: Hold boundary - a scan's open edge stays where it is.
+      if (hold && this.onBoundary(v)) continue;
+      const x = p[v * 3], y = p[v * 3 + 1], z = p[v * 3 + 2];
+      let dx = 0, dy = 0, dz = 0;
+      if (brush === "smooth" || brush === "shrinkSmooth" || brush === "bubbleSmooth" || brush === "pinch" || brush === "crease") {
+        if (brush !== "pinch" && brush !== "crease") {
+          let ax = 0, ay = 0, az = 0;
+          if (brush === "smooth") {
+            // RobustSmooth: the neighbours weighted by the shape of the triangles between them (the
+            // cotangent weights of mean-curvature flow, Desbrun et al. 1999), so long thin triangles and
+            // uneven spacing - a scan's, or a refined patch's - do not drag the corner sideways.
+            if (!this.cotanMiddle(v, this.dabMid)) continue;
+            ax = this.dabMid.x; ay = this.dabMid.y; az = this.dabMid.z;
+          } else {
+            if (!this.uniformMiddle(v, this.dabMid)) continue;
+            ax = this.dabMid.x; ay = this.dabMid.y; az = this.dabMid.z;
+          }
+          const k = Math.min(1, w * 1.5);
+          dx = (ax - x) * k; dy = (ay - y) * k; dz = (az - z) * k;
+          if (brush === "smooth") {
+            // ...and only across the surface's facing: bumps and dents go, but nothing slides along the
+            // surface, so the triangles stay where they are and a flat or gently curved patch stays put.
+            this.vertexNormal(v, n);
+            const along = dx * n.x + dy * n.y + dz * n.z;
+            dx = n.x * along; dy = n.y * along; dz = n.z * along;
+          }
+        } else {
+          // Pinch: towards the brush's middle, across the surface (not along its facing).
+          let tx = centre[0] - x, ty = centre[1] - y, tz = centre[2] - z;
+          const along = tx * area.x + ty * area.y + tz * area.z;
+          tx -= area.x * along; ty -= area.y * along; tz -= area.z * along;
+          dx = tx * w * 0.25; dy = ty * w * 0.25; dz = tz * w * 0.25;
+          if (brush === "crease") { dx -= area.x * step * w * 0.6; dy -= area.y * step * w * 0.6; dz -= area.z * step * w * 0.6; }
+        }
+      } else if (brush === "flatten") {
+        // Build 92: Depth - the plane raised (+) or sunk (-) from the surface's middle, mm.
+        const off = (x - cen.x) * area.x + (y - cen.y) * area.y + (z - cen.z) * area.z - this.flattenDepth;
+        const k = Math.min(1, w * 1.2);
+        dx = -area.x * off * k; dy = -area.y * off * k; dz = -area.z * off * k;
+      } else if (brush === "draw") {
+        dx = area.x * step * w; dy = area.y * step * w; dz = area.z * step * w;
+      } else if (brush === "draw2") {
+        // Up to `step` x 6 above where the corner was when the stroke began, along the facing it had then.
+        let base = this.layerBase.get(v);
+        if (!base) { this.vertexNormal(v, n); base = [x, y, z, n.x, n.y, n.z]; this.layerBase.set(v, base); }
+        const desired = step * 6 * (w / Math.max(1e-6, strength));
+        const gap = desired - ((x - base[0]) * base[3] + (y - base[1]) * base[4] + (z - base[2]) * base[5]);
+        if (step >= 0 ? gap <= 0 : gap >= 0) continue;
+        const rise = gap * 0.35;
+        dx = base[3] * rise; dy = base[4] * rise; dz = base[5] * rise;
+      } else if (brush === "attract") {
+        // Build 92: Attract - towards the nearest point of the other part (attractTarget), a share of the
+        // way each dab, so the surface comes to rest on it without passing through.
+        const target = this.attractTarget;
+        if (!target) continue;
+        const q = this.attractPoint;
+        const d = target.nearest(x, y, z, q);
+        if (!(d < Infinity) || d < 1e-4) continue;
+        if (this.classicAttract) {
+          const k = Math.min(1, w * 0.45);
+          dx = (q[0] - x) * k; dy = (q[1] - y) * k; dz = (q[2] - z) * k;
+        } else {
+          // Build 105: only onto what the surface faces - the point in front of it (not behind, through
+          // the part), on a face turned towards it (not a side wall it would slide along) - and to
+          // `attractGap` short of it (a clearance), never more than ATTRACT_DAB a dab nor ATTRACT_STROKE a stroke.
+          this.vertexNormal(v, n);
+          const ux = (q[0] - x) / d, uy = (q[1] - y) / d, uz = (q[2] - z) / d;
+          const facing = ux * n.x + uy * n.y + uz * n.z;
+          if (facing < ATTRACT_FACING) continue;
+          const tri = target.lastTriangle ?? -1;
+          if (tri >= 0 && target.triangleNormal) {
+            target.triangleNormal(tri, this.attractNormal);
+            const tn = this.attractNormal;
+            if (Math.abs(tn[0] * n.x + tn[1] * n.y + tn[2] * n.z) < ATTRACT_FACING) continue;
+          }
+          const room = d - this.attractGap;
+          if (room <= 1e-4) continue;
+          let start = this.attractStart.get(v);
+          if (!start) { start = [x, y, z]; this.attractStart.set(v, start); }
+          const travelled = Math.hypot(x - start[0], y - start[1], z - start[2]);
+          const move = Math.min(room * Math.min(1, w * 0.45), ATTRACT_DAB, Math.max(0, ATTRACT_STROKE - travelled));
+          if (move <= 1e-5) continue;
+          dx = ux * move; dy = uy * move; dz = uz * move;
+        }
+      } else if (brush === "drag") {
+        // Along the stroke: the corners under the brush follow the brush's move since the last dab.
+        const prev = this.dragPrev;
+        if (!prev) continue;
+        const k = Math.min(1, w * 1.4);
+        dx = (centre[0] - prev[0]) * k; dy = (centre[1] - prev[1]) * k; dz = (centre[2] - prev[2]) * k;
+      } else {
+        this.vertexNormal(v, n);
+        const s = brush === "inflate" ? step : -step;
+        dx = n.x * s * w; dy = n.y * s * w; dz = n.z * s * w;
+      }
+      corners[count] = v; cornerW[count] = w; moves[count * 3] = dx; moves[count * 3 + 1] = dy; moves[count * 3 + 2] = dz;
+      count += 1;
+    }
+    if (brush === "bubbleSmooth" && count && this.classicSmooth) {
+      // BubbleSmooth (build 89): whatever the smoothing took in along the brush's facing is given back evenly, so the
+      // patch keeps its volume - a bump rounds off instead of sinking.
+      let sunk = 0, spread = 0;
+      for (let i = 0; i < count; i += 1) {
+        const w = cornerW[i];
+        sunk += moves[i * 3] * area.x + moves[i * 3 + 1] * area.y + moves[i * 3 + 2] * area.z;
+        spread += w;
+      }
+      if (spread > 0) {
+        const back = -sunk / spread;
+        for (let i = 0; i < count; i += 1) {
+          const w = cornerW[i];
+          moves[i * 3] += area.x * back * w; moves[i * 3 + 1] += area.y * back * w; moves[i * 3 + 2] += area.z * back * w;
+        }
+      }
+    } else if (brush === "bubbleSmooth" && count) {
+      // Build 105: BubbleSmooth keeping the volume to first order. The volume a move sweeps is each
+      // corner's area times its move along its own normal (dV = sum A_i (m_i . n_i)); what the smoothing
+      // took in is given back along each corner's normal in proportion to the brush's weight there, so
+      // the sum comes to nought however unevenly the corners are spaced - a bump rounds off, nothing sinks.
+      if (this.dabNormals.length < count * 3) { this.dabNormals = new Float64Array(count * 6); this.dabAreas = new Float64Array(count * 2); }
+      const nrm = this.dabNormals, areas = this.dabAreas;
+      let sunk = 0, spread = 0;
+      for (let i = 0; i < count; i += 1) {
+        const v = corners[i];
+        this.vertexNormal(v, n);
+        nrm[i * 3] = n.x; nrm[i * 3 + 1] = n.y; nrm[i * 3 + 2] = n.z;
+        const a = this.vertexArea(v);
+        areas[i] = a;
+        sunk += a * (moves[i * 3] * n.x + moves[i * 3 + 1] * n.y + moves[i * 3 + 2] * n.z);
+        spread += a * cornerW[i];
+      }
+      if (spread > 0) {
+        const back = -sunk / spread;
+        for (let i = 0; i < count; i += 1) {
+          const k = back * cornerW[i];
+          moves[i * 3] += nrm[i * 3] * k; moves[i * 3 + 1] += nrm[i * 3 + 1] * k; moves[i * 3 + 2] += nrm[i * 3 + 2] * k;
+        }
+      }
+    }
+    for (let i = 0; i < count; i += 1) { const v = corners[i]; p[v * 3] += moves[i * 3]; p[v * 3 + 1] += moves[i * 3 + 1]; p[v * 3 + 2] += moves[i * 3 + 2]; this.moved(v); }
+    this.rebin(corners, count);
+    if (brush === "drag") this.dragPrev = [centre[0], centre[1], centre[2]];
+  }
+  /** Build 89: Draw2's starting surface and Drag's last brush centre, for the stroke under way. */
+  private dabMid = new THREE.Vector3();
+  /**
+   * The cotangent-weighted middle of v's neighbours: each neighbour weighted by the cotangents of the two
+   * angles facing the edge to it (negative weights, from obtuse triangles, taken as none). False when v
+   * has no usable neighbours.
+   */
+  /** The cotangent of the angle at o in the triangle o, a, b. */
+  private cot(o: number, a: number, b: number) {
+    const p = this.pos;
+    const ux = p[a * 3] - p[o * 3], uy = p[a * 3 + 1] - p[o * 3 + 1], uz = p[a * 3 + 2] - p[o * 3 + 2];
+    const vx = p[b * 3] - p[o * 3], vy = p[b * 3 + 1] - p[o * 3 + 1], vz = p[b * 3 + 2] - p[o * 3 + 2];
+    const dot = ux * vx + uy * vy + uz * vz;
+    const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+    const cross = Math.sqrt(cx * cx + cy * cy + cz * cz);
+    return cross > 1e-12 ? dot / cross : 0;
+  }
+  /** Build 91: the plain middle of v's neighbours (each once), without making a list of them. */
+  private uniformMiddle(v: number, out: THREE.Vector3) {
+    const p = this.pos, tri = this.tri, fan = this.vTris[v];
+    if (this.normalMark.length < this.pos.length / 3) this.normalMark = new Int32Array(this.pos.length / 3);
+    const mark = this.normalMark, stamp = ++this.normalStamp;
+    mark[v] = stamp;
+    let sx = 0, sy = 0, sz = 0, count = 0;
+    for (let f = 0; f < fan.length; f += 1) {
+      const t = fan[f] * 3;
+      for (let k = 0; k < 3; k += 1) {
+        const w = tri[t + k];
+        if (mark[w] === stamp) continue;
+        mark[w] = stamp;
+        sx += p[w * 3]; sy += p[w * 3 + 1]; sz += p[w * 3 + 2]; count += 1;
+      }
+    }
+    if (!count) return false;
+    out.set(sx / count, sy / count, sz / count);
+    return true;
+  }
+  private cotanMiddle(v: number, out: THREE.Vector3) {
+    const p = this.pos, tri = this.tri;
+    let sx = 0, sy = 0, sz = 0, sw = 0;
+    for (const t of this.vTris[v]) {
+      const i = t * 3;
+      // The triangle's other two corners, a and b: the angle at b faces edge v-a, the angle at a faces v-b.
+      let a = tri[i], b = tri[i + 1];
+      if (a === v) { a = tri[i + 1]; b = tri[i + 2]; } else if (b === v) { b = tri[i + 2]; }
+      const wa = Math.max(0, this.cot(b, v, a)) / 2, wb = Math.max(0, this.cot(a, v, b)) / 2;
+      sx += p[a * 3] * wa + p[b * 3] * wb; sy += p[a * 3 + 1] * wa + p[b * 3 + 1] * wb; sz += p[a * 3 + 2] * wa + p[b * 3 + 2] * wb;
+      sw += wa + wb;
+    }
+    if (!(sw > 1e-12)) return false;
+    out.set(sx / sw, sy / sw, sz / sw);
+    return true;
+  }
+  private projectScratch = new THREE.Vector3();
+  /** Build 92: the brushes' options - falloff shape, a scan's open edge held, Flatten's plane offset (mm). */
+  falloff: "smooth" | "sharp" | "flat" = "smooth";
+  holdBoundary = false;
+  /** Build 105: the smoothing brushes as before build 105 (no allowance for triangle size; Bubble smooth's give-back along the brush's facing). */
+  classicSmooth = false;
+  private dabNormals = new Float64Array(0);
+  private dabAreas = new Float64Array(0);
+  /** A third of the area of the triangles round v (its share of the surface). */
+  vertexArea(v: number) {
+    const p = this.pos, tri = this.tri;
+    let total = 0;
+    for (const t of this.vTris[v]) {
+      const a = tri[t * 3] * 3, b = tri[t * 3 + 1] * 3, c = tri[t * 3 + 2] * 3;
+      const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2];
+      const vx = p[c] - p[a], vy = p[c + 1] - p[a + 1], vz = p[c + 2] - p[a + 2];
+      total += Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
+    }
+    return total / 6;
+  }
+  /** Build 105: the average edge under the brush now (from the corners the last gather() found, at most 48 of them). */
+  brushEdge() {
+    const size = this.brushCount;
+    if (!size) return 0;
+    const step = Math.max(1, Math.floor(size / 48));
+    let total = 0, count = 0;
+    for (let i = 0; i < size; i += step) {
+      const v = this.brushList[i];
+      for (const w of this.neighbours(v)) { total += this.dist(v, w); count += 1; }
+    }
+    return count ? total / count : 0;
+  }
+  flattenDepth = 0;
+  /** Build 92: the surface Attract pulls towards (another part), set by the editor for the stroke. */
+  attractTarget: { nearest: (x: number, y: number, z: number, out: Float64Array) => number; lastTriangle?: number; triangleNormal?: (t: number, out: Float64Array) => void } | null = null;
+  private attractPoint = new Float64Array(3);
+  private layerBase = new Map<number, [number, number, number, number, number, number]>();
+  private dragPrev: Vec3 | null = null;
+  /** Starts a stroke for the brushes that remember it (Draw2, Drag). beginPatch does this too. */
+  beginStroke() { this.layerBase.clear(); this.dragPrev = null; this.attractStart.clear(); }
+  /** Build 105: where each corner Attract moved stood when the stroke began. */
+  private attractStart = new Map<number, [number, number, number]>();
+  private attractNormal = new Float64Array(3);
+  /** Build 105: Attract stops this short of the target, mm (the clearance; 0: onto it). */
+  attractGap = 0;
+  /** Build 105: Attract as before (onto the nearest point of anything within reach, no facing test or limits). */
+  classicAttract = false;
+
+  // ---------------------------------------------------------------------------------------------
+  // Build 90: Freeze (Meshmixer's mask)
+
+  /** How much of a corner a brush may move: 1 free, 0 frozen. */
+  freeOf(v: number) { return 1 - this.mask[v]; }
+  private maskChanged(v: number) { this.dirtyC.add(v); this.maskShown = true; }
+  /** Paints frozen (or, `thaw`, free) under a brush: the same fall-off as the brushes. */
+  paintMask(region: Map<number, number> | null, radius: number, strength: number, thaw = false) {
+    if (region) this.useRegion(region);
+    for (let i = 0; i < this.brushCount; i += 1) {
+      const v = this.brushList[i], d = this.brushDist[i];
+      const x = 1 - (d / radius) ** 2;
+      if (!(x > 0)) continue;
+      const add = Math.min(1, x * 2) * strength * 1.5;
+      const next = Math.max(0, Math.min(1, this.mask[v] + (thaw ? -add : add)));
+      if (next !== this.mask[v]) { this.mask[v] = next; this.maskChanged(v); }
+    }
+  }
+  /** Frees every corner. */
+  clearMask() { for (let v = 0; v < this.vCount; v += 1) if (this.mask[v] !== 0) { this.mask[v] = 0; this.maskChanged(v); } }
+  /** Frozen becomes free and free frozen. */
+  invertMask() { for (let v = 0; v < this.vCount; v += 1) if (this.vAlive[v]) { this.mask[v] = 1 - this.mask[v]; this.maskChanged(v); } }
+  /** Freezes the corners at these points (x y z each; within 1e-4 mm), e.g. a selection's triangles. */
+  freezePoints(points: ArrayLike<number>) {
+    let count = 0;
+    for (const v of this.cornersAt(points)) if (this.mask[v] !== 1) { this.mask[v] = 1; this.maskChanged(v); count += 1; }
+    return count;
+  }
+  /** Build 92: the living corners standing at these points (x y z each; within 1e-4 mm, compared at single precision as the part's triangles are kept). */
+  cornersAt(points: ArrayLike<number>): Int32Array {
+    const key = (x: number, y: number, z: number) => `${Math.round(x * 1e4)},${Math.round(y * 1e4)},${Math.round(z * 1e4)}`;
+    const wanted = new Set<string>();
+    for (let k = 0; k + 2 < points.length; k += 3) wanted.add(key(points[k], points[k + 1], points[k + 2]));
+    const out: number[] = [];
+    for (let v = 0; v < this.vCount; v += 1) {
+      if (!this.vAlive[v]) continue;
+      if (wanted.has(key(Math.fround(this.pos[v * 3]), Math.fround(this.pos[v * 3 + 1]), Math.fround(this.pos[v * 3 + 2])))) out.push(v);
+    }
+    return Int32Array.from(out);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Build 92: Face groups (Meshmixer's Generate Face Groups)
+
+  /** Each triangle's face group (by triangle slot; -1 for removed ones), or null before they are made. */
+  groups: Int32Array | null = null;
+  groupCount = 0;
+  /**
+   * Splits the surface into face groups: patches grown triangle by triangle across edges where the faces
+   * meet at less than `angle` degrees and stay within 1.25 times that of where the patch began - so a crease,
+   * a deep groove or a sharp edge ends a patch. Patches smaller than `minShare` of
+   * the part go into the neighbour they share most edge with. Returns the number of groups.
+   */
+  generateGroups(angle = 30, minShare = 0.002): number {
+    const T = this.tCount, tri = this.tri;
+    const normals = new Float32Array(T * 3), n = this.faceScratch;
+    for (let t = 0; t < T; t += 1) {
+      if (!this.tAlive[t]) continue;
+      this.faceNormal(t, n);
+      const l = n.length() || 1;
+      normals[t * 3] = n.x / l; normals[t * 3 + 1] = n.y / l; normals[t * 3 + 2] = n.z / l;
+    }
+    const cosEdge = Math.cos((angle * Math.PI) / 180), cosCone = Math.cos((Math.min(89, angle * 1.25) * Math.PI) / 180);
+    const group = new Int32Array(T).fill(-1);
+    const queue = new Int32Array(T);
+    const neighbour = (t: number, k: number) => {
+      // The triangle across edge k of t (corners k, k+1), or -1.
+      const a = tri[t * 3 + k], b = tri[t * 3 + ((k + 1) % 3)];
+      for (const u of this.vTris[a]) if (u !== t && (tri[u * 3] === b || tri[u * 3 + 1] === b || tri[u * 3 + 2] === b)) return u;
+      return -1;
+    };
+    let groups = 0;
+    const sizes: number[] = [];
+    for (let seed = 0; seed < T; seed += 1) {
+      if (!this.tAlive[seed] || group[seed] >= 0) continue;
+      const g = groups++;
+      const sx = normals[seed * 3], sy = normals[seed * 3 + 1], sz = normals[seed * 3 + 2];
+      let head = 0, tail = 0, size = 0;
+      group[seed] = g; queue[tail++] = seed;
+      while (head < tail) {
+        const t = queue[head++];
+        size += 1;
+        for (let k = 0; k < 3; k += 1) {
+          const u = neighbour(t, k);
+          if (u < 0 || group[u] >= 0) continue;
+          const dEdge = normals[t * 3] * normals[u * 3] + normals[t * 3 + 1] * normals[u * 3 + 1] + normals[t * 3 + 2] * normals[u * 3 + 2];
+          const dCone = sx * normals[u * 3] + sy * normals[u * 3 + 1] + sz * normals[u * 3 + 2];
+          if (dEdge < cosEdge || dCone < cosCone) continue;
+          group[u] = g; queue[tail++] = u;
+        }
+      }
+      sizes.push(size);
+    }
+    // Small patches into the neighbour they share most edges with (a few rounds, smallest first).
+    let alive = 0;
+    for (let t = 0; t < T; t += 1) if (this.tAlive[t]) alive += 1;
+    const minimum = Math.max(1, Math.round(alive * minShare));
+    for (let round = 0; round < 4; round += 1) {
+      const target = new Int32Array(groups).fill(-1);
+      const votes = new Map<number, number>();
+      for (let t = 0; t < T; t += 1) {
+        if (!this.tAlive[t]) continue;
+        const g = group[t];
+        if (sizes[g] >= minimum) continue;
+        for (let k = 0; k < 3; k += 1) {
+          const u = neighbour(t, k);
+          if (u < 0 || group[u] === g) continue;
+          const key = g * groups + group[u];
+          votes.set(key, (votes.get(key) ?? 0) + 1);
+        }
+      }
+      const best = new Float64Array(groups);
+      votes.forEach((count, key) => {
+        const g = Math.floor(key / groups), h = key % groups;
+        // Into a big neighbour before a small one; among them, the one with the longest shared edge.
+        const score = count + (sizes[h] >= minimum ? 1e9 : 0);
+        if (score > best[g]) { best[g] = score; target[g] = h; }
+      });
+      let moved = 0;
+      for (let g = 0; g < groups; g += 1) {
+        // Follow merges to where they end (no cycles: a group only moves into a bigger-or-final one).
+        let h = target[g], hops = 0;
+        while (h >= 0 && target[h] >= 0 && hops < 8) { h = target[h]; hops += 1; }
+        if (h >= 0 && h !== g) target[g] = h; else target[g] = -1;
+      }
+      for (let t = 0; t < T; t += 1) if (this.tAlive[t] && target[group[t]] >= 0) { const h = target[group[t]]; sizes[h] += 1; sizes[group[t]] -= 1; group[t] = h; moved += 1; }
+      if (!moved) break;
+    }
+    // Numbered again from 0.
+    const renumber = new Int32Array(groups).fill(-1);
+    let count = 0;
+    for (let t = 0; t < T; t += 1) {
+      if (!this.tAlive[t]) { group[t] = -1; continue; }
+      const g = group[t];
+      if (renumber[g] < 0) renumber[g] = count++;
+      group[t] = renumber[g];
+    }
+    this.groups = group;
+    this.groupCount = count;
+    return count;
+  }
+  /** Colours the corners by face group (a pleasant spread of colours), or takes the colours away. */
+  showGroups(on: boolean) {
+    if (!on || !this.groups) { this.setPaint(null); return; }
+    const paint = new Float32Array(this.pos.length).fill(1);
+    const colour = (g: number) => {
+      // Golden-angle hues, soft: easy to tell apart, gentle on a scan.
+      const h = ((g * 137.508) % 360) / 60, c = 0.38, x = c * (1 - Math.abs((h % 2) - 1));
+      const [r, gg, b] = h < 1 ? [c, x, 0] : h < 2 ? [x, c, 0] : h < 3 ? [0, c, x] : h < 4 ? [0, x, c] : h < 5 ? [x, 0, c] : [c, 0, x];
+      return [0.62 + r, 0.62 + gg, 0.62 + b];
+    };
+    for (let v = 0; v < this.vCount; v += 1) {
+      if (!this.vAlive[v]) continue;
+      const t = this.vTris[v][0];
+      if (t === undefined || this.groups[t] < 0) continue;
+      const [r, g, b] = colour(this.groups[t]);
+      paint[v * 3] = r; paint[v * 3 + 1] = g; paint[v * 3 + 2] = b;
+    }
+    this.setPaint(paint);
+  }
+  /**
+   * Build 92: the deviation map (Meshmixer's Analysis > Deviation) - each corner coloured by how far it
+   * now stands from `original` (the part as Sculpt took it): added in warm colours, taken away in cool
+   * ones, full at `range` mm; within 0.01 mm the part's own colour. Returns the largest added and
+   * taken-away distances (mm).
+   */
+  showDeviation(original: { nearest: (x: number, y: number, z: number, out: Float64Array) => number } | null, range = 0.5) {
+    if (!original) { this.setPaint(null); return { added: 0, removed: 0 }; }
+    const paint = new Float32Array(this.pos.length).fill(1), q = new Float64Array(3), n = this.dabN, p = this.pos;
+    let added = 0, removed = 0;
+    for (let v = 0; v < this.vCount; v += 1) {
+      if (!this.vAlive[v]) continue;
+      const x = p[v * 3], y = p[v * 3 + 1], z = p[v * 3 + 2];
+      const d = original.nearest(x, y, z, q);
+      if (!(d > 0.01)) continue;
+      this.vertexNormal(v, n);
+      const signed = d < Infinity ? ((x - q[0]) * n.x + (y - q[1]) * n.y + (z - q[2]) * n.z >= 0 ? d : -d) : range;
+      const k = Math.min(1, Math.abs(signed) / range);
+      if (signed > 0) { added = Math.max(added, Math.min(d, 99)); paint[v * 3] = 1; paint[v * 3 + 1] = 1 - 0.62 * k; paint[v * 3 + 2] = 1 - 0.85 * k; }
+      else { removed = Math.max(removed, d); paint[v * 3] = 1 - 0.8 * k; paint[v * 3 + 1] = 1 - 0.45 * k; paint[v * 3 + 2] = 1; }
+    }
+    this.setPaint(paint);
+    return { added, removed };
+  }
+  /** The face group of a triangle, or -1. */
+  groupOf(t: number) { return this.groups && t < this.groups.length ? this.groups[t] : -1; }
+
+  // ---------------------------------------------------------------------------------------------
+  // Build 92: Soft Transform (Meshmixer's Transform with a soft edge)
+
+  /**
+   * The corners a soft transform moves: the chosen ones fully, and those within `soft` mm of them -
+   * measured across the surface (along its edges), so a neighbouring bump across a gap is not taken -
+   * fading smoothly to none. Weights 0-1, in the order of `verts`.
+   */
+  softWeights(core: ArrayLike<number>, soft: number): { verts: Int32Array; weights: Float32Array } {
+    const n = this.vCount;
+    const dist = new Float64Array(n).fill(Infinity);
+    // A binary heap of (distance, corner).
+    let heapD = new Float64Array(1024), heapV = new Int32Array(1024), size = 0;
+    const push = (d: number, v: number) => {
+      if (size === heapD.length) { const nd = new Float64Array(size * 2); nd.set(heapD); heapD = nd; const nv = new Int32Array(size * 2); nv.set(heapV); heapV = nv; }
+      let i = size++;
+      while (i > 0) { const up = (i - 1) >> 1; if (heapD[up] <= d) break; heapD[i] = heapD[up]; heapV[i] = heapV[up]; i = up; }
+      heapD[i] = d; heapV[i] = v;
+    };
+    const pop = () => {
+      const v = heapV[0], last = --size, d = heapD[last], lv = heapV[last];
+      let i = 0;
+      for (;;) {
+        let c = i * 2 + 1;
+        if (c >= size) break;
+        if (c + 1 < size && heapD[c + 1] < heapD[c]) c += 1;
+        if (heapD[c] >= d) break;
+        heapD[i] = heapD[c]; heapV[i] = heapV[c]; i = c;
+      }
+      heapD[i] = d; heapV[i] = lv;
+      return v;
+    };
+    const out: number[] = [];
+    for (let k = 0; k < core.length; k += 1) { const v = core[k]; if (v < n && this.vAlive[v] && dist[v] !== 0) { dist[v] = 0; push(0, v); } }
+    const done = new Uint8Array(n);
+    const tri = this.tri;
+    while (size) {
+      const d0 = heapD[0];
+      const v = pop();
+      if (done[v] || d0 > dist[v]) continue;
+      done[v] = 1;
+      out.push(v);
+      for (const t of this.vTris[v]) for (let k = 0; k < 3; k += 1) {
+        const w = tri[t * 3 + k];
+        if (done[w]) continue;
+        const d = d0 + this.dist(v, w);
+        if (d < dist[w] && d <= soft) { dist[w] = d; push(d, w); }
+      }
+    }
+    const verts = Int32Array.from(out), weights = new Float32Array(verts.length);
+    for (let i = 0; i < verts.length; i += 1) {
+      const d = dist[verts[i]];
+      const t = soft > 0 ? Math.min(1, d / soft) : d > 0 ? 1 : 0;
+      weights[i] = 1 - t * t * (3 - 2 * t);
+    }
+    return { verts, weights };
+  }
+  /** Moves `verts` from `from` (their positions when the transform began) by `matrix`, each by its weight. */
+  softMove(verts: Int32Array, weights: Float32Array, from: Float64Array, matrix: THREE.Matrix4) {
+    const e = matrix.elements, p = this.pos;
+    for (let i = 0; i < verts.length; i += 1) {
+      const v = verts[i], w = weights[i];
+      const x = from[i * 3], y = from[i * 3 + 1], z = from[i * 3 + 2];
+      const tx = e[0] * x + e[4] * y + e[8] * z + e[12], ty = e[1] * x + e[5] * y + e[9] * z + e[13], tz = e[2] * x + e[6] * y + e[10] * z + e[14];
+      p[v * 3] = x + (tx - x) * w; p[v * 3 + 1] = y + (ty - y) * w; p[v * 3 + 2] = z + (tz - z) * w;
+      this.moved(v);
+    }
+    this.rebin(verts, verts.length);
+  }
+  /** Where the frozen corners (half or more) are, x y z each - to freeze them again on a new copy of the part. */
+  frozenPoints(): Float32Array {
+    const out: number[] = [];
+    for (let v = 0; v < this.vCount; v += 1) if (this.vAlive[v] && this.mask[v] >= 0.5) out.push(this.pos[v * 3], this.pos[v * 3 + 1], this.pos[v * 3 + 2]);
+    return Float32Array.from(out);
+  }
+  /** Corners frozen half or more. */
+  frozenCount() { let n = 0; for (let v = 0; v < this.vCount; v += 1) if (this.vAlive[v] && this.mask[v] >= 0.5) n += 1; return n; }
+
+  /** Puts corners back where they were (undo of a stroke that only moved corners). */
+  setPositions(corners: ArrayLike<number>, values: ArrayLike<number>) {
+    this.box = null;
+    const moved: number[] = [];
+    for (let k = 0; k < corners.length; k += 1) {
+      const v = corners[k];
+      if (v >= this.vCount || !this.vAlive[v]) continue;
+      this.pos[v * 3] = values[k * 3]; this.pos[v * 3 + 1] = values[k * 3 + 1]; this.pos[v * 3 + 2] = values[k * 3 + 2];
+      this.moved(v);
+      moved.push(v);
+    }
+    this.rebin(moved);
+  }
+
+  /** Move brush: corners grabbed at the stroke's start (with their weights) follow the cursor by `delta`. */
+  drag(grabbed: Array<[number, number, number, number, number]>, delta: Vec3) {
+    const p = this.pos;
+    for (const [v, w, x, y, z] of grabbed) {
+      if (!this.vAlive[v]) continue;
+      p[v * 3] = x + delta[0] * w; p[v * 3 + 1] = y + delta[1] * w; p[v * 3 + 2] = z + delta[2] * w;
+      this.moved(v);
+    }
+    this.rebin(grabbed.map((g) => g[0]).filter((v) => this.vAlive[v]));
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Refine: split, collapse, flip, relax (Botsch & Kobbelt)
+
+  /** Splits edge a-b at its middle; returns the new corner. */
+  splitEdge(a: number, b: number): number | null {
+    const tris = this.edgeTriangles(a, b);
+    if (!tris.length || tris.length > 2) return null;
+    const p = this.pos;
+    const m = this.addVertex((p[a * 3] + p[b * 3]) / 2, (p[a * 3 + 1] + p[b * 3 + 1]) / 2, (p[a * 3 + 2] + p[b * 3 + 2]) / 2);
+    this.mask[m] = (this.mask[a] + this.mask[b]) / 2;
+    if (this.paint) for (let k = 0; k < 3; k += 1) this.paint[m * 3 + k] = (this.paint[a * 3 + k] + this.paint[b * 3 + k]) / 2;
+    for (const t of tris) {
+      const i = t * 3;
+      const corners = [this.tri[i], this.tri[i + 1], this.tri[i + 2]];
+      // Rotate so the triangle reads (x, y, c) with x-y being the edge in this triangle's order.
+      let k = 0;
+      while (!((corners[k] === a && corners[(k + 1) % 3] === b) || (corners[k] === b && corners[(k + 1) % 3] === a))) k += 1;
+      const x = corners[k], y = corners[(k + 1) % 3], c = corners[(k + 2) % 3];
+      // (x, y, c) becomes (x, m, c) and (m, y, c).
+      this.retarget(t, y, m);
+      this.addTriangle(m, y, c);
+      this.dirtyV.add(c);
+    }
+    return m;
+  }
+
+  /** Collapses edge a-b to its middle, when that keeps the surface sound; returns whether it did. */
+  collapseEdge(a: number, b: number, maxEdge: number, at?: Vec3): boolean {
+    const shared = this.edgeTriangles(a, b);
+    if (shared.length !== 2) return false;
+    if (this.onBoundary(a) || this.onBoundary(b)) return false;
+    const na = this.neighbours(a), nb = this.neighbours(b);
+    // Link condition: a and b share exactly the two corners opposite the edge.
+    let common = 0;
+    for (const v of na) if (nb.includes(v)) common += 1;
+    if (common !== 2) return false;
+    const p = this.pos;
+    const mx = at ? at[0] : (p[a * 3] + p[b * 3]) / 2, my = at ? at[1] : (p[a * 3 + 1] + p[b * 3 + 1]) / 2, mz = at ? at[2] : (p[a * 3 + 2] + p[b * 3 + 2]) / 2;
+    // No new edge longer than the limit, no triangle turned over.
+    for (const v of nb) if (v !== a && Math.hypot(p[v * 3] - mx, p[v * 3 + 1] - my, p[v * 3 + 2] - mz) > maxEdge) return false;
+    if (at) for (const v of na) if (v !== b && Math.hypot(p[v * 3] - mx, p[v * 3 + 1] - my, p[v * 3 + 2] - mz) > maxEdge) return false;
+    const before = new THREE.Vector3(), after = new THREE.Vector3();
+    const saved = [p[a * 3], p[a * 3 + 1], p[a * 3 + 2], p[b * 3], p[b * 3 + 1], p[b * 3 + 2]];
+    const fans = [...new Set([...this.vTris[a], ...this.vTris[b]])].filter((t) => !shared.includes(t));
+    // A sliver (thinner than about 1% of its length) has no facing worth keeping: a brush that pinched
+    // the surface into a line leaves them, and refusing to collapse them would leave them for good.
+    const normalsBefore = fans.map((t) => { const n = this.faceNormal(t, new THREE.Vector3()); return this.isSliver(t, n) ? null : n.normalize(); });
+    p[a * 3] = mx; p[a * 3 + 1] = my; p[a * 3 + 2] = mz; p[b * 3] = mx; p[b * 3 + 1] = my; p[b * 3 + 2] = mz;
+    let ok = true;
+    fans.forEach((t, k) => {
+      const was = normalsBefore[k];
+      if (!was) return;
+      this.faceNormal(t, after);
+      if (after.lengthSq() < 1e-14) { ok = false; return; }
+      before.copy(was);
+      if (after.normalize().dot(before) < 0.3) ok = false;
+    });
+    if (!ok) { p[a * 3] = saved[0]; p[a * 3 + 1] = saved[1]; p[a * 3 + 2] = saved[2]; p[b * 3] = saved[3]; p[b * 3 + 1] = saved[4]; p[b * 3 + 2] = saved[5]; return false; }
+    for (const t of shared) this.removeTriangle(t);
+    for (const t of [...this.vTris[b]]) this.retarget(t, b, a);
+    this.vAlive[b] = 0;
+    if (!this.bulk) this.vGrid.remove(this.vCell[b], b);
+    this.vTris[b] = [];
+    this.moved(a);
+    for (const t of this.vTris[a]) this.binTriangle(t);
+    return true;
+  }
+
+  /** Flips edge a-b when that brings the four corners nearer six neighbours each. */
+  flipEdge(a: number, b: number): boolean {
+    // Build 85: no arrays, closures or vectors made before the (usual) early refusals - a refining
+    // stroke tries hundreds of flips a frame, and their garbage was the biggest share of a stroke's.
+    const tri = this.tri;
+    let t1 = -1, t2 = -1, found = 0;
+    for (const t of this.vTris[a]) {
+      const i = t * 3;
+      if (tri[i] === b || tri[i + 1] === b || tri[i + 2] === b) { if (found === 0) t1 = t; else t2 = t; found += 1; }
+    }
+    if (found !== 2) return false;
+    // t1 has a->b in order, t2 has b->a.
+    if (!this.runsAB(t1, a, b)) { const swap = t1; t1 = t2; t2 = swap; }
+    if (!this.runsAB(t1, a, b) || this.runsAB(t2, a, b)) return false;
+    const c = this.oppositeOf(t1, a, b), d = this.oppositeOf(t2, a, b);
+    if (c < 0 || d < 0 || c === d) return false;
+    if (this.hasEdge(c, d)) return false;
+    const n1 = this.faceNormal(t1, this.flipN1), n2 = this.faceNormal(t2, this.flipN2);
+    // A pair with a sliver: flipped when that makes the shared edge shorter (towards Delaunay), whatever the valences.
+    const sliver = this.isSliver(t1, n1) || this.isSliver(t2, n2);
+    const target = (v: number) => (this.onBoundary(v) ? 4 : 6);
+    const va = this.vTris[a].length, vb = this.vTris[b].length, vc = this.vTris[c].length, vd = this.vTris[d].length;
+    // Interior valence is the triangle count round a corner.
+    const dev = (x: number, v: number) => (x - target(v)) ** 2;
+    const now = dev(va, a) + dev(vb, b) + dev(vc, c) + dev(vd, d);
+    const then = dev(va - 1, a) + dev(vb - 1, b) + dev(vc + 1, c) + dev(vd + 1, d);
+    if (sliver ? this.dist(c, d) >= this.dist(a, b) : then >= now) return false;
+    // The two new triangles must face the same way as the old pair (a sliver's own facing does not count).
+    n1.normalize(); n2.normalize();
+    const p = this.pos;
+    const normalOf = (x: number, y: number, z: number, out: THREE.Vector3) => {
+      const ux = p[y * 3] - p[x * 3], uy = p[y * 3 + 1] - p[x * 3 + 1], uz = p[y * 3 + 2] - p[x * 3 + 2];
+      const vx = p[z * 3] - p[x * 3], vy = p[z * 3 + 1] - p[x * 3 + 1], vz = p[z * 3 + 2] - p[x * 3 + 2];
+      return out.set(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
+    };
+    const m1 = normalOf(c, a, d, this.flipM1), m2 = normalOf(d, b, c, this.flipM2);
+    if (m1.lengthSq() < 1e-14 || m2.lengthSq() < 1e-14) return false;
+    m1.normalize(); m2.normalize();
+    if (sliver) { if (m1.dot(m2) < 0.5 || this.isSliverOf(c, a, d) || this.isSliverOf(d, b, c)) return false; }
+    else if (n1.dot(n2) < 0.5 || m1.dot(n1) < 0.5 || m2.dot(n2) < 0.5 || m1.dot(m2) < 0.5) return false;
+    // (a, b, c) -> (c, a, d); (b, a, d) -> (d, b, c)
+    this.retarget(t1, b, d); // t1: a,d,c in some rotation -> set exactly
+    this.tri[t1 * 3] = c; this.tri[t1 * 3 + 1] = a; this.tri[t1 * 3 + 2] = d;
+    this.retarget(t2, a, c);
+    this.tri[t2 * 3] = d; this.tri[t2 * 3 + 1] = b; this.tri[t2 * 3 + 2] = c;
+    this.binTriangle(t1); this.binTriangle(t2);
+    this.dirtyV.add(a); this.dirtyV.add(b); this.dirtyV.add(c); this.dirtyV.add(d);
+    this.topologyChanged = true;
+    this.topologyEdits += 1;
+    return true;
+  }
+
+  /**
+   * Keeps the triangles touching `corners` near `target` edge length: splits, collapses, flips, then a
+   * relax along the surface. `project` (optional) puts a moved corner back onto a surface. Bounded work.
+   */
+  refine(corners: Iterable<number>, target: number, options: { relax?: boolean; project?: (p: THREE.Vector3) => void; budget?: number; fixed?: (v: number) => boolean; within?: { centre: Vec3; radius: number }; milliseconds?: number; creaseAngle?: number; collapseBelow?: number; /** Build 85: flip and relax even when nothing was split or collapsed (Remesh). */ always?: boolean } = {}) {
+    // Sharp edges (faces meeting at more than `creaseAngle` degrees) are kept, as in VCG's isotropic
+    // remeshing (MeshLab): never flipped, collapsed only along their line, and their corners slide only
+    // along it; where three or more meet (a box's corner) the corner stays put.
+    const creaseCos = options.creaseAngle ? Math.cos((options.creaseAngle * Math.PI) / 180) : null;
+    const na = new THREE.Vector3(), nb = new THREE.Vector3();
+    const isCrease = (a: number, b: number) => {
+      if (creaseCos === null) return false;
+      const ts = this.edgeTriangles(a, b);
+      if (ts.length !== 2) return true;
+      this.faceNormal(ts[0], na); this.faceNormal(ts[1], nb);
+      const l = na.length() * nb.length();
+      return l > 0 && na.dot(nb) / l < creaseCos;
+    };
+    const creaseNeighbours = (v: number) => { const out: number[] = []; if (creaseCos !== null) for (const w of this.neighbours(v)) if (isCrease(v, w)) out.push(w); return out; };
+    // Splitting makes new edges out to the corners beyond: without a bound the refinement would creep
+    // over the whole part. Only edges whose middle is inside `within` (the brush's ball) are split.
+    const ball = options.within;
+    const inside = (a: number, b: number) => {
+      if (!ball) return true;
+      const p = this.pos, c = ball.centre;
+      return ((p[a * 3] + p[b * 3]) / 2 - c[0]) ** 2 + ((p[a * 3 + 1] + p[b * 3 + 1]) / 2 - c[1]) ** 2 + ((p[a * 3 + 2] + p[b * 3 + 2]) / 2 - c[2]) ** 2 <= ball.radius * ball.radius;
+    };
+    // `collapseBelow` keeps detail finer than the target that was there before (a scan's own triangles):
+    // only edges shorter than it are collapsed.
+    const hi = target * (4 / 3), lo = Math.min(target * (4 / 5), options.collapseBelow ?? Infinity);
+    // Build 90: frozen corners (half or more) are held as `fixed` ones are; flips keep off their triangles too.
+    // (this.mask read afresh each time: splitting can outgrow it, and it is then made anew.)
+    const given = options.fixed;
+    const held = (v: number) => this.mask[v] >= 0.5 || (given ? given(v) : false);
+    options = { ...options, fixed: held };
+    let work = options.budget ?? 20000;
+    const until = options.milliseconds ? performance.now() + options.milliseconds : Infinity;
+    const late = () => performance.now() > until;
+    const region = new Set<number>();
+    for (const v of corners) if (this.vAlive[v]) region.add(v);
+    /** The edges at the region's corners that pass `keep`, each once, as pairs (a < b) in a flat list. */
+    const edgesOf = (keep?: (a: number, b: number) => boolean) => {
+      const out: number[] = [];
+      const mark = this.regionMark.length >= this.vCount ? this.regionMark : (this.regionMark = new Int32Array(this.pos.length / 3));
+      const now = ++this.regionNow;
+      for (const v of region) if (this.vAlive[v]) mark[v] = now;
+      for (const v of region) {
+        if (!this.vAlive[v]) continue;
+        // Each edge once: from its smaller corner, or from the corner in the region when only one is.
+        // Build 91: round v's fan with a stamp per neighbour, no list of them made for every corner.
+        if (this.stamp.length < this.vCount) { const next = new Int32Array(this.pos.length / 3); next.set(this.stamp); this.stamp = next; }
+        const seen = this.stamp, here = ++this.stampNow, fan = this.vTris[v], tri = this.tri;
+        seen[v] = here;
+        for (let f = 0; f < fan.length; f += 1) for (let k = 0; k < 3; k += 1) {
+          const w = tri[fan[f] * 3 + k];
+          if (seen[w] === here) continue;
+          seen[w] = here;
+          if (mark[w] === now && w < v) continue;
+          const a = v < w ? v : w, b = v < w ? w : v;
+          if (!keep || keep(a, b)) out.push(a, b);
+        }
+      }
+      return out;
+    };
+    // Split, longest first, re-queueing the halves.
+    const long = edgesOf((a, b) => this.dist(a, b) > hi && inside(a, b));
+    const order = Array.from({ length: long.length / 2 }, (_, k) => k);
+    const lengths = new Float64Array(order.length);
+    for (let k = 0; k < order.length; k += 1) lengths[k] = this.dist(long[k * 2], long[k * 2 + 1]);
+    order.sort((e, f) => lengths[f] - lengths[e]);
+    // Build 92: the queue as pairs in one flat list, not an array per edge.
+    const queue: number[] = new Array(order.length * 2);
+    for (let k = 0; k < order.length; k += 1) { queue[k * 2] = long[order[k] * 2]; queue[k * 2 + 1] = long[order[k] * 2 + 1]; }
+    // A guard against a run-away: never more splits in one call than eight per corner it started with.
+    work = Math.min(work, Math.max(256, region.size * 8));
+    const startWork = work;
+    for (let q = 0; q * 2 < queue.length && work > 0; q += 1) {
+      if ((q & 31) === 0 && late()) break;
+      const a = queue[q * 2], b = queue[q * 2 + 1];
+      if (!this.vAlive[a] || !this.vAlive[b]) continue;
+      const parent = this.dist(a, b);
+      if (parent <= hi) continue;
+      // A split moves neither end: only an edge between two held corners stays whole.
+      if (options.fixed && options.fixed(a) && options.fixed(b)) continue;
+      const m = this.splitEdge(a, b);
+      work -= 1;
+      if (m === null) continue;
+      region.add(m);
+      if (options.project) { const q = this.projectScratch.set(this.pos[m * 3], this.pos[m * 3 + 1], this.pos[m * 3 + 2]); options.project(q); this.pos[m * 3] = q.x; this.pos[m * 3 + 1] = q.y; this.pos[m * 3 + 2] = q.z; this.moved(m); }
+      // Build 82: only an edge that came out shorter than the one split goes back in the queue. Pulled back
+      // onto a rough surface (a ridge finer than the triangles), a new corner can land where its edges are
+      // as long as before, and splitting on would never end (a Remesh of a large scan ran for minutes).
+      for (const w of this.neighbours(m)) { const d = this.dist(m, w); if (d > hi && d < parent * 0.95 && inside(m, w)) queue.push(Math.min(m, w), Math.max(m, w)); }
+    }
+    // Collapse the short ones.
+    const short = late() ? [] : edgesOf((a, b) => this.dist(a, b) < lo && inside(a, b));
+    for (let e = 0; e < short.length; e += 2) {
+      const a = short[e], b = short[e + 1];
+      if (work <= 0 || ((e & 63) === 0 && late())) break;
+      if (!this.vAlive[a] || !this.vAlive[b] || this.dist(a, b) >= lo || !inside(a, b)) continue;
+      if (options.fixed && (options.fixed(a) || options.fixed(b))) continue;
+      if (creaseCos !== null) {
+        const ca = creaseNeighbours(a).length, cb = creaseNeighbours(b).length;
+        if (ca || cb) {
+          // Into the sharper corner, or along a sharp line between two of its corners; never two corners together.
+          let keep = -1, gone = -1;
+          if (!cb) { keep = a; gone = b; } else if (!ca) { keep = b; gone = a; }
+          else if (isCrease(a, b)) { if (ca === 2 && cb !== 2) { keep = b; gone = a; } else if (cb === 2) { keep = a; gone = b; } }
+          if (keep < 0) continue;
+          const both = ca === 2 && cb === 2 && isCrease(a, b);
+          const at: Vec3 = both ? [(this.pos[a * 3] + this.pos[b * 3]) / 2, (this.pos[a * 3 + 1] + this.pos[b * 3 + 1]) / 2, (this.pos[a * 3 + 2] + this.pos[b * 3 + 2]) / 2] : [this.pos[keep * 3], this.pos[keep * 3 + 1], this.pos[keep * 3 + 2]];
+          if (this.collapseEdge(keep, gone, hi, at)) { work -= 1; region.delete(gone); }
+          continue;
+        }
+      }
+      if (this.collapseEdge(a, b, hi)) { work -= 1; region.delete(b); }
+    }
+    // Build 85: as Meshmixer's refinement - when nothing under the brush was split or collapsed, the
+    // triangles are as they were after the last dab: flipping and relaxing them again every frame was
+    // most of a refining stroke's time and changed nothing a person could see.
+    if (options.always !== true && work === startWork) return region;
+    // Flip towards six neighbours a corner.
+    const all = late() ? [] : edgesOf();
+    for (let e = 0; e < all.length; e += 2) {
+      const a = all[e], b = all[e + 1];
+      if (work <= 0 || ((e & 63) === 0 && late())) break;
+      if (!this.vAlive[a] || !this.vAlive[b]) continue;
+      if (creaseCos !== null && isCrease(a, b)) continue;
+      if (this.mask[a] >= 0.5 || this.mask[b] >= 0.5) continue;
+      if (options.fixed && options.fixed(a) && options.fixed(b)) continue;
+      if (this.flipEdge(a, b)) work -= 1;
+    }
+    // Relax: each corner towards the middle of its neighbours, along the surface only.
+    if (options.relax !== false && !late()) {
+      const n = new THREE.Vector3(), q = new THREE.Vector3();
+      const moves: Array<[number, number, number, number]> = [];
+      for (const v of region) {
+        if (!this.vAlive[v] || this.onBoundary(v) || (options.fixed && options.fixed(v))) continue;
+        const around = this.neighbours(v);
+        if (around.length < 3) continue;
+        const sharp = creaseNeighbours(v);
+        if (sharp.length) {
+          // On a sharp line: along it, between its two neighbours on the line; a corner stays.
+          if (sharp.length !== 2) continue;
+          const [u, w] = sharp;
+          const mx = (this.pos[u * 3] + this.pos[w * 3]) / 2, my = (this.pos[u * 3 + 1] + this.pos[w * 3 + 1]) / 2, mz = (this.pos[u * 3 + 2] + this.pos[w * 3 + 2]) / 2;
+          moves.push([v, this.pos[v * 3] + (mx - this.pos[v * 3]) * 0.5, this.pos[v * 3 + 1] + (my - this.pos[v * 3 + 1]) * 0.5, this.pos[v * 3 + 2] + (mz - this.pos[v * 3 + 2]) * 0.5]);
+          continue;
+        }
+        let ax = 0, ay = 0, az = 0;
+        for (const u of around) { ax += this.pos[u * 3]; ay += this.pos[u * 3 + 1]; az += this.pos[u * 3 + 2]; }
+        ax /= around.length; ay /= around.length; az /= around.length;
+        this.vertexNormal(v, n);
+        let dx = ax - this.pos[v * 3], dy = ay - this.pos[v * 3 + 1], dz = az - this.pos[v * 3 + 2];
+        const along = dx * n.x + dy * n.y + dz * n.z;
+        dx -= n.x * along; dy -= n.y * along; dz -= n.z * along;
+        const k = 0.5 * (1 - this.mask[v]);
+        moves.push([v, this.pos[v * 3] + dx * k, this.pos[v * 3 + 1] + dy * k, this.pos[v * 3 + 2] + dz * k]);
+      }
+      for (const [v, x, y, z] of moves) {
+        q.set(x, y, z);
+        if (options.project) options.project(q);
+        this.pos[v * 3] = q.x; this.pos[v * 3 + 1] = q.y; this.pos[v * 3 + 2] = q.z;
+        this.moved(v);
+      }
+      this.rebin(moves.map((m) => m[0]));
+    }
+    return region;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Out
+
+  /** Living corners and triangles, renumbered from zero. */
+  compact(): { points: Float64Array; triangles: Uint32Array } {
+    // Typed arrays throughout: this runs at the start of every refining stroke, on meshes of 300k+ triangles.
+    const map = new Int32Array(this.vCount).fill(-1);
+    let m = 0;
+    for (let t = 0; t < this.tCount; t += 1) if (this.tAlive[t]) m += 1;
+    const triangles = new Uint32Array(m * 3);
+    let n = 0, o = 0;
+    for (let t = 0; t < this.tCount; t += 1) {
+      if (!this.tAlive[t]) continue;
+      for (let k = 0; k < 3; k += 1) {
+        const v = this.tri[t * 3 + k];
+        if (map[v] < 0) map[v] = n++;
+        triangles[o++] = map[v];
+      }
+    }
+    const points = new Float64Array(n * 3);
+    for (let v = 0; v < this.vCount; v += 1) {
+      const w = map[v];
+      if (w >= 0) { points[w * 3] = this.pos[v * 3]; points[w * 3 + 1] = this.pos[v * 3 + 1]; points[w * 3 + 2] = this.pos[v * 3 + 2]; }
+    }
+    return { points, triangles };
+  }
+  /** The surface as a triangle soup (9 numbers a triangle), in triangle order. */
+  soup(): Float32Array {
+    let m = 0;
+    for (let t = 0; t < this.tCount; t += 1) if (this.tAlive[t]) m += 1;
+    const out = new Float32Array(m * 9);
+    let o = 0;
+    for (let t = 0; t < this.tCount; t += 1) {
+      if (!this.tAlive[t]) continue;
+      for (let k = 0; k < 3; k += 1) { const v = this.tri[t * 3 + k] * 3; out[o++] = this.pos[v]; out[o++] = this.pos[v + 1]; out[o++] = this.pos[v + 2]; }
+    }
+    return out;
+  }
+  triangleCount() { let m = 0; for (let t = 0; t < this.tCount; t += 1) if (this.tAlive[t]) m += 1; return m; }
+  dispose() { this.geometry.dispose(); }
+}
+
+// -----------------------------------------------------------------------------------------------
+// Whole-part tools on the same engine
+
+/** Closest point on the original surface, for keeping a remeshed part on it. */
+export function surfaceProjector(source: LiveMesh) {
+  const snapshot = source.compact();
+  // Cells about two edges across: a corner near the surface finds its closest point in its own cell,
+  // and a neighbouring cell is only looked in when it could hold something nearer.
+  const h = Math.max(0.05, source.averageEdge(sampleCorners(source, 2000)) * 2);
+  const grid = new Map<number, number[]>();
+  const key = (ix: number, iy: number, iz: number) => ((ix & WRAP) * K + (iy & WRAP)) * K + (iz & WRAP);
+  const P = snapshot.points, T = snapshot.triangles;
+  for (let t = 0; t < T.length / 3; t += 1) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let k = 0; k < 3; k += 1) { const v = T[t * 3 + k] * 3; x0 = Math.min(x0, P[v]); x1 = Math.max(x1, P[v]); y0 = Math.min(y0, P[v + 1]); y1 = Math.max(y1, P[v + 1]); z0 = Math.min(z0, P[v + 2]); z1 = Math.max(z1, P[v + 2]); }
+    const cx0 = Math.floor(x0 / h), cx1 = Math.floor(x1 / h), cy0 = Math.floor(y0 / h), cy1 = Math.floor(y1 / h), cz0 = Math.floor(z0 / h), cz1 = Math.floor(z1 / h);
+    if ((cx1 - cx0 + 1) * (cy1 - cy0 + 1) * (cz1 - cz0 + 1) > 4000) continue; // a huge base triangle: found by the wide search below
+    for (let ix = cx0; ix <= cx1; ix += 1) for (let iy = cy0; iy <= cy1; iy += 1) for (let iz = cz0; iz <= cz1; iz += 1) {
+      const k = key(ix, iy, iz); const list = grid.get(k); if (list) list.push(t); else grid.set(k, [t]);
+    }
+  }
+  const huge: number[] = [];
+  for (let t = 0; t < T.length / 3; t += 1) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let k = 0; k < 3; k += 1) { const v = T[t * 3 + k] * 3; x0 = Math.min(x0, P[v]); x1 = Math.max(x1, P[v]); y0 = Math.min(y0, P[v + 1]); y1 = Math.max(y1, P[v + 1]); z0 = Math.min(z0, P[v + 2]); z1 = Math.max(z1, P[v + 2]); }
+    if ((Math.floor(x1 / h) - Math.floor(x0 / h) + 1) * (Math.floor(y1 / h) - Math.floor(y0 / h) + 1) * (Math.floor(z1 / h) - Math.floor(z0 / h) + 1) > 4000) huge.push(t);
+  }
+  const seen = new Int32Array(T.length / 3);
+  let stamp = 0;
+  let bx = 0, by = 0, bz = 0, best = Infinity;
+  /** Closest point on triangle t to (px py pz) (Ericson, Real-Time Collision Detection 5.1.5), kept if nearer. */
+  const test = (t: number, px: number, py: number, pz: number) => {
+    const ia = T[t * 3] * 3, ib = T[t * 3 + 1] * 3, ic = T[t * 3 + 2] * 3;
+    const ax = P[ia], ay = P[ia + 1], az = P[ia + 2];
+    const abx = P[ib] - ax, aby = P[ib + 1] - ay, abz = P[ib + 2] - az;
+    const acx = P[ic] - ax, acy = P[ic + 1] - ay, acz = P[ic + 2] - az;
+    const apx = px - ax, apy = py - ay, apz = pz - az;
+    const d1 = abx * apx + aby * apy + abz * apz, d2 = acx * apx + acy * apy + acz * apz;
+    let qx: number, qy: number, qz: number;
+    if (d1 <= 0 && d2 <= 0) { qx = ax; qy = ay; qz = az; }
+    else {
+      const bpx = px - P[ib], bpy = py - P[ib + 1], bpz = pz - P[ib + 2];
+      const d3 = abx * bpx + aby * bpy + abz * bpz, d4 = acx * bpx + acy * bpy + acz * bpz;
+      const cpx = px - P[ic], cpy = py - P[ic + 1], cpz = pz - P[ic + 2];
+      const d5 = abx * cpx + aby * cpy + abz * cpz, d6 = acx * cpx + acy * cpy + acz * cpz;
+      const vc = d1 * d4 - d3 * d2, vb = d5 * d2 - d1 * d6, va = d3 * d6 - d5 * d4;
+      if (d3 >= 0 && d4 <= d3) { qx = P[ib]; qy = P[ib + 1]; qz = P[ib + 2]; }
+      else if (vc <= 0 && d1 >= 0 && d3 <= 0) { const v = d1 / (d1 - d3); qx = ax + abx * v; qy = ay + aby * v; qz = az + abz * v; }
+      else if (d6 >= 0 && d5 <= d6) { qx = P[ic]; qy = P[ic + 1]; qz = P[ic + 2]; }
+      else if (vb <= 0 && d2 >= 0 && d6 <= 0) { const w = d2 / (d2 - d6); qx = ax + acx * w; qy = ay + acy * w; qz = az + acz * w; }
+      else if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) { const w = (d4 - d3) / (d4 - d3 + (d5 - d6)); qx = P[ib] + (P[ic] - P[ib]) * w; qy = P[ib + 1] + (P[ic + 1] - P[ib + 1]) * w; qz = P[ib + 2] + (P[ic + 2] - P[ib + 2]) * w; }
+      else { const den = 1 / (va + vb + vc), v = vb * den, w = vc * den; qx = ax + abx * v + acx * w; qy = ay + aby * v + acy * w; qz = az + abz * v + acz * w; }
+    }
+    const d = (qx - px) ** 2 + (qy - py) ** 2 + (qz - pz) ** 2;
+    if (d < best) { best = d; bx = qx; by = qy; bz = qz; }
+  };
+  return (p: THREE.Vector3) => {
+    best = Infinity;
+    stamp += 1;
+    const px = p.x, py = p.y, pz = p.z;
+    const ix = Math.floor(px / h), iy = Math.floor(py / h), iz = Math.floor(pz / h);
+    const cell = (ox: number, oy: number, oz: number) => {
+      const list = grid.get(key(ix + ox, iy + oy, iz + oz));
+      if (list) for (const t of list) if (seen[t] !== stamp) { seen[t] = stamp; test(t, px, py, pz); }
+    };
+    cell(0, 0, 0);
+    // Rings outwards; a cell is looked in only when its nearest side is nearer than the best so far.
+    for (let ring = 1; ring <= 3; ring += 1) {
+      const reach = (ring - 1) * h + Math.min(px - ix * h, (ix + 1) * h - px, py - iy * h, (iy + 1) * h - py, pz - iz * h, (iz + 1) * h - pz);
+      if (best <= reach * reach) break;
+      for (let ox = -ring; ox <= ring; ox += 1) for (let oy = -ring; oy <= ring; oy += 1) for (let oz = -ring; oz <= ring; oz += 1) {
+        if (Math.max(Math.abs(ox), Math.abs(oy), Math.abs(oz)) !== ring) continue;
+        // Distance from p to that cell's box.
+        const gx = ox > 0 ? (ix + ox) * h - px : ox < 0 ? px - (ix + ox + 1) * h : 0;
+        const gy = oy > 0 ? (iy + oy) * h - py : oy < 0 ? py - (iy + oy + 1) * h : 0;
+        const gz = oz > 0 ? (iz + oz) * h - pz : oz < 0 ? pz - (iz + oz + 1) * h : 0;
+        if (gx * gx + gy * gy + gz * gz < best) cell(ox, oy, oz);
+      }
+    }
+    for (const t of huge) test(t, px, py, pz);
+    if (Number.isFinite(best)) p.set(bx, by, bz);
+  };
+}
+
+function sampleCorners(mesh: LiveMesh, count: number) {
+  const out: number[] = [];
+  const stride = Math.max(1, Math.floor(mesh.vCount / count));
+  for (let v = 0; v < mesh.vCount; v += stride) if (mesh.vAlive[v]) out.push(v);
+  return out;
+}
+
+/** A sensible target edge for Remesh: the part's present average edge. */
+/**
+ * Build 82: how hard a brush works at a strength (0..1), set against Meshmixer 3.5 on a test plate
+ * (16 mm strokes, a 3 mm brush, the same plate in both). Meshmixer's Draw grows with about the
+ * square of its Strength and its Inflate more gently; one pass of its RobustSmooth takes away 19%,
+ * 50% and 86% of 0.3 mm ridges at Strength 25, 53 and 100. Meshmixer puts down a dab at every
+ * pointer event, so a slow stroke there builds up more than a quick one (0.13 to 0.83 mm at full
+ * Strength); Pare 3D spaces its dabs by distance, so a stroke does the same whatever its speed, and
+ * full strength is set between Meshmixer's quick and slow strokes.
+ *   - strength: the weight each dab uses (lib dab multiplies its falloff by it)
+ *   - step: the most a corner moves in one dab, as a share of the brush radius
+ *   - passes: how many times each dab is applied (Smooth: more passes, not a bigger move)
+ */
+/** Build 85: how much more a stroke does than build 82's calibration - Meshmixer at a person's pace. */
+export const BRUSH_PACE = 3.34;
+export function brushResponse(brush: LiveBrush, strength: number): { strength: number; step: number; passes: number } {
+  const s = Math.max(0, Math.min(1, strength));
+  // Build 85: matched to Meshmixer at an ordinary, unhurried stroke (its slow stroke, a dab at each of
+  // about 80 pointer events over 16 mm) rather than between its quick and slow ones - 1.67 times the
+  // build 82 figures. Build 86: twice that again (3.34 times) - a hand stroke on a trackpad or a fast
+  // mouse sends Meshmixer far more events than the test did, and side by side Pare 3D still felt weak.
+  if (brush === "draw" || brush === "crease" || brush === "draw2") return { strength: s, step: BRUSH_PACE * 0.031 * s, passes: 1 };
+  if (brush === "drag" || brush === "mask" || brush === "attract") return { strength: s, step: 0, passes: 1 };
+  // Build 89: Flatten as Meshmixer's - one stroke over 0.3 mm ridges took away 16 / 44 / 84% at Strength
+  // 25 / 51 / 100 there (a quick stroke); here about 25 / 60 / 88%, at a person's pace (it took away
+  // 84% even at 25 before, far too strong at low settings).
+  if (brush === "flatten") return { strength: 0.29 * Math.pow(s, 1.43), step: 0.06, passes: 1 };
+  // Build 90: Pinch as Meshmixer's - a stroke along a soft ridge (0.8 mm high) drew it about a quarter to
+  // a third narrower there, keeping its height; Pare 3D's took away half of its width at 50 and three
+  // quarters at 100. Now about 15 / 25 / 35% at 25 / 50 / 100.
+  if (brush === "pinch") return { strength: 0.32 * Math.pow(s, 0.65), step: 0.06, passes: 1 };
+  if (brush === "inflate" || brush === "deflate") return { strength: s, step: BRUSH_PACE * 0.021 * Math.pow(s, 0.3), passes: 1 };
+  if (brush === "smooth" || brush === "shrinkSmooth" || brush === "bubbleSmooth") {
+    // One pass at weight u takes away about 1 - exp(-0.87 u^0.73) of fine ridges; Meshmixer's
+    // 19 / 50 / 86% at 25 / 53 / 100 is work W = 2.26 s^1.6 in those units, spread over passes
+    // (build 85: times the same pace, capped so a full-strength stroke cannot wipe out a ridge in one go).
+    const work = Math.min(3.4, BRUSH_PACE * 2.26 * Math.pow(s, 1.6));
+    // No single pass past 0.8 of the work unit, so no corner moves past its neighbours' average.
+    const passes = Math.max(1, Math.ceil(work / 0.8));
+    return { strength: Math.pow(work / passes, 1 / 0.73), step: 0.06, passes };
+  }
+  return { strength: s, step: 0.06, passes: 1 };
+}
+
+/** Build 105: Attract pulls only where the target lies in front of the surface and faces it (cosine). */
+export const ATTRACT_FACING = 0.3;
+/** Build 105: the most Attract moves a corner in one dab, and in one stroke, mm. */
+export const ATTRACT_DAB = 0.15;
+export const ATTRACT_STROKE = 1.5;
+/** Build 105: the edge length the smoothing brushes were set against Meshmixer on (build 82's test plate, about this), mm. */
+export const SMOOTH_EDGE_REF = 0.29;
+/** Build 105: the most passes one dab of a smoothing brush makes (very fine patches take their time over several dabs). */
+export const SMOOTH_MAX_PASSES = 24;
+/** Build 105: a smoothing brush's weight and passes at a strength, for the edge length under it (mm; 0: as calibrated). */
+export function smoothResponse(strength: number, edge: number): { strength: number; passes: number } {
+  const s = Math.max(0, Math.min(1, strength));
+  const scale = edge > 0 ? Math.max(0.25, Math.min(16, (SMOOTH_EDGE_REF / edge) ** 2)) : 1;
+  const work = Math.min(3.4, BRUSH_PACE * 2.26 * Math.pow(s, 1.6)) * scale;
+  const passes = Math.max(1, Math.min(SMOOTH_MAX_PASSES, Math.ceil(work / 0.8)));
+  return { strength: Math.pow(Math.min(0.8, work / passes), 1 / 0.73), passes };
+}
+
+/** Build 82: one dab of a brush at a point, as brushResponse sets it (Ctrl: Draw and Crease dig in). */
+export function stampBrush(mesh: LiveMesh, brush: Exclude<LiveBrush, "move">, centre: Vec3, normal: Vec3, radius: number, triangle: number, strength: number, dig = false) {
+  const response = brushResponse(brush, strength);
+  // Build 91: the corners gathered into the mesh's own arrays, no Map per dab.
+  if (brush === "mask") { mesh.gather(centre, radius, triangle); mesh.paintMask(null, radius, response.strength, dig); return; }
+  const step = radius * response.step * (dig ? -1 : 1);
+  mesh.gather(centre, radius, triangle);
+  // Build 105: a smoothing brush does the same in millimetres whatever the triangles' size. One pass of
+  // averaging spreads a corner over its neighbours, so a feature n edges across takes about n^2 passes to
+  // smooth away: the work is scaled by (calibration edge / edge under the brush)^2.
+  let { strength: weight, passes } = response;
+  if (!mesh.classicSmooth && (brush === "smooth" || brush === "shrinkSmooth" || brush === "bubbleSmooth")) {
+    const scaled = smoothResponse(strength, mesh.brushEdge());
+    weight = scaled.strength; passes = scaled.passes;
+  }
+  for (let k = 0; k < passes; k += 1) {
+    // Build 92: the corners under the brush gathered once for all of a dab's passes; between passes they
+    // move a fraction of their spacing, so the same ones are under it.
+    mesh.dab(brush, centre, normal, radius, null, weight, step);
+  }
+}
+
+export function averageEdgeOf(mesh: LiveMesh) { return mesh.averageEdge(sampleCorners(mesh, 5000)); }
+
+/**
+ * Remesh: the whole part to triangles of about `edge` mm, kept on its own surface (corners pulled back
+ * onto the original after every move), the rim of an open scan kept where it is.
+ */
+/** Faces meeting at more than this (degrees) make a sharp edge that Remesh keeps (a model's base, a cut). */
+export const REMESH_CREASE_ANGLE = 40;
+export function remeshLive(mesh: LiveMesh, edge: number, passes = 5, onProgress?: (fraction: number) => void) {
+  const project = surfaceProjector(mesh);
+  mesh.beginBulk();
+  try { remeshPasses(mesh, edge, passes, project, onProgress); } finally { mesh.endBulk(); }
+}
+function remeshPasses(mesh: LiveMesh, edge: number, passes: number, project: (p: THREE.Vector3) => void, onProgress?: (fraction: number) => void) {
+  for (let pass = 0; pass < passes; pass += 1) {
+    const all: number[] = [];
+    for (let v = 0; v < mesh.vCount; v += 1) if (mesh.vAlive[v]) all.push(v);
+    mesh.refine(all, edge, { project, budget: Number.MAX_SAFE_INTEGER, fixed: (v) => mesh.onBoundary(v), creaseAngle: REMESH_CREASE_ANGLE, always: true });
+    onProgress?.((pass + 1) / passes);
+  }
+}
+
+/**
+ * Build 92: Remesh (or Reduce) only the selected corners: their triangles made again at `edge` mm,
+ * kept on the surface they had, while the selection's own border and everything outside it stays as it
+ * was - so the patch still joins the rest exactly. Reduce is the same with a longer edge.
+ */
+export function remeshRegion(mesh: LiveMesh, corners: ArrayLike<number>, edge: number, passes = 4) {
+  const start = mesh.vCount;
+  const inside = new Uint8Array(start);
+  for (let i = 0; i < corners.length; i += 1) if (corners[i] < start) inside[corners[i]] = 1;
+  const chosen = (v: number) => v >= start || inside[v] === 1;
+  // The surface to stay on: the selection's triangles and those round it.
+  const soup: number[] = [];
+  for (let t = 0; t < mesh.tCount; t += 1) {
+    if (!mesh.tAlive[t]) continue;
+    const a = mesh.tri[t * 3], b = mesh.tri[t * 3 + 1], c = mesh.tri[t * 3 + 2];
+    if (!chosen(a) && !chosen(b) && !chosen(c)) continue;
+    for (const v of [a, b, c]) soup.push(mesh.pos[v * 3], mesh.pos[v * 3 + 1], mesh.pos[v * 3 + 2]);
+  }
+  if (!soup.length) return;
+  const surface = new NearestSurface(Float32Array.from(soup), Math.max(0.5, edge * 3));
+  const q = new Float64Array(3);
+  const project = (p: THREE.Vector3) => { if (surface.nearest(p.x, p.y, p.z, q) < Infinity) p.set(q[0], q[1], q[2]); };
+  for (let pass = 0; pass < passes; pass += 1) {
+    const region: number[] = [];
+    for (let v = 0; v < mesh.vCount; v += 1) if (mesh.vAlive[v] && chosen(v)) region.push(v);
+    // The border: chosen corners with a neighbour that is not.
+    const border = new Set<number>();
+    for (const v of region) for (const w of mesh.neighbours(v)) if (!chosen(w)) { border.add(v); break; }
+    mesh.refine(region, edge, { project, budget: Number.MAX_SAFE_INTEGER, fixed: (v) => !chosen(v) || border.has(v) || mesh.onBoundary(v), creaseAngle: REMESH_CREASE_ANGLE, always: true });
+  }
+}
+
+/** Offset: every corner moved `amount` mm along its smoothed normal, then evened out (Remesh, one pass). */
+export function offsetLive(mesh: LiveMesh, amount: number) {
+  const normals = smoothedNormals(mesh);
+  mesh.beginBulk();
+  for (let v = 0; v < mesh.vCount; v += 1) {
+    if (!mesh.vAlive[v]) continue;
+    mesh.pos[v * 3] += normals[v * 3] * amount; mesh.pos[v * 3 + 1] += normals[v * 3 + 1] * amount; mesh.pos[v * 3 + 2] += normals[v * 3 + 2] * amount;
+  }
+  mesh.endBulk();
+}
+
+function smoothedNormals(mesh: LiveMesh) {
+  const out = new Float64Array(mesh.vCount * 3);
+  const n = new THREE.Vector3();
+  for (let v = 0; v < mesh.vCount; v += 1) { if (!mesh.vAlive[v]) continue; mesh.vertexNormal(v, n); out[v * 3] = n.x; out[v * 3 + 1] = n.y; out[v * 3 + 2] = n.z; }
+  // Two passes of averaging with the neighbours keep a sharp edge from tearing.
+  for (let pass = 0; pass < 2; pass += 1) {
+    const next = out.slice();
+    for (let v = 0; v < mesh.vCount; v += 1) {
+      if (!mesh.vAlive[v]) continue;
+      let x = out[v * 3], y = out[v * 3 + 1], z = out[v * 3 + 2];
+      for (const w of mesh.neighbours(v)) { x += out[w * 3]; y += out[w * 3 + 1]; z += out[w * 3 + 2]; }
+      const l = Math.hypot(x, y, z) || 1;
+      next[v * 3] = x / l; next[v * 3 + 1] = y / l; next[v * 3 + 2] = z / l;
+    }
+    out.set(next);
+  }
+  return out;
+}
+
+/**
+ * Thicken: a surface (an open scan too) made a closed shell `thickness` mm thick, centred on it - one
+ * side moved out by half, a copy moved in by half and turned over, the open rims joined by a strip.
+ * Returns the shell as a soup.
+ */
+export function thickenSoup(mesh: LiveMesh, thickness: number): Float32Array {
+  const normals = smoothedNormals(mesh);
+  const { points, triangles } = mesh.compact();
+  // compact() renumbers; normals follow the same order.
+  const order: number[] = [];
+  for (let v = 0; v < mesh.vCount; v += 1) if (mesh.vAlive[v] && mesh.vTris[v].length) order.push(v);
+  const n = points.length / 3;
+  const half = thickness / 2;
+  const outer = new Float64Array(n * 3), inner = new Float64Array(n * 3);
+  order.forEach((v, i) => {
+    for (let k = 0; k < 3; k += 1) {
+      outer[i * 3 + k] = points[i * 3 + k] + normals[v * 3 + k] * half;
+      inner[i * 3 + k] = points[i * 3 + k] - normals[v * 3 + k] * half;
+    }
+  });
+  const soup: number[] = [];
+  const put = (arr: Float64Array, i: number) => soup.push(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]);
+  for (let t = 0; t < triangles.length; t += 3) {
+    const a = triangles[t], b = triangles[t + 1], c = triangles[t + 2];
+    put(outer, a); put(outer, b); put(outer, c);
+    put(inner, a); put(inner, c); put(inner, b);
+  }
+  // The rim: edges with one triangle, joined outer to inner.
+  const count = new Map<string, number>();
+  for (let t = 0; t < triangles.length; t += 3) for (let k = 0; k < 3; k += 1) {
+    const a = triangles[t + k], b = triangles[t + ((k + 1) % 3)];
+    const key = a < b ? `${a},${b}` : `${b},${a}`;
+    count.set(key, (count.get(key) ?? 0) + 1);
+  }
+  for (let t = 0; t < triangles.length; t += 3) for (let k = 0; k < 3; k += 1) {
+    const a = triangles[t + k], b = triangles[t + ((k + 1) % 3)];
+    if (count.get(a < b ? `${a},${b}` : `${b},${a}`) !== 1) continue;
+    // Edge a->b runs this way on the outer side: the strip is (outer b, outer a, inner a) and (outer b, inner a, inner b).
+    put(outer, b); put(outer, a); put(inner, a);
+    put(outer, b); put(inner, a); put(inner, b);
+  }
+  return Float32Array.from(soup);
+}

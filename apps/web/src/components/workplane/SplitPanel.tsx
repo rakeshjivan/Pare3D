@@ -1,0 +1,562 @@
+"use client";
+
+import { Check, LoaderCircle, MousePointerClick, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useWheelField } from "@/lib/useWheelField";
+import { wheelBaseStep, wheelNextValue } from "@/lib/wheelValueStep";
+import { displayStepFromMillimeters, displayToMillimeters, formatMeasurementNumber, lengthDisplayUnit, millimetersToDisplay, parseMeasurementInput } from "@/lib/measurementUnits";
+import { SPLIT_AXIS_DISPLAY_ORDER, splitAxisLabel, splitRotationAxes, type SplitRotation } from "@/lib/modelSplit";
+import { GuideHelpLink } from "@/components/GuideHelpLink";
+import { MovableToolPanel } from "@/components/workplane/MovableToolPanel";
+import { t } from "@/lib/i18n";
+import { useLanguage } from "@/lib/useLanguage";
+import { selectWholeValue } from "@/lib/numberField";
+import type { AlignAxis, WorkplaneWorkspaceSettings } from "@/types/layerling";
+import { CUT_CONNECTOR_LIMITS, type CutConnectorOptions, type CutConnectorType } from "@/lib/cutConnectors";
+
+export type SplitWorkplaneDirection = "parallel" | "acrossX" | "acrossY";
+
+const SPLIT_WORKPLANE_DIRECTIONS = [
+  { direction: "parallel", label: "split.workplaneParallel", hint: "split.workplaneParallelHint" },
+  { direction: "acrossX", label: "split.workplaneAcrossX", hint: "split.workplaneAcrossXHint" },
+  { direction: "acrossY", label: "split.workplaneAcrossY", hint: "split.workplaneAcrossYHint" },
+] as const satisfies ReadonlyArray<{ direction: SplitWorkplaneDirection; label: string; hint: string }>;
+
+export function SplitPanel({
+  axis,
+  rotation,
+  position,
+  min,
+  max,
+  targetCount,
+  workspace,
+  busy,
+  error,
+  picking,
+  onPickToggle,
+  onAxisChange,
+  onAlignToWorkplane,
+  onRotationChange,
+  onPositionChange,
+  onApply,
+  onCancel,
+  connectors,
+  onConnectorsChange,
+  connectorCount,
+  connectorsInvalid,
+  connectorsTooSmall,
+  onClearConnectors,
+}: {
+  axis: AlignAxis;
+  rotation: SplitRotation;
+  position: number;
+  min: number;
+  max: number;
+  targetCount: number;
+  workspace: WorkplaneWorkspaceSettings;
+  busy: boolean;
+  error: string | null;
+  /** The next click on a face moves the plane there. */
+  picking: boolean;
+  onPickToggle: () => void;
+  onAxisChange: (axis: AlignAxis) => void;
+  /** Lays the plane on the workplane, or square to it along its X or Y (#644). */
+  onAlignToWorkplane: (direction: SplitWorkplaneDirection) => void;
+  onRotationChange: (index: 0 | 1, rotation: number) => void;
+  onPositionChange: (position: number) => void;
+  onApply: () => void;
+  onCancel: () => void;
+  /** Fork: plugs or dowels on the cut face. */
+  connectors?: CutConnectorOptions;
+  onConnectorsChange?: (next: CutConnectorOptions) => void;
+  connectorCount?: number | null;
+  /** Placed by hand: points with no room, or too close to another (red on the plane). */
+  connectorsInvalid?: number;
+  connectorsTooSmall?: boolean;
+  onClearConnectors?: () => void;
+}) {
+  useLanguage();
+  // A cut across Y counts towards the back like the position fields (#182); inside it runs along z.
+  const sign = axis === "z" ? -1 : 1;
+  const displayPosition = millimetersToDisplay(sign * position, workspace) || 0;
+  const displayMin = millimetersToDisplay(sign > 0 ? min : -max, workspace);
+  const displayMax = millimetersToDisplay(sign > 0 ? max : -min, workspace);
+  const displayStep = displayStepFromMillimeters(0.1, workspace);
+  const unit = lengthDisplayUnit(workspace).label;
+  const formattedPosition = formatMeasurementNumber(displayPosition, workspace.accuracy, displayStep);
+  const rotationAxes = splitRotationAxes(axis);
+  const [positionEditing, setPositionEditing] = useState(false);
+  const [positionDraft, setPositionDraft] = useState(formattedPosition);
+  const applyDisplayPosition = (value: number) => {
+    if (Number.isFinite(value)) onPositionChange(sign * displayToMillimeters(value, workspace));
+  };
+  useEffect(() => {
+    if (!positionEditing) setPositionDraft(formattedPosition);
+  }, [formattedPosition, positionEditing]);
+  // The mouse wheel in the clicked field (#536); what it wrote stays as it is when the field is left.
+  const positionInputRef = useRef<HTMLInputElement>(null);
+  const positionWheelShownRef = useRef<string | null>(null);
+  useWheelField(positionInputRef, positionEditing && !busy, ({ direction, keys }) => {
+    const parsed = parseMeasurementInput(positionDraft);
+    const current = Number.isFinite(parsed) ? parsed : displayPosition;
+    const next = Math.min(displayMax, Math.max(displayMin, wheelNextValue(current, direction, wheelBaseStep(displayMin, displayMax, displayStep, unit === "in"), keys)));
+    const shown = formatMeasurementNumber(next, workspace.accuracy, displayStep);
+    positionWheelShownRef.current = shown;
+    setPositionDraft(shown);
+    applyDisplayPosition(next);
+  });
+  const commitPositionDraft = () => {
+    if (positionWheelShownRef.current !== null && positionDraft === positionWheelShownRef.current) {
+      positionWheelShownRef.current = null;
+      setPositionEditing(false);
+      return;
+    }
+    positionWheelShownRef.current = null;
+    const value = parseMeasurementInput(positionDraft);
+    if (Number.isFinite(value)) applyDisplayPosition(value);
+    setPositionEditing(false);
+  };
+
+  return (
+    <MovableToolPanel className="split-panel" ariaLabel={t("split.title")} focusOnOpen>
+      {(handleProps) => (<>
+      <div className="split-panel-header movable" title={t("panel.moveHint")} {...handleProps}>
+        <div>
+          <strong id="split-panel-title">{t("split.title")}</strong>
+          <span>{t("split.subtitle")}</span>
+        </div>
+        <div className="panel-header-actions">
+          <GuideHelpLink section="splitting" />
+          <button type="button" aria-label={t("split.cancelAria")} onClick={onCancel}><X size={20} /></button>
+        </div>
+      </div>
+
+      <div className="split-panel-target">
+        <strong>{targetCount === 1 ? t("split.targetOne") : t("split.targetMany", { count: targetCount })}</strong>
+        <span>{t("split.targetHint")}</span>
+      </div>
+
+      <fieldset className="split-axis-control" disabled={busy}>
+        <legend>{t("split.orientation")}</legend>
+        <div>
+          {SPLIT_AXIS_DISPLAY_ORDER.map((candidate) => (
+            <button
+              type="button"
+              className={axis === candidate ? "active" : ""}
+              aria-pressed={axis === candidate}
+              key={candidate}
+              onClick={() => onAxisChange(candidate)}
+            >
+              {splitAxisLabel(candidate)}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="split-axis-control split-workplane-control" disabled={busy}>
+        <legend>{t("split.workplane")}</legend>
+        <div>
+          {SPLIT_WORKPLANE_DIRECTIONS.map(({ direction, label, hint }) => (
+            <button type="button" key={direction} title={t(hint)} onClick={() => onAlignToWorkplane(direction)}>
+              {t(label)}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="split-position-control">
+        <span>
+          <strong>{t("split.position")}</strong>
+          <span className="split-position-value">
+            <input
+              ref={positionInputRef}
+              type="text"
+              inputMode="decimal"
+              value={positionEditing ? positionDraft : formattedPosition}
+              aria-label={t("split.positionAria")}
+              aria-describedby="split-position-unit"
+              disabled={busy}
+              onFocus={(event) => {
+                positionWheelShownRef.current = null;
+                setPositionDraft(formattedPosition);
+                setPositionEditing(true);
+                selectWholeValue(event.currentTarget);
+              }}
+              onChange={(event) => {
+                positionWheelShownRef.current = null;
+                setPositionDraft(event.currentTarget.value);
+              }}
+              onBlur={commitPositionDraft}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.currentTarget.blur();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setPositionDraft(formattedPosition);
+                  setPositionEditing(false);
+                }
+              }}
+            />
+            <small id="split-position-unit">{unit}</small>
+            <button
+              type="button"
+              className={`split-position-pick ${picking ? "active" : ""}`}
+              aria-pressed={picking}
+              aria-label={t("split.pickFace")}
+              title={t("split.pickFaceHint")}
+              disabled={busy}
+              onClick={onPickToggle}
+            >
+              <MousePointerClick size={17} />
+            </button>
+          </span>
+        </span>
+        <input
+          type="range"
+          min={displayMin}
+          max={displayMax}
+          step={displayStep}
+          value={displayPosition}
+          aria-label={t("split.positionSliderAria")}
+          aria-valuetext={t("split.positionValue", { value: formattedPosition, unit })}
+          disabled={busy}
+          onChange={(event) => applyDisplayPosition(event.currentTarget.valueAsNumber)}
+        />
+      </div>
+
+      {rotationAxes.map((rotationAxis, index) => (
+        <SplitRotationControl
+          key={rotationAxis}
+          axisLabel={splitAxisLabel(rotationAxis)}
+          // A tilt about Y turns the right-handed way (#182): minus the inside turn about z.
+          rotation={rotationAxis === "z" ? -rotation[index] || 0 : rotation[index]}
+          busy={busy}
+          onChange={(value) => onRotationChange(index as 0 | 1, rotationAxis === "z" ? -value || 0 : value)}
+        />
+      ))}
+
+      {connectors && onConnectorsChange ? (
+        <CutConnectorControls
+          value={connectors}
+          busy={busy}
+          count={connectorCount ?? null}
+          invalid={connectorsInvalid ?? 0}
+          tooSmall={Boolean(connectorsTooSmall)}
+          onChange={onConnectorsChange}
+          onClear={onClearConnectors}
+        />
+      ) : null}
+
+      <p className="split-panel-help">{t("split.help")}</p>
+      {error ? <div className="split-panel-error" role="alert">{error}</div> : null}
+
+      <div className="split-panel-footer">
+        <button type="button" className="secondary" disabled={busy} onClick={onCancel}>{t("common.cancel")}</button>
+        <button type="button" className="primary" disabled={busy || max - min <= 0.0001} onClick={onApply}>
+          {busy ? <LoaderCircle className="split-panel-spinner" size={17} /> : <Check size={17} />}
+          {busy ? t("split.applying") : t("split.apply")}
+        </button>
+      </div>
+      </>)}
+    </MovableToolPanel>
+  );
+}
+
+function SplitRotationControl({
+  axisLabel,
+  rotation,
+  busy,
+  onChange,
+}: {
+  axisLabel: "X" | "Y" | "Z";
+  rotation: number;
+  busy: boolean;
+  onChange: (rotation: number) => void;
+}) {
+  const formatted = String(Number(rotation.toFixed(2)));
+  const unitId = `split-rotation-${axisLabel.toLowerCase()}-unit`;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(formatted);
+  useEffect(() => {
+    if (!editing) setDraft(formatted);
+  }, [formatted, editing]);
+  // The mouse wheel in the clicked field (#536): a degree a notch, ten with Shift, a tenth with Ctrl.
+  const inputRef = useRef<HTMLInputElement>(null);
+  const wheelShownRef = useRef<string | null>(null);
+  useWheelField(inputRef, editing && !busy, ({ direction, keys }) => {
+    const parsed = parseMeasurementInput(draft);
+    const next = Math.min(180, Math.max(-180, wheelNextValue(Number.isFinite(parsed) ? parsed : rotation, direction, 1, keys)));
+    const shown = String(Number(next.toFixed(2)));
+    wheelShownRef.current = shown;
+    setDraft(shown);
+    onChange(next);
+  });
+  const commitDraft = () => {
+    if (wheelShownRef.current !== null && draft === wheelShownRef.current) {
+      wheelShownRef.current = null;
+      setEditing(false);
+      return;
+    }
+    wheelShownRef.current = null;
+    const value = parseMeasurementInput(draft);
+    if (Number.isFinite(value)) onChange(value);
+    setEditing(false);
+  };
+
+  return (
+    <div className="split-position-control split-rotation-control">
+      <span>
+        <strong>{t("split.rotation", { axis: axisLabel })}</strong>
+        <span className="split-position-value">
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode="decimal"
+            value={editing ? draft : formatted}
+            aria-label={t("split.rotationAria", { axis: axisLabel })}
+            aria-describedby={unitId}
+            disabled={busy}
+            onFocus={(event) => {
+              wheelShownRef.current = null;
+              setDraft(formatted);
+              setEditing(true);
+              selectWholeValue(event.currentTarget);
+            }}
+            onChange={(event) => {
+              wheelShownRef.current = null;
+              setDraft(event.currentTarget.value);
+            }}
+            onBlur={commitDraft}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.stopPropagation();
+                event.currentTarget.blur();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                setDraft(formatted);
+                setEditing(false);
+              }
+            }}
+          />
+          <small id={unitId}>{t("split.degrees")}</small>
+        </span>
+      </span>
+      <input
+        type="range"
+        min={-180}
+        max={180}
+        step={1}
+        value={rotation}
+        aria-label={t("split.rotationSliderAria", { axis: axisLabel })}
+        aria-valuetext={t("split.rotationValue", { value: formatted, axis: axisLabel })}
+        disabled={busy}
+        onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
+      />
+    </div>
+  );
+}
+
+const CONNECTOR_TYPES = [
+  { type: "none", label: "connectors.none", hint: "connectors.noneHint" },
+  { type: "plug", label: "connectors.plug", hint: "connectors.plugHint" },
+  { type: "dowel", label: "connectors.dowel", hint: "connectors.dowelHint" },
+  // Build 71: holds without glue - the halves slide together from the side.
+  { type: "dovetail", label: "connectors.dovetail", hint: "connectors.dovetailHint" },
+] as const satisfies ReadonlyArray<{ type: CutConnectorType; label: string; hint: string }>;
+
+const CONNECTOR_FITS = [
+  { clearance: 0.1, label: "printFit.press", hint: "printFit.pressHint" },
+  { clearance: 0.2, label: "printFit.snug", hint: "printFit.snugHint" },
+  { clearance: 0.4, label: "printFit.loose", hint: "printFit.looseHint" },
+] as const;
+
+/** Fork: the cut's connectors, as Bambu Studio and OrcaSlicer offer them. */
+function CutConnectorControls({
+  value,
+  busy,
+  count,
+  invalid,
+  tooSmall,
+  onChange,
+  onClear,
+}: {
+  value: CutConnectorOptions;
+  busy: boolean;
+  count: number | null;
+  invalid: number;
+  tooSmall: boolean;
+  onChange: (next: CutConnectorOptions) => void;
+  onClear?: () => void;
+}) {
+  const manual = value.placement === "manual";
+  const set = (patch: Partial<CutConnectorOptions>) => onChange({ ...value, ...patch });
+  return (
+    <fieldset className="split-connectors" disabled={busy}>
+      <legend>{t("connectors.title")}</legend>
+      <div className="split-connector-choice" role="group" aria-label={t("connectors.type")}>
+        {CONNECTOR_TYPES.map((entry) => (
+          <button
+            type="button"
+            key={entry.type}
+            className={value.type === entry.type ? "active" : ""}
+            aria-pressed={value.type === entry.type}
+            title={t(entry.hint)}
+            onClick={() => set({ type: entry.type })}
+          >
+            {t(entry.label)}
+          </button>
+        ))}
+      </div>
+      {value.type !== "none" ? (
+        <>
+          <p className="split-connector-hint">{t(value.type === "plug" ? "connectors.plugHint" : value.type === "dovetail" ? "connectors.dovetailHint" : "connectors.dowelHint")}</p>
+          <div className="split-connector-fields">
+            <ConnectorNumber
+              label={t(value.type === "dovetail" ? "connectors.keyWidth" : "connectors.size")}
+              value={value.diameter}
+              min={CUT_CONNECTOR_LIMITS.minDiameter}
+              max={CUT_CONNECTOR_LIMITS.maxDiameter}
+              onChange={(diameter) => set({ diameter })}
+            />
+            <ConnectorNumber
+              label={t(value.type === "plug" ? "connectors.pegLength" : value.type === "dovetail" ? "connectors.keyDepth" : "connectors.socketDepth")}
+              value={value.depth}
+              min={CUT_CONNECTOR_LIMITS.minDepth}
+              max={CUT_CONNECTOR_LIMITS.maxDepth}
+              onChange={(depth) => set({ depth })}
+            />
+          </div>
+          <div className="split-connector-row">
+            <span>{t("printFit.title")}</span>
+            <div className="split-connector-choice" role="group" aria-label={t("printFit.title")}>
+              {CONNECTOR_FITS.map((fit) => (
+                <button
+                  type="button"
+                  key={fit.clearance}
+                  className={Math.abs(value.clearance - fit.clearance) < 1e-6 ? "active" : ""}
+                  aria-pressed={Math.abs(value.clearance - fit.clearance) < 1e-6}
+                  title={t(fit.hint)}
+                  onClick={() => set({ clearance: fit.clearance })}
+                >
+                  {t(fit.label)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="split-connector-row">
+            <span>{t("connectors.placement")}</span>
+            <div className="split-connector-choice" role="group" aria-label={t("connectors.placement")}>
+              {(["auto", "manual"] as const).map((placement) => (
+                <button
+                  type="button"
+                  key={placement}
+                  className={value.placement === placement ? "active" : ""}
+                  aria-pressed={value.placement === placement}
+                  title={t(placement === "auto" ? "connectors.autoHint" : "connectors.manualHint")}
+                  onClick={() => set({ placement })}
+                >
+                  {t(placement === "auto" ? "connectors.auto" : "connectors.manual")}
+                </button>
+              ))}
+            </div>
+          </div>
+          {manual ? (
+            <div className="split-connector-manual">
+              <p>{t("connectors.manualHint")}</p>
+              {onClear ? <button type="button" className="split-connector-clear" onClick={onClear}>{t("connectors.clear")}</button> : null}
+            </div>
+          ) : null}
+          {!manual ? (
+          <div className="split-connector-row">
+            <span>{t("connectors.perPiece")}</span>
+            <div className="split-connector-choice" role="group" aria-label={t("connectors.perPiece")}>
+              {([1, 2] as const).map((perPiece) => (
+                <button
+                  type="button"
+                  key={perPiece}
+                  className={value.perPiece === perPiece ? "active" : ""}
+                  aria-pressed={value.perPiece === perPiece}
+                  onClick={() => set({ perPiece })}
+                >
+                  {perPiece}
+                </button>
+              ))}
+            </div>
+          </div>
+          ) : null}
+          {value.type === "plug" || value.type === "dovetail" ? (
+            <label className="split-connector-flip">
+              <input type="checkbox" checked={value.flip} onChange={(event) => set({ flip: event.currentTarget.checked })} />
+              {t(value.type === "dovetail" ? "connectors.flipKey" : "connectors.flip")}
+            </label>
+          ) : null}
+          <p className={`split-connector-status ${(tooSmall && !count) || invalid ? "warning" : ""}`} role="status">
+            {manual
+              ? invalid
+                ? t("connectors.manualInvalid", { count: count ?? 0, invalid })
+                : count
+                  ? t("connectors.manualCount", { count })
+                  : t("connectors.manualEmpty")
+              : tooSmall && !count
+                ? t("connectors.tooSmallPreview")
+                : count
+                  ? t(value.type === "plug" ? "connectors.previewPlugs" : value.type === "dovetail" ? "connectors.previewDovetails" : "connectors.previewDowels", { count })
+                  : t("connectors.working")}
+          </p>
+        </>
+      ) : null}
+    </fieldset>
+  );
+}
+
+function ConnectorNumber({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
+  const shown = String(Number(value.toFixed(2)));
+  const [draft, setDraft] = useState(shown);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setDraft(shown);
+  }, [shown, editing]);
+  const commit = () => {
+    const parsed = parseMeasurementInput(draft);
+    if (Number.isFinite(parsed)) onChange(Math.min(max, Math.max(min, parsed)));
+    setEditing(false);
+  };
+  return (
+    <label className="split-connector-number">
+      <span>{label}</span>
+      <span className="split-position-value">
+        <input
+          type="text"
+          inputMode="decimal"
+          value={editing ? draft : shown}
+          aria-label={label}
+          onFocus={(event) => {
+            setDraft(shown);
+            setEditing(true);
+            selectWholeValue(event.currentTarget);
+          }}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+              event.currentTarget.blur();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              setDraft(shown);
+              setEditing(false);
+            }
+          }}
+        />
+        <small>mm</small>
+      </span>
+    </label>
+  );
+}

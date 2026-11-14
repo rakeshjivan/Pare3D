@@ -1,0 +1,127 @@
+---
+title: Solids and holes
+summary: How simple shapes become bores, slots and pockets, and how to change a group again later.
+---
+
+This is the most important idea in Pare 3D, and it is quickly learned: **Every shape is either a solid or a hole.** A solid stays. A hole is a tool that takes material away.
+
+## Solid or hole
+
+Select a shape and click {{ui:inspector.solid}} or {{ui:inspector.hole}} in its settings. The keyboard is faster: [[H]] makes the selection a hole, [[S]] makes it a solid again. Both are also in the menu a right click on the body opens. A hole is shown see-through so you can see where it sits. [[T]] makes a body see-through, say to look into a housing; a second press makes it opaque again. It works on the whole selection: if any body is already see-through, all become opaque, otherwise all become see-through.
+
+As long as nothing is grouped, nothing happens with a hole. It just lies there and shows where something will disappear later.
+
+![The cylinder is a hole. It sticks out of the top of the cube so that it cuts all the way through.](shot:hole-before)
+
+## Grouping
+
+Select solids and hole(s) and click {{ui:editor.tool.group}} ([[Ctrl]]+[[G]]). Now the holes remove the material from the solids they touch. What remains is one single new shape.
+
+![The result: a cube with a bore.](shot:hole-after)
+
+This is how you get:
+
+- **Bores:** a cylinder as a hole through a body.
+- **Slots:** an elongated box as a hole at the edge.
+- **Pockets:** a hole that does not go all the way through.
+- **Threads in a part:** a tapped hole as a hole, see [Threads and mechanics](chapter:threads-and-mechanics).
+
+If several solids are in the group, they are joined. Two solids that touch become a single part.
+
+With large meshes, such as an imported STL with hundreds of thousands of triangles, the cut takes a few seconds. Pare 3D then works in the background and shows "{{ui:status.computing}}"; meanwhile you can turn the view and use the interface. If you change the scene in that time, the result is dropped and Pare 3D tells you so. The same goes for {{ui:editor.tool.split}}.
+
+You can treat a group like a shape: move, rotate, colour, group again. {{ui:editor.tool.ungroup}} ([[Ctrl]]+[[Shift]]+[[G]]) dissolves it and the individual parts are back.
+
+### Making a group a hole
+
+A whole group can also be a solid or a hole. A simple rule applies:
+
+- If the group consists only of solids (or only of holes), you switch it as a whole and its parts go along.
+- If it contains both, say a cube with a bore, each part keeps its own state. The whole group then becomes a tool, but the bore stays a bore.
+
+## Bundling
+
+Sometimes parts should only stay together without becoming one - a white logo on a black plate for a multicolour print, say. That is what {{ui:editor.tool.bundle}} ([[Ctrl]]+[[B]]) is for, as in Tinkercad. A bundle moves, turns and resizes like a shape, but nothing is merged:
+
+- Every part keeps its colour and stays a solid or a hole.
+- Holes cut nothing. When you group the bundle with other parts, its holes cut those parts but still not the bundle's own solids, as in Tinkercad. So a peg with its hole beside it, say, can be used again and again as a bundle.
+- In an STL, 3MF or OBJ export every part is a body of its own; in 3MF and OBJ with its colour.
+
+{{ui:editor.tool.ungroup}} ([[Ctrl]]+[[Shift]]+[[G]]) takes a bundle apart again, [[E]] opens it for editing like a group. Chamfer, fillet and hollowing do not work on a bundle, because it is not one body: group it for that, or work on its parts one by one. If a hole in the bundle should cut the bundle's own solids too, take the bundle apart and group its parts ([[Ctrl]]+[[G]]).
+
+## Intersection
+
+{{ui:editor.tool.intersect}} keeps only what two or more bodies have in common. Lay two overlapping shapes on top of each other, select both and click it. That turns a cylinder and a box into a piece with one round and one straight side. A group counts the way it looks, holes included. If a hole is selected too, what remains is what all the solids share with all the holes. If the shapes share nothing, nothing is changed and a message says so. Next to it, {{ui:editor.tool.intersectPreview}} shows the common part before you apply it: the selected shapes turn see-through and what they share is drawn in green. Select and move each shape on its own and the green part follows; {{ui:editor.tool.intersect}} applies it, [[Esc]] closes the preview.
+
+## Blend
+
+{{ui:blend.title}} joins two parts with a smooth piece between them - like a loft in Fusion. Two cylinders of different sizes become one with a flowing neck; a round pipe runs into a square duct; a handle grows out of a base.
+
+1. Place the two parts where they should be, with a gap between them. Both must be solid parts.
+2. Select both and click {{ui:blend.title}} in the {{ui:editor.group.combine}} group of the toolbar.
+3. Pare 3D finds the flat faces that face each other - the top of the lower cylinder and the bottom of the upper one, say - and shows the piece between them as a preview. To use another flat face, click it; a curved face cannot be used.
+4. Set the {{ui:blend.smoothness}}: 0 is a straight taper from one face to the other; 100 leaves both faces square and flares smoothly in between, like a hose adapter. The parts need not sit in line: the piece curves from one face to the other. Switch off {{ui:blend.linkEnds}} to set each end on its own - like the tangency weight of a loft in Fusion: flare out square from the wide part and ease gently into the narrow one, say.
+5. Joining two round parts offset sideways, like a drain pipe's S-bend? Switch on {{ui:blend.keepDiameter}}: every slice then stands square to the path, like a pipe, so the piece stays as thick as the parts all the way, without thinning in the bend. A pipe can only bend so tightly for its size: if the parts are too close for that, the window says how many millimetres further apart along their length they need to be.
+6. If the piece looks twisted - a square running into a hexagon, say - {{ui:blend.twist}} turns one outline a step against the other until the corners line up.
+7. Joining two hollow parts - two tubes, a hollowed box and a hollowed cylinder? When both faces have an opening, {{ui:blend.hollow}} is on: the piece is a sleeve, its inner wall runs from one opening to the other, and the result is one tube open all the way through. Switch it off for a solid piece.
+8. {{ui:blend.join}} (on by default) makes the two parts and the piece one group, so they print as one body - Fusion's Join. Switched off, the piece is a part of its own beside the two - Fusion's New body.
+9. [[Enter]] or {{ui:blend.apply}} makes it. [[Esc]] closes the tool without it.
+
+The piece is an exact CAD body, like a box or a cylinder: {{ui:editor.tool.fillet}}, {{ui:editor.tool.chamfer}} and {{ui:editor.tool.hollow}} work on the blended part, and STEP keeps it exact. Two exceptions, and the message after Create says which: when the faces face each other but are far apart sideways, the piece's slices are kept parallel to the faces so it can stay exact; and when a piece has to turn more tightly than it is wide - an elbow between two faces at right angles with little room - it is kept as a mesh, which cannot be filleted. Move the parts further apart, or pick faces that face each other.
+
+### Changing a blend
+
+Select the blend - the group, or the piece if it was kept separate - and click {{ui:blend.title}} again. The window opens with the blend's settings and faces; change anything, including joining or separating, and click {{ui:blend.update}}. [[Esc]] leaves it as it was. Once a blend has been filleted, chamfered or hollowed, or its parts were changed inside the group, it can no longer be opened this way: undo those first. {{ui:editor.tool.ungroup}} still takes the group apart, and the piece is an ordinary part you can delete. The faces can be any flat outline - circles, squares, a sketch, a polygon. For a smooth result, round shapes should have plenty of sides (see [How round is round?](chapter:shapes)).
+
+## Hull: wrapping parts in one body
+
+**{{ui:hull.title}}** in the Combine group wraps the selected parts in one smooth body, as if shrink-wrapped: the tightest shape that holds them all, with no dents. Two cylinders side by side become a rounded slot; a few spheres make an organic bracket; a cylinder and a box make a tapered handle. Select two or more parts (or one group) and click it. The parts are replaced by the hull - [[Ctrl]]+[[Z]] brings them back. Holes are left out of the hull.
+
+A hull never has dents, so it does not follow an L shape round its inside corner: for that, build the parts as they are and group them.
+
+{{ui:editor.tool.loftSketches}} joins two sketch bodies or imported SVGs into one body: the outline of the lower one at the bottom, the outline of the upper one at the top, with straight walls between them. That makes a funnel, a transition piece from square to round, or a frame that narrows towards the top. Put the two bodies one above the other where they belong, shifted and turned if you like, select both and click the tool. The loft reaches from the bottom of the lower body to the top of the upper one.
+
+Each of the two needs exactly one outline. If it has a hole, a ring say, the other needs as many, and the holes are lofted too: two rings give a hollow wall. A sketch built as a line (a line outside, inside or centred under Properties) counts as such a ring. An imported SVG comes in filled; to make it a ring, give it a line under Properties. Both bodies must lie flat; the tool refuses tipped ones.
+
+The loft is an exact CAD body; the edge tools and the STEP export take it as one. The two sketches stay inside it: {{ui:group.edit}} opens them like a group, and moving or changing one there, or editing its sketch, and closing it builds the loft anew. {{ui:editor.tool.ungroup}} sets the two sketches free again. For two rectangles, circles or polygons there is also the Loft shape among the shapes, whose ends you set as numbers.
+
+## Cutting one body out of another
+
+For parts that have to fit, a shaft in a collar, a bolt in a case, you make the one part and cut it out of the other. Select the two bodies and click {{ui:editor.tool.cutOut}} in the {{ui:editor.group.combine}} area, or right-click and choose it there. The panel names the part that stays and the body that gets the cavity; layerling takes the smaller one as the part, and a click on {{ui:cutOut.swap}} turns it around. The {{ui:cutOut.clearance}} makes the cavity that much larger than the part on every side: 0 fits exactly, 0.2 mm is a usual room for a printed fit. {{ui:cutOut.apply}} cuts a copy of the part out of the other body and leaves the part itself where it is. The result is a group: {{ui:editor.tool.ungroup}} takes the cut apart again. A clearance needs the part to be an exact body, like the {{ui:editor.tool.offset}} tool, which it uses.
+
+## Editing a group
+
+If a bore turned out too small, you do not have to dissolve the group and rebuild. Select the group and click {{ui:group.edit}} in its settings, the folder icon in the object list, or press [[E]]. A double click on the group does the same, as in Tinkercad, on a bundle too; if you would rather not, switch off {{ui:workspace.doubleClickOpensGroup}} in the settings. A part only starts to move once the pointer has been dragged a few pixels, so a shaky click or double click does not nudge it. The parts now lie separately and you change them with every tool: make a hole larger, move a body, add a hole.
+
+![The group being edited: the bar at the bottom holds Cancel and Done, and the object list shows the parts.](shot:open-group)
+
+A bar appears at the bottom of the picture. {{ui:group.done}} rebuilds the group, with its name, its colour and its state as solid or hole. {{ui:common.cancel}} puts it back untouched.
+
+If one of the parts is itself a group, you can edit it the same way, and so on as deep as your design goes. The bar shows where you are, for example "Bracket › Screw boss". {{ui:group.done}} and {{ui:common.cancel}} always finish the innermost group and take you one level back out. While you are inside a group, only the groups among its parts can be edited; to edit another one, finish first.
+
+Unlike {{ui:editor.tool.ungroup}}, which takes a group apart for good, editing keeps the group: its name and settings stay, and you can always go back with {{ui:common.cancel}}.
+
+A note: fillets and chamfers you had put on the **whole** group are lost on rebuild. The bar tells you so.
+
+## Splitting
+
+{{ui:editor.tool.split}} in the {{ui:editor.group.modify}} area cuts the selection in two with a plane - a part too big for the print bed, say, or one you want to see the inside of. Select one or more solids or holes and click it. A translucent plane shows exactly where the cut will go, and a white line marks it on the bodies themselves, where the plane meets them; nothing changes until you apply it.
+
+- {{ui:split.orientation}}: **X** makes an upright cut between left and right, **Y** between front and back, **Z** a horizontal cut between top and bottom. The axes are named as on the Position card, with Z up. The plane starts parallel to the workplane, so on the base plate with Z.
+- {{ui:split.workplane}}: {{ui:split.workplaneParallel}} lays the plane parallel to the workplane, {{ui:split.workplaneAcrossX}} and {{ui:split.workplaneAcrossY}} stand it square to it, across its X or Y direction. Where the workplane's origin crosses the selection the plane goes through it, otherwise through the middle. So you put the workplane on a sloped face with [[W]] and cut right there, without turning the sliders.
+- {{ui:split.position}}: where the plane crosses, with the slider or typed in. It starts in the middle. You can also drag the arrow head on the plane; the plane moves along the arrow in 0.1 mm steps.
+- {{ui:split.pickFace}}, the button next to the position, lays the plane on a face: click it, then click the face. Orientation, both rotations and position are set to match. While you pick, a blue plane under the pointer shows the face it will take. A face of a body that is not selected works too, to line the cut up with it, but the plane stays within the selection. [[Esc]] stops picking and leaves the plane where it was.
+- The two rotation sliders below turn the plane about the other two axes, up to 180° either way, for an angled cut. They can be combined.
+- {{ui:connectors.title}} join the halves again after printing: {{ui:connectors.plug}} puts a round peg on one half and a socket in the other, {{ui:connectors.dowel}} a socket in both and a separate pin, and {{ui:connectors.dovetail}} a key with a dovetail section on one half and a slot right across the other - slide the halves together from the side and they cannot be pulled apart across the cut, without glue. {{ui:printFit.title}} sets the room in the socket or slot; {{ui:connectors.placement}} spreads them for you or puts them where you click.
+
+{{ui:split.apply}} or [[Enter]] makes the cut, [[Esc]] cancels (while picking a face, the first [[Esc]] only stops picking). Every object the plane crosses becomes two closed bodies, named after their side, for example "Box (Z+)" and "Box (Z-)"; objects it misses stay as they are. A hole becomes two holes, and a hollowed body keeps its cavity. Both halves stay where they were - for printing, lay each one on its cut face with {{ui:editor.tool.layFlat}}.
+
+The halves are plain meshes: settings such as a cylinder's sides or a text's lettering are gone, so set those first. [[Ctrl]]+[[Z]] brings the original back in one step. Locked and hidden objects cannot be split.
+
+An imported mesh needs a closed surface to be split, grouped or cut. If it has openings, such as the eyes of a figure left open or a crack in a scan, Pare 3D closes them with a flat cap first and says how many it closed. It closes small openings and flat ones of any size; a large opening whose rim bends is left to you, and the message says so. Close it in the program the model comes from, or with a mesh repair tool, and import it again.
+
+## Separating parts
+
+If a shape consists of several separate pieces, such as text made of single letters, {{ui:inspector.separateParts}} splits it into independent shapes. The entry is also in the menu you get with a right click on the shape.
+
+> **Tip:** Always build holes a little longer than the part they are to pass through. If the hole ends exactly flush with the face, a wafer-thin skin sometimes remains. One millimetre of overshoot makes sure.

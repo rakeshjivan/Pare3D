@@ -1,0 +1,184 @@
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+(globalThis as unknown as { window: unknown }).window = { location: { href: pathToFileURL(resolve("apps/web/public") + "/").href } };
+import { blendKeepDiameterShortfall, blendLoftInput, blendShape, DEFAULT_BLEND, facingFaces, normalizeBlend } from "@/lib/blend";
+import { buildGroupedShapeFromSelection } from "@/lib/editorBooleans";
+import { meshForShape, getManifoldRuntime } from "@/lib/editorMeshCore";
+import type { WorkplaneShape } from "@/types/layerling";
+
+function cylinder(id: string, diameter: number, height: number, elevation: number, x = 0): WorkplaneShape {
+  return { id, name: id, kind: "cylinder", color: "#d41721", x, z: 0, elevation, size: diameter, width: diameter, depth: diameter, height, rotation: 0, sides: 64 } as unknown as WorkplaneShape;
+}
+function box(id: string, size: number, height: number, elevation: number, x = 0): WorkplaneShape {
+  return { id, name: id, kind: "box", color: "#d41721", x, z: 0, elevation, size, width: size, depth: size, height, rotation: 0 } as unknown as WorkplaneShape;
+}
+function bounds(shape: WorkplaneShape) {
+  const v = meshForShape(shape).vertices;
+  const min = (i: number) => Math.min(...v.map((p) => p[i]));
+  const max = (i: number) => Math.max(...v.map((p) => p[i]));
+  return { minY: min(1), maxY: max(1), minX: min(0), maxX: max(0) };
+}
+async function isClosedSolid(shape: WorkplaneShape) {
+  const runtime = await getManifoldRuntime();
+  const mesh = meshForShape(shape);
+  const vertProperties = new Float32Array(mesh.vertices.flat());
+  const triVerts = new Uint32Array(mesh.faces.flat());
+  const manifoldMesh = new runtime.Mesh({ numProp: 3, vertProperties, triVerts });
+  manifoldMesh.merge();
+  const solid = new runtime.Manifold(manifoldMesh);
+  const ok = solid.status() === "NoError" && solid.volume() > 0;
+  solid.delete();
+  return ok;
+}
+
+describe("Blend joins two bodies with a smooth piece (build 25)", () => {
+  it("finds the facing ends of two stacked cylinders", () => {
+    const pair = facingFaces(cylinder("big", 30, 10, 0), cylinder("small", 12, 10, 30));
+    expect(pair).not.toBeNull();
+    expect(pair!.a.normal.y).toBeCloseTo(1, 3);
+    expect(pair!.b.normal.y).toBeCloseTo(-1, 3);
+  });
+
+  it("builds a closed piece from face to face, reaching a little into each", async () => {
+    const a = cylinder("big", 30, 10, 0);
+    const b = cylinder("small", 12, 10, 30);
+    const pair = facingFaces(a, b)!;
+    const piece = blendShape(pair.a, pair.b, DEFAULT_BLEND, { name: "Blend", color: "#888" })!;
+    const box3 = bounds(piece);
+    expect(box3.minY).toBeCloseTo(9.8, 2);
+    expect(box3.maxY).toBeCloseTo(30.2, 2);
+    expect(box3.maxX - box3.minX).toBeCloseTo(30, 0);
+    expect(await isClosedSolid(piece)).toBe(true);
+    const joined = await buildGroupedShapeFromSelection([a, b, piece], 400000);
+    expect(joined.group).toBeTruthy();
+    const all = bounds(joined.group!);
+    expect(all.minY).toBeCloseTo(0, 2);
+    expect(all.maxY).toBeCloseTo(40, 2);
+  });
+
+  it("joins a box to a cylinder that is off to one side, still closed", async () => {
+    const a = box("block", 20, 10, 0);
+    const b = cylinder("pin", 10, 10, 35, 15);
+    const pair = facingFaces(a, b)!;
+    for (const smoothness of [0, 50, 100]) {
+      const piece = blendShape(pair.a, pair.b, normalizeBlend({ smoothness }), { name: "Blend", color: "#888" })!;
+      expect(await isClosedSolid(piece)).toBe(true);
+    }
+  });
+
+  it("finds nothing when no flat faces face each other", () => {
+    expect(facingFaces(box("a", 10, 10, 0), box("b", 10, 10, 0, 0))).toBeNull();
+  });
+});
+
+describe("Blend ignores the strips of a round side (build 25)", () => {
+  it("joins the ends of two cylinders even when one is off to the side", () => {
+    const a = { ...cylinder("left", 20, 10, 0), sides: 100 } as WorkplaneShape;
+    const b = { ...cylinder("right", 12, 10, 35, 40), sides: 100 } as WorkplaneShape;
+    const pair = facingFaces(a, b)!;
+    expect(pair.a.normal.y).toBeCloseTo(1, 3);
+    expect(pair.b.normal.y).toBeCloseTo(-1, 3);
+  });
+});
+
+describe("Blend keeps two hollow parts open through (build 28)", () => {
+  const tube = (id: string, diameter: number, wall: number, height: number, elevation: number, x = 0) =>
+    ({ ...cylinder(id, diameter, height, elevation, x), kind: "tube", bevel: wall, sides: 64 }) as unknown as WorkplaneShape;
+  async function genus(shape: WorkplaneShape) {
+    const runtime = await getManifoldRuntime();
+    const mesh = meshForShape(shape);
+    const manifoldMesh = new runtime.Mesh({ numProp: 3, vertProperties: new Float32Array(mesh.vertices.flat()), triVerts: new Uint32Array(mesh.faces.flat()) });
+    manifoldMesh.merge();
+    const solid = new runtime.Manifold(manifoldMesh);
+    const result = { ok: solid.status() === "NoError" && solid.volume() > 0, genus: solid.genus() };
+    solid.delete();
+    return result;
+  }
+
+  it("makes a sleeve between two tubes, and the group is one open tube", async () => {
+    const a = tube("wide", 30, 3, 10, 0);
+    const b = tube("narrow", 16, 2, 10, 30, 6);
+    const pair = facingFaces(a, b)!;
+    for (const smoothness of [0, 70, 100]) {
+      const piece = blendShape(pair.a, pair.b, normalizeBlend({ smoothness }), { name: "Blend", color: "#888" })!;
+      expect(await genus(piece)).toEqual({ ok: true, genus: 1 });
+    }
+    const piece = blendShape(pair.a, pair.b, DEFAULT_BLEND, { name: "Blend", color: "#888" })!;
+    const joined = await buildGroupedShapeFromSelection([a, b, piece], 400000);
+    expect(await genus(joined.group!)).toEqual({ ok: true, genus: 1 });
+  });
+
+  it("closes the piece when Hollow through is off", async () => {
+    const a = tube("wide", 30, 3, 10, 0);
+    const b = tube("narrow", 16, 2, 10, 30);
+    const pair = facingFaces(a, b)!;
+    const piece = blendShape(pair.a, pair.b, normalizeBlend({ hollow: false }), { name: "Blend", color: "#888" })!;
+    expect(await genus(piece)).toEqual({ ok: true, genus: 0 });
+  });
+});
+
+describe("Blend options (build 29)", () => {
+  it("with both ends alike, gives exactly the shape of before", () => {
+    const pair = facingFaces(cylinder("big", 30, 10, 0), cylinder("small", 12, 10, 30, 8))!;
+    for (const smoothness of [0, 35, 70, 100]) {
+      const linked = blendShape(pair.a, pair.b, normalizeBlend({ smoothness }), { name: "B", color: "#888" })!;
+      const apart = blendShape(pair.a, pair.b, normalizeBlend({ smoothness, smoothnessEnd: smoothness, linked: false }), { name: "B", color: "#888" })!;
+      expect(apart.importedMesh!.positions).toEqual(linked.importedMesh!.positions);
+    }
+  });
+
+  it("flares one end and eases the other when the ends differ, still closed", async () => {
+    const pair = facingFaces(cylinder("big", 30, 10, 0), cylinder("small", 12, 10, 30))!;
+    const even = blendShape(pair.a, pair.b, normalizeBlend({ smoothness: 50 }), { name: "B", color: "#888" })!;
+    const uneven = blendShape(pair.a, pair.b, normalizeBlend({ smoothness: 100, smoothnessEnd: 0, linked: false }), { name: "B", color: "#888" })!;
+    expect(uneven.importedMesh!.positions).not.toEqual(even.importedMesh!.positions);
+    expect(await isClosedSolid(uneven)).toBe(true);
+  });
+
+  it("keeps old settings working: a blend saved before has both ends alike and joins", () => {
+    const old = normalizeBlend({ smoothness: 40, twist: 3 } as never);
+    expect(old).toMatchObject({ smoothness: 40, smoothnessEnd: 40, linked: true, join: true, hollow: true, twist: 3 });
+  });
+});
+
+describe("Keep the diameter (build 31)", () => {
+  // Newell normal of a flat ring and its centre.
+  const ringFrame = (flat: number[]) => {
+    const n = flat.length / 3;
+    const c = [0, 0, 0];
+    const nn = [0, 0, 0];
+    for (let i = 0; i < n; i += 1) {
+      const p = flat.slice(i * 3, i * 3 + 3), q = flat.slice(((i + 1) % n) * 3, ((i + 1) % n) * 3 + 3);
+      c[0] += p[0] / n; c[1] += p[1] / n; c[2] += p[2] / n;
+      nn[0] += (p[1] - q[1]) * (p[2] + q[2]); nn[1] += (p[2] - q[2]) * (p[0] + q[0]); nn[2] += (p[0] - q[0]) * (p[1] + q[1]);
+    }
+    const len = Math.hypot(...nn);
+    return { c, n: nn.map((v) => v / len) };
+  };
+
+  it("stands every slice square to the path, so the pipe keeps its size", () => {
+    const pair = facingFaces(cylinder("low", 20, 10, 0), cylinder("high", 20, 10, 50, 18))!;
+    const input = blendLoftInput(pair.a, pair.b, normalizeBlend({ keepDiameter: true }))!;
+    expect(input).toBeTruthy();
+    const frames = input.rings.map(ringFrame);
+    for (let i = 2; i < frames.length - 2; i += 1) {
+      const along = [0, 1, 2].map((k) => frames[i + 1].c[k] - frames[i - 1].c[k]);
+      const len = Math.hypot(...along);
+      const dot = Math.abs(along.reduce((sum, v, k) => sum + (v / len) * frames[i].n[k], 0));
+      expect(dot).toBeGreaterThan(0.985);
+    }
+  });
+
+  it("says how much further apart the parts need to be when they are too close, and then it works", () => {
+    const tight = facingFaces(cylinder("low", 20, 10, 0), cylinder("high", 20, 10, 16, 20))!;
+    const settings = normalizeBlend({ keepDiameter: true });
+    expect(blendShape(tight.a, tight.b, settings, { name: "B", color: "#888" })).toBeNull();
+    const gap = blendKeepDiameterShortfall(tight.a, tight.b, settings)!;
+    expect(gap).toBeGreaterThan(0);
+    const moved = facingFaces(cylinder("low", 20, 10, 0), cylinder("high", 20, 10, 16 + gap, 20))!;
+    expect(blendShape(moved.a, moved.b, settings, { name: "B", color: "#888" })).not.toBeNull();
+    // Without the option the tight pair still blends, as before.
+    expect(blendShape(tight.a, tight.b, normalizeBlend({}), { name: "B", color: "#888" })).not.toBeNull();
+  });
+});
