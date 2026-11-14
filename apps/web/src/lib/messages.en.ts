@@ -5288,6 +5288,26 @@ export const MESSAGES_EN = {
   "shell.errorStackNotStraight": "The walls are not straight up: the bottom is not as wide as the top, so one box would not fit on the next. Switch stacking off.",
   "shell.errorStackFailed": "The collar and the groove could not be built on this body. Switch stacking off or choose another wall.",
   "shell.errorTooSlow": "Hollowing this body took too long and was stopped; nothing changed. The CAD kernel cannot work out the walls on this shape. Try a thinner wall or other open sides.",
+  // Ported from layerling 1.165.
+  "prop.loftTopWall": "Wall Thickness at the Top",
+  "loft.topWallHint": "The wall at the top end. It is the same as the wall at the bottom until you type a value of its own: 3 mm on a rectangle at the bottom and 1 mm on the round top, say. In between the wall changes evenly.",
+  "prop.loftSectionCount": "Sections Between",
+  "loft.sectionsHint": "Sections between the bottom and the top, each with its own outline, size and height. The body goes through all of them. Twist, tilt and the S-curve are for two ends only.",
+  "prop.loftThrough": "Through the Sections",
+  "loft.throughSmooth": "Smooth",
+  "loft.throughStraight": "Straight",
+  "loft.throughHint": "Smooth: one curved surface through every section. Straight: flat walls from section to section.",
+  "loft.sectionHeightHint": "The height is measured from the bottom, the offsets from the bottom's middle.",
+  "prop.loftSectionOutline": "Section: Outline",
+  "prop.loftSectionHeight": "Section: Height",
+  "prop.loftSectionWidth": "Section: Width",
+  "prop.loftSectionDepth": "Section: Length",
+  "prop.loftSectionCorner": "Section: Corner Radius",
+  "prop.loftSectionSides": "Section: Corners",
+  "prop.loftSectionOffsetX": "Section: Offset in Width",
+  "prop.loftSectionOffsetZ": "Section: Offset in Length",
+  "prop.loftSection": "Section",
+  "loft.sectionNumber": "Section {n}",
 } as const;
 
 export type MessageKey = keyof typeof MESSAGES_EN;

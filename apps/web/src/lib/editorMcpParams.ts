@@ -1,4 +1,4 @@
-import { type LoftMeasures } from "@/lib/loftGeometry";
+import { normalizeLoftMiddles, type LoftMeasures } from "@/lib/loftGeometry";
 import { bentTubeNaturalDimensions, normalizedBentTubeFields } from "@/lib/bentTubeGeometry";
 import { defaultThreadHeadHeight, normalizeThreadHeadHeight, threadNaturalFootprint, threadSettings, threadDriveFields, threadDriveSettings, threadCollarFields, threadCollarSettings } from "@/lib/threadGeometry";
 import { shapeExtrudeDeformPatch, shapeTaperPatch } from "@/lib/workplaneShapes";
@@ -51,13 +51,27 @@ export function mcpLoftChange(params: Record<string, unknown>): Partial<LoftMeas
   const numbers: Array<[string, keyof LoftMeasures]> = [
     ["loftBottomWidth", "bottomWidth"], ["loftBottomDepth", "bottomDepth"], ["loftTopWidth", "topWidth"], ["loftTopDepth", "topDepth"],
     ["loftBottomCorner", "bottomCorner"], ["loftTopCorner", "topCorner"], ["loftBottomSides", "bottomSides"], ["loftTopSides", "topSides"],
-    ["loftOffsetX", "offsetX"], ["loftOffsetZ", "offsetZ"], ["loftWall", "wall"],
-    ["loftTwist", "twist"], ["loftTiltX", "tiltX"], ["loftTiltZ", "tiltZ"], ["loftSmooth", "smooth"],
+    ["loftOffsetX", "offsetX"], ["loftOffsetZ", "offsetZ"], ["loftWall", "wall"], ["loftTopWall", "topWall"],
+    ["loftTwist", "twist"], ["loftTiltX", "tiltX"], ["loftTiltZ", "tiltZ"], ["loftSmooth", "smooth"], ["loftSegments", "segments"],
   ];
   numbers.forEach(([param, key]) => {
     const value = mcpOptionalNumber(params[param]);
     if (value !== undefined) Object.assign(change, { [key]: value });
   });
+  // Sections between the ends (#1034): a list, or its JSON text as layerling_read_scene reports it; [] removes them.
+  if (params.loftSections !== undefined) {
+    let sections: unknown = params.loftSections;
+    if (typeof sections === "string") {
+      try {
+        sections = JSON.parse(sections);
+      } catch {
+        throw new Error("loftSections must be a list of sections, or its JSON text");
+      }
+    }
+    if (!Array.isArray(sections)) throw new Error("loftSections must be a list of sections, or its JSON text");
+    change.middles = normalizeLoftMiddles(sections);
+  }
+  if (params.loftThrough === "smooth" || params.loftThrough === "straight") change.through = params.loftThrough;
   return change;
 }
 

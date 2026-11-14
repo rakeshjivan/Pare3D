@@ -205,7 +205,9 @@ function mcpLoftSettings(shape: WorkplaneShape): Record<string, string | number>
     loftBottomOutline: m.bottomOutline, loftTopOutline: m.topOutline,
     loftBottomWidth: m.bottomWidth, loftBottomDepth: m.bottomDepth, loftTopWidth: m.topWidth, loftTopDepth: m.topDepth,
     loftBottomCorner: m.bottomCorner, loftTopCorner: m.topCorner, loftBottomSides: m.bottomSides, loftTopSides: m.topSides,
-    loftOffsetX: m.offsetX, loftOffsetZ: m.offsetZ, loftWall: m.wall,
-    loftTwist: m.twist, loftTiltX: m.tiltX, loftTiltZ: m.tiltZ, loftSmooth: m.smooth,
+    loftOffsetX: m.offsetX, loftOffsetZ: m.offsetZ, loftWall: m.wall, loftTopWall: m.topWall,
+    loftTwist: m.twist, loftTiltX: m.tiltX, loftTiltZ: m.tiltZ, loftSmooth: m.smooth, loftSegments: m.segments,
+    // Sections between the ends go out as JSON text, as the flat answer has no lists; it is taken back as such.
+    ...(m.middles.length ? { loftSections: JSON.stringify(m.middles), loftThrough: m.through } : {}),
   };
 }

@@ -348,15 +348,23 @@ export type ShapeCustomization = {
   loftOffsetZ?: number;
   /** Transition: wall thickness in mm; 0 is a solid body, more a tube open at both ends. */
   loftWall?: number;
+  /** Transition: the wall at the top end in mm, when it differs from loftWall; left out, it is loftWall. */
+  loftTopWall?: number;
   /** Transition: degrees the section turns from bottom to top (#205). */
   loftTwist?: number;
   /** Transition: 0 to 1, how much of an S-curve the sides take between the ends (#271). */
   loftSmooth?: number;
+  /** Transition: straight pieces of a full circle in the mesh, 96 if missing. */
+  loftSegments?: number;
   /** Capsule: the small end's diameter as a share of the large one, 1 or missing for equal ends (#206). */
   slotEndRatio?: number;
   /** Transition: degrees the top end tilts about the x axis and about the z axis (#205). */
   loftTiltX?: number;
   loftTiltZ?: number;
+  /** Transition: more sections between the bottom and the top, each at a share of the height with its own outline, size and offset. */
+  loftSections?: LoftMiddleSection[];
+  /** Transition with more sections: one smooth surface through all of them, or straight walls between neighbours. Smooth if missing. */
+  loftThrough?: "smooth" | "straight";
   /** Counterbore/countersink: diameter of the shaft below the head in mm (double countersink: the shaft between the two cones). */
   screwHoleShaft?: number;
   /** Counterbore: depth of the head pocket in mm. */
@@ -793,6 +801,22 @@ export type CadPrimitiveFrame = {
 /** The top edge of a text's letters: rounded or chamfered, `size` mm wide and high (#225). */
 export type TextEdge = { kind: "round" | "chamfer"; size: number };
 
+/** A section of a transition between its bottom and its top (#1034). */
+export type LoftMiddleSection = {
+  /** Where it stands, as a share of the height from the bottom, 0 to 1. */
+  at: number;
+  outline: "round" | "rectangle" | "polygon";
+  width: number;
+  depth: number;
+  /** Corner rounding of a rectangle, in mm. */
+  corner?: number;
+  /** Sides of a polygon. */
+  sides?: number;
+  /** How far its middle sits from the bottom's middle, in mm. */
+  offsetX?: number;
+  offsetZ?: number;
+};
+
 export type WorkplaneShape = {
   id: string;
   name: string;
@@ -1072,15 +1096,23 @@ export type WorkplaneShape = {
   loftOffsetZ?: number;
   /** Transition: wall thickness in mm; 0 is a solid body, more a tube open at both ends. */
   loftWall?: number;
+  /** Transition: the wall at the top end in mm, when it differs from loftWall; left out, it is loftWall. */
+  loftTopWall?: number;
   /** Transition: degrees the section turns from bottom to top (#205). */
   loftTwist?: number;
   /** Transition: 0 to 1, how much of an S-curve the sides take between the ends (#271). */
   loftSmooth?: number;
+  /** Transition: straight pieces of a full circle in the mesh, 96 if missing. */
+  loftSegments?: number;
   /** Capsule: the small end's diameter as a share of the large one, 1 or missing for equal ends (#206). */
   slotEndRatio?: number;
   /** Transition: degrees the top end tilts about the x axis and about the z axis (#205). */
   loftTiltX?: number;
   loftTiltZ?: number;
+  /** Transition: more sections between the bottom and the top, each at a share of the height with its own outline, size and offset. */
+  loftSections?: LoftMiddleSection[];
+  /** Transition with more sections: one smooth surface through all of them, or straight walls between neighbours. Smooth if missing. */
+  loftThrough?: "smooth" | "straight";
   /** Counterbore/countersink: diameter of the shaft below the head in mm (double countersink: the shaft between the two cones). */
   screwHoleShaft?: number;
   /** Counterbore: depth of the head pocket in mm. */

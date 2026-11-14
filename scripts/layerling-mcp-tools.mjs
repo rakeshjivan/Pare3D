@@ -304,6 +304,28 @@ export const shapeSettingSchema = {
   threadStarts: { type: "integer", description: "Thread only (#1348): threads side by side, as on a lead screw, 1 (default) to 8, and a lead (threadPitch times this) of at most half the circumference. A T8x8 lead screw is threadDiameter 8, threadPitch 2, threadStarts 4, threadProfile trapezoidal; a T8x2 is the same with 1. A standard size (threadSize) and a tapered thread have one start: threadSize sets it back to 1 unless the call sets it." },
   threadCollarHeight: { type: "number", description: "Thread only, for a screw without a countersunk head or for a nut: the height of a round collar, in mm - between a screw's head and its thread (a spacer under a star knob, a shoulder under a head), or on a nut's top face. 0 or left out: none. Without a height of its own the thread keeps its length (a nut its body) and the shape grows by the collar." },
   threadCollarDiameter: { type: "number", description: "Thread only, for a screw or nut with a collar: its diameter in mm, at least 0.4 mm wider than a screw's thread (a nut's: 1.3 times the thread plus 0.4 mm) and 0.4 mm narrower than the head or nut where it is narrowest (between a star knob's scallops, a wing head's hub, a nut's flats). Left out it is twice the thread." },
+  loftTopWall: { type: "number", description: "Loft only, with loftWall above 0: the wall at the top end in mm, when it should differ from the bottom (3 mm on a rectangle at the bottom, 1 mm on the round top). Left out it follows loftWall; sections in between take the wall evenly by their height." },
+  loftSegments: { type: "number", description: "Loft only: 16 to 360 (default 96), how many straight pieces a full circle or rounded corner is drawn with in the view and in STL, OBJ and 3MF. More pieces look rounder and make larger files." },
+  loftSections: {
+    type: "array",
+    maxItems: 12,
+    items: {
+      type: "object",
+      required: ["at", "outline", "width", "depth"],
+      properties: {
+        at: { type: "number", description: "Where the section stands, as a share of the height from the bottom, 0.01 to 0.99." },
+        outline: { type: "string", enum: ["round", "rectangle", "polygon"], description: "Its outline: circle or ellipse, rectangle with corner, regular polygon." },
+        width: { type: "number", description: "Its width in mm, at least 1." },
+        depth: { type: "number", description: "Its length in mm, at least 1." },
+        corner: { type: "number", description: "Rectangle only: corner radius in mm." },
+        sides: { type: "number", description: "Polygon only: number of corners, 3 to 24." },
+        offsetX: { type: "number", description: "How far its middle sits from the bottom's middle across the width, in mm." },
+        offsetZ: { type: "number", description: "How far its middle sits from the bottom's middle along the length, in mm." },
+      },
+    },
+    description: "Loft only (#1034): sections between the bottom and the top, sorted up the height, at most 12; the body goes through all of them (loftThrough). Twist, tilt and loftSmooth apply to a loft between two ends only and are left aside while there are sections. An empty list [] removes them. Pare 3D_read_scene reports this list as JSON text, which is accepted here as well.",
+  },
+  loftThrough: { type: "string", enum: ["smooth", "straight"], description: "Loft only, with loftSections: smooth (default) is one curved surface through every section, straight flat walls from section to section." },
 };
 
 export const tools = [
