@@ -5308,6 +5308,24 @@ export const MESSAGES_EN = {
   "prop.loftSectionOffsetZ": "Section: Offset in Length",
   "prop.loftSection": "Section",
   "loft.sectionNumber": "Section {n}",
+  // Ported from layerling 1.165.
+  "editor.tool.makeExact": "Make exact",
+  "contextMenu.makeExact": "Make exact",
+  "makeExact.selectOne": "Select one imported mesh to make exact, such as an STL from Printables. Shapes from the catalogue, sketches and STEP imports are exact already.",
+  "makeExact.working": "Looking for planes, cylinders, cones, spheres and tori in {count} triangles…",
+  "makeExact.failed": "The faces found did not close into a solid, so the body stays a mesh. A mesh with gaps or crossed walls cannot be made exact; repair it, for example in your slicer, and try again.",
+  "makeExact.freeform": "This body is mostly free-form, like a figure or a sculpted shape: only {percent} % of its surface is flat, cylindrical, conical, spherical or ring-shaped. It stays a mesh.",
+  "makeExact.tooSlow": "Making this body exact took too long. Export the part again with fewer triangles, or simplify it with \"Keep edges and holes\" switched on, and try again.",
+  "makeExact.changed": "The body or the design changed while it was being made exact. Please try again.",
+  "makeExact.tooLarge": "This mesh has {count} triangles; Make exact takes up to {limit}. Simplify it first with \"Keep edges and holes\" switched on.",
+  "makeExact.denseHint": "Or click Make exact: as an exact body it can be rounded and chamfered.",
+  "makeExact.done": "Made exact: {kinds}",
+  "makeExact.facets": " – {percent} % of the surface stays as small flat facets",
+  "makeExact.kind.plane": "planes: {count}",
+  "makeExact.kind.cylinder": "cylinders: {count}",
+  "makeExact.kind.cone": "cones: {count}",
+  "makeExact.kind.sphere": "spheres: {count}",
+  "makeExact.kind.torus": "tori: {count}",
 } as const;
 
 export type MessageKey = keyof typeof MESSAGES_EN;

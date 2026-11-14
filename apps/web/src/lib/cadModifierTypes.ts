@@ -450,13 +450,28 @@ export type CadModifierFaces = {
   mesh?: { positions: Float32Array; indices: Uint32Array; triangleFaces: Int32Array };
 };
 
+/** Faces a mesh was rebuilt with as an exact solid, by kind; facets are flat pieces of a freeform area. */
+export type CadModifierExactReport = {
+  plane: number;
+  cylinder: number;
+  cone: number;
+  sphere: number;
+  torus: number;
+  facets: number;
+  /** Share of the surface left as facets, 0 to 1. */
+  facetShare: number;
+  /** Faces of the finished solid. */
+  faces: number;
+  triangles: number;
+};
+
 export type CadModifierWorkerRequest =
   // faces: also send the body's faces (Delete face); faceMesh: with their tessellation, for picking.
-  | { type: "prepare"; requestId: number; parts: CadModifierMeshPart[]; sharpAngle: number; suppressTreatmentDetailEdges?: boolean; faces?: boolean; faceMesh?: boolean }
+  | { type: "prepare"; requestId: number; parts: CadModifierMeshPart[]; sharpAngle: number; suppressTreatmentDetailEdges?: boolean; faces?: boolean; faceMesh?: boolean; exact?: boolean }
   | {
       type: "preview";
       requestId: number;
-      kind: CadModifierKind;
+      kind: CadModifierKind | "exact";
       edgeIds: number[];
       amount: number;
       quality: CadModifierQuality;
@@ -485,7 +500,7 @@ export type CadModifierWorkerRequest =
   | { type: "dispose"; requestId: number };
 
 export type CadModifierWorkerResponse =
-  | { type: "ready"; requestId: number; edges: CadModifierEdge[]; selectableEdgeIds: number[]; sourceType: string; faces?: CadModifierFaces }
+  | { type: "ready"; requestId: number; edges: CadModifierEdge[]; selectableEdgeIds: number[]; sourceType: string; faces?: CadModifierFaces; exactReport?: CadModifierExactReport }
   | {
       type: "preview";
       requestId: number;

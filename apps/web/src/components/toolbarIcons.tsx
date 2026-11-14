@@ -582,3 +582,16 @@ export function ToolbarSupportRibIcon(props: IconProps) {
     </ToolbarVectorIcon>
   );
 }
+
+/** A faceted body turning into a smooth one: make a mesh exact. */
+export function ToolbarMakeExactIcon(props: IconProps) {
+  return (
+    <ToolbarVectorIcon {...props}>
+      <path d="M8 13 14 9h10v30H14l-6-4Z" {...SOLID} />
+      <path d="M24 9c9 0 16 2.2 16 5v20c0 2.8-7 5-16 5" {...SOLID} />
+      <path d="M8 13 14 9h10M8 13v22l6 4h10M14 9v30M8 35" />
+      <path d="M24 9c9 0 16 2.2 16 5v20c0 2.8-7 5-16 5M24 19c9 0 16-2.2 16-5" />
+      <path d="M8 13l6 4h10M14 17v22" strokeWidth="1.6" opacity="0.7" />
+    </ToolbarVectorIcon>
+  );
+}

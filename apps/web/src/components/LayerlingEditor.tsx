@@ -273,7 +273,8 @@ import { normalizeVaseSettings, parseVaseSettingsInput } from "@/lib/vaseSetting
 import { sceneWithVaseAccessories, vaseAccessoryKindName, vaseAccessoryName, vaseShapePatch } from "@/lib/vaseShape";
 import { screenAlignedNudge } from "@/lib/keyboardNudge";
 import { LAYERLING_MCP_HEARTBEAT_MS, LAYERLING_MCP_POLL_RETRY_MS, LAYERLING_MCP_ROUTE, type LayerlingMcpCommand, type LayerlingMcpSceneSummary, type LayerlingMcpViewFace } from "@/lib/layerlingMcpProtocol";
-import type { CadFaceInfo, CadModifierComponentMesh, CadModifierDeflection, CadModifierDisplayEdge, CadModifierEdge, CadModifierEnclosurePart, CadModifierFaces, CadModifierGridfinityPart, CadModifierHelicalGearPart, CadModifierHirthPart, CadModifierKind, CadModifierMeshPart, CadModifierPrimitivePart, CadModifierProfilePart, CadModifierQuality, CadModifierSpringPart, CadModifierThreadPart, CadModifierWorkerRequest, CadModifierWorkerResponse } from "@/lib/cadModifierTypes";
+import { EXACT_MESH_FAILED_MESSAGE, exactMeshFreeformShare } from "@/lib/cadMeshExactMessages";
+import type { CadFaceInfo, CadModifierComponentMesh, CadModifierDeflection, CadModifierDisplayEdge, CadModifierEdge, CadModifierEnclosurePart, CadModifierExactReport, CadModifierFaces, CadModifierGridfinityPart, CadModifierHelicalGearPart, CadModifierHirthPart, CadModifierKind, CadModifierMeshPart, CadModifierPrimitivePart, CadModifierProfilePart, CadModifierQuality, CadModifierSpringPart, CadModifierThreadPart, CadModifierWorkerRequest, CadModifierWorkerResponse } from "@/lib/cadModifierTypes";
 import { getSectionBounds, sectionAxisLetter, sectionMeshInFrame, sectionPlacementWorkplane, sectionPointFromFrame, sectionPointToFrame, type SectionFrame, type SectionOrientation, type SectionPlaneAxis, type SectionPlaneSettings } from "@/lib/sectionView";
 import { SECTION_CUT_FACES, type SectionCutFace } from "@/lib/sectionCaps";
 import { FOOTPRINT_CUT_HEIGHT, footprintCutOffset, projectSectionPoint, SECTION_VIEW_FACE, sectionSvgDocument, sliceMeshContours } from "@/lib/sectionSvg";
@@ -588,6 +589,47 @@ function cadModifierHelicalGearMeshPart(gear: CadModifierHelicalGearPart, mesh: 
     ...(sendMesh && mesh ? meshDataToCadTransfer(mesh) : {}),
     hole,
   };
+}
+
+const MAKE_EXACT_TRIANGLE_LIMIT = 400_000;
+const MAKE_EXACT_TIMEOUT_MS = 240_000;
+
+/**
+ * A body that is only a mesh - an imported STL, OBJ or 3MF, or what a split, wrap or simplify left - and could be made
+ * exact. A body with an exact B-Rep, a STEP import, a group (its parts are exact or made so one by one) or a bundle
+ * is not.
+ */
+function offersMakeExact(shape: WorkplaneShape | null | undefined) {
+  return Boolean(
+    shape?.importedMesh
+      && shape.kind === "mesh"
+      && !shape.cadBrep
+      && !shape.importedMesh.brepStep
+      && !shape.groupedShapes?.length
+      && shape.groupOperation !== "bundle"
+      && !isNonSolidShape(shape),
+  );
+}
+
+/** What went wrong in Make exact, in the user's language; a message of the editor's own (too large) as it came. */
+function makeExactErrorText(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const freeform = exactMeshFreeformShare(message);
+  if (freeform !== null) return t("makeExact.freeform", { percent: freeform });
+  if (message.includes("Timed out waiting for the CAD worker")) return t("makeExact.tooSlow");
+  if (message.includes(EXACT_MESH_FAILED_MESSAGE) || !message) return t("makeExact.failed");
+  return message;
+}
+
+/** What Make exact found, for the status line: "planes: 6, cylinders: 12 and spheres: 8", the facets' share if any. */
+function makeExactSummary(report: CadModifierExactReport) {
+  const kinds = (["plane", "cylinder", "cone", "sphere", "torus"] as const)
+    .filter((kind) => report[kind] > 0)
+    .map((kind) => t(`makeExact.kind.${kind}`, { count: report[kind] }));
+  const facets = report.facets > 0 ? t("makeExact.facets", { percent: Math.max(1, Math.round(report.facetShare * 100)) }) : "";
+  // The list as the language writes one ("9 planes, 4 cylinders" or "平面：9、圆柱面：4").
+  const list = typeof Intl.ListFormat === "function" ? new Intl.ListFormat(numberLocale(), { type: "unit", style: "short" }).format(kinds) : kinds.join(", ");
+  return t("makeExact.done", { kinds: list }) + facets;
 }
 
 /** A screw boss's, snap-fit's or rib's exact body for the worker, with the display mesh's bounds and volume to check it against and, when it fits, the mesh to fall back on. */
@@ -6970,7 +7012,7 @@ export function LayerlingEditor({
   // faces: for Delete face (#451) - the worker also sends the body's faces (faceMesh: with their
   // tessellation, for picking), and only an exact body will do: no part goes as a mesh, and no
   // exact part has a mesh to fall back on.
-  const prepareCadModifierForMcp = useCallback(async (shape: WorkplaneShape, sharpAngle: number, options: { faces?: boolean; faceMesh?: boolean } = {}) => {
+  const prepareCadModifierForMcp = useCallback(async (shape: WorkplaneShape, sharpAngle: number, options: { faces?: boolean; faceMesh?: boolean; exact?: boolean } = {}) => {
     if (shape.locked || shape.hole) {
       throw new Error("Select one unlocked solid object for edge treatment");
     }
@@ -7046,7 +7088,10 @@ export function LayerlingEditor({
         ? "This body was resized with Keep edge size when resizing on and has no exact faces at this size; undo the resize, delete the faces, then resize it again"
         : "This body has no exact faces to delete: layerling keeps it as a mesh, as it does an imported STL, OBJ or 3MF, a split, wrapped or simplified body, or a very detailed shape such as a long text. A part imported as STEP has exact faces.");
     }
-    if (triangleCount > CAD_MODIFIER_PREPARE_TRIANGLE_LIMIT) {
+    if (options.exact && triangleCount > MAKE_EXACT_TRIANGLE_LIMIT) {
+      throw new Error(t("makeExact.tooLarge", { count: formatTriangleCount(triangleCount), limit: formatTriangleCount(MAKE_EXACT_TRIANGLE_LIMIT) }));
+    }
+    if (!options.exact && triangleCount > CAD_MODIFIER_PREPARE_TRIANGLE_LIMIT) {
       throw new Error(`This mesh has ${triangleCount} triangles; interactive edge treatment stops at ${CAD_MODIFIER_PREPARE_TRIANGLE_LIMIT}. For a shape from the catalogue, use its own parameters for now. For an imported part, import it as STEP or with fewer triangles.`);
     }
     const parts: CadModifierMeshPart[] = partInputs.map((part) => {
@@ -7070,7 +7115,8 @@ export function LayerlingEditor({
       suppressTreatmentDetailEdges: appliedEdgeTreatmentCount > 0,
       ...(options.faces ? { faces: true } : {}),
       ...(options.faceMesh ? { faceMesh: true } : {}),
-    }, transfer, prepareTimeoutMs);
+      ...(options.exact ? { exact: true } : {}),
+    }, transfer, options.exact ? MAKE_EXACT_TIMEOUT_MS : prepareTimeoutMs);
     if (response.type !== "ready") {
       throw new Error("The CAD worker did not return an edge list");
     }
@@ -7263,6 +7309,50 @@ export function LayerlingEditor({
   }, [invalidateCadModifierSession, prepareCadModifierForMcp, postCadModifierRequestAsync]);
 
   /**
+   * Make exact: a mesh body (an STL from a CAD program, a group's or a split's mesh) rebuilt as the exact solid it
+   * was made of, its planes, cylinders, cones, spheres and tori found as real faces (lib/cadMeshExact.ts). It goes the
+   * way of Hollow: prepared by the CAD worker, given back unchanged by an "exact" preview, laid into the body as its
+   * B-Rep. What fits no surface stays flat facets. The body's place, colour and name stay; its mesh becomes the exact
+   * body's own tessellation.
+   */
+  const makeExactShape = useCallback(async (shape: WorkplaneShape) => {
+    if (shape.locked || !offersMakeExact(shape)) throw new Error(t("makeExact.selectOne"));
+    invalidateCadModifierSession();
+    const sourceFingerprint = projectShapesFingerprint([shape]);
+    const sourceProjectId = projectInfoRef.current.projectId;
+    let prepared: Awaited<ReturnType<typeof prepareCadModifierForMcp>>;
+    try {
+      prepared = await prepareCadModifierForMcp(shape, 25, { exact: true });
+    } catch (error) {
+      throw new Error(makeExactErrorText(error));
+    }
+    const report = prepared.response.exactReport;
+    if (!report) throw new Error(t("makeExact.failed"));
+    const previewResponse = await postCadModifierRequestAsync({
+      type: "preview",
+      kind: "exact",
+      edgeIds: [],
+      amount: 1,
+      quality: "standard",
+      chamferAngle: 45,
+      minDeflection: shape.cadMeshDeflection,
+    }, [], MAKE_EXACT_TIMEOUT_MS);
+    if (previewResponse.type !== "preview") throw new Error(t("makeExact.failed"));
+    const raw = shapeFromCadMesh(shape, previewResponse.positions, previewResponse.normals, previewResponse.indices, previewResponse.brep, previewResponse.deflection);
+    if (!raw) throw new Error(t("makeExact.failed"));
+    const exact = canonicalizeShape({
+      ...raw,
+      cadDisplayEdges: cadDisplayEdgesForShape(raw, previewResponse.displayEdges),
+      cadDisplayEdgesVersion: 2 as const,
+    });
+    const currentTarget = shapesRef.current.find((candidate) => candidate.id === shape.id);
+    if (projectInfoRef.current.projectId !== sourceProjectId || !currentTarget || projectShapesFingerprint([currentTarget]) !== sourceFingerprint) {
+      throw new Error(t("makeExact.changed"));
+    }
+    return { shape: exact, report };
+  }, [invalidateCadModifierSession, prepareCadModifierForMcp, postCadModifierRequestAsync]);
+
+  /**
    * Offset (#919): every face of the body moved by `distance`, out or in. With `keepCopy` the body stays as it is and the
    * offset one is a copy of it, kept as a hole: the clearance to cut a press fit with.
    */
@@ -7435,6 +7525,32 @@ export function LayerlingEditor({
       closedHoles: result.closedHoles,
     };
   }, [offsetShape]);
+
+  const [makeExactBusy, setMakeExactBusy] = useState(false);
+  /** Make exact on the one selected mesh body, with what it was found to be made of in the status line. */
+  const makeSelectedExact = useCallback(async () => {
+    if (makeExactBusy) return;
+    if (refuseLockedSelection()) return;
+    if (selectedShapes.length !== 1 || !selectedShape || !offersMakeExact(selectedShape)) {
+      setNotice(t("makeExact.selectOne"));
+      return;
+    }
+    const target = selectedShape;
+    setMakeExactBusy(true);
+    setNotice(t("makeExact.working", { count: formatTriangleCount(target.importedMesh?.triangleCount ?? 0) }));
+    try {
+      const { shape: exact, report } = await makeExactShape(target);
+      commitShapes(
+        shapesRef.current.map((shape) => (shape.id === target.id ? exact : shape)),
+        [exact.id],
+        makeExactSummary(report),
+      );
+    } catch (error) {
+      setNotice(error instanceof Error && error.message ? error.message : t("makeExact.failed"));
+    } finally {
+      setMakeExactBusy(false);
+    }
+  }, [commitShapes, makeExactBusy, makeExactShape, refuseLockedSelection, selectedShape, selectedShapes.length]);
 
   const startCutOutTool = useCallback(() => {
     if (cutOutTool) {
@@ -16294,6 +16410,7 @@ export function LayerlingEditor({
     }
     if (!selectionLocked && !allHoles) mesh.push({ key: "cutBelow", label: t("contextMenu.cutBelow"), onSelect: () => void cutPartsBelowBed(selectedShapes.map((shape) => shape.id)) });
     if (single && offersMeshSimplify(single) && !selectionLocked) mesh.push({ key: "simplify", label: t("contextMenu.simplify"), onSelect: startSimplifyTool });
+    if (single && offersMakeExact(single) && !selectionLocked) mesh.push({ key: "makeExact", label: t("contextMenu.makeExact"), onSelect: () => { void makeSelectedExact(); } });
     if (single && single.importedMesh && !single.groupedShapes?.length && !single.hole && !selectionLocked) {
       mesh.push(
         { key: "makeSolid", label: t("contextMenu.makeSolid"), onSelect: () => void makePartsSolid([single.id]) },
@@ -16512,6 +16629,9 @@ export function LayerlingEditor({
         deleteFaceActive={Boolean(deleteFaceTool)}
         canSimplify={selectedShapes.length === 1 && offersMeshSimplify(selectedShape) && !selectedShape?.locked}
         onSimplify={startSimplifyTool}
+        canMakeExact={selectedShapes.length === 1 && offersMakeExact(selectedShape) && !selectedShape?.locked}
+        onMakeExact={() => { void makeSelectedExact(); }}
+        makeExactBusy={makeExactBusy}
         simplifyActive={Boolean(simplifyToolShape)}
         onMirror={toggleMirrorMode}
         onRotationPivot={toggleRotationPivot}

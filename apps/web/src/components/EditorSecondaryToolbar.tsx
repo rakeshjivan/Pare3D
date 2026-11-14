@@ -38,6 +38,7 @@ import {
   ToolbarOffsetIcon,
   ToolbarDeleteFaceIcon,
   ToolbarSimplifyIcon,
+  ToolbarMakeExactIcon,
   ToolbarMirrorIcon,
   ToolbarRotationPivotIcon,
   ToolbarPatternIcon,
@@ -357,6 +358,9 @@ export function SecondaryToolbar({
   canSimplify,
   onSimplify,
   simplifyActive,
+  canMakeExact,
+  onMakeExact,
+  makeExactBusy,
   onMirror,
   onRotationPivot,
   rotationPivotActive,
@@ -527,6 +531,9 @@ export function SecondaryToolbar({
   canSimplify: boolean;
   onSimplify: () => void;
   simplifyActive: boolean;
+  canMakeExact: boolean;
+  onMakeExact: () => void;
+  makeExactBusy: boolean;
   onMirror: () => void;
   onRotationPivot: () => void;
   rotationPivotActive: boolean;
@@ -963,6 +970,7 @@ export function SecondaryToolbar({
     { id: "meshCheck", label: t("meshCheck.command"), icon: ShieldCheck, action: () => window.dispatchEvent(new Event(MESH_CHECK_EVENT)), enabled: canSimplify },
     { id: "fillHole", label: t("fillHole.command"), icon: PaintBucket, action: () => window.dispatchEvent(new Event(FILL_HOLE_EVENT)), enabled: canSimplify },
     { id: "simplify", label: t("editor.tool.simplify"), icon: ToolbarSimplifyIcon, action: onSimplify, enabled: canSimplify, active: simplifyActive },
+    { id: "makeExact", label: t("editor.tool.makeExact"), icon: ToolbarMakeExactIcon, action: onMakeExact, enabled: canMakeExact && !makeExactBusy, active: makeExactBusy },
     { id: "cutBelowBed", label: t("cutBelowBed.command"), icon: Scissors, action: () => window.dispatchEvent(new Event(CUT_BELOW_BED_EVENT)), enabled: true },
     { id: "roundMesh", label: t("meshRound.title"), icon: Squircle, action: build33.onRound, enabled: build33.canRound || build33.roundActive, active: build33.roundActive },
     // Build 69: brushes, a painted selection, Remesh / Offset / Thicken.
@@ -1212,7 +1220,7 @@ export function SecondaryToolbar({
       plain("mesh-check", t("meshCheck.command"), manageGroup, hasSelection, () => window.dispatchEvent(new Event(MESH_CHECK_EVENT))),
       plain("fill-hole", t("fillHole.command"), t("editor.group.modify"), hasSelection, () => window.dispatchEvent(new Event(FILL_HOLE_EVENT))),
       // Build 70: the Mesh tools in the search too (Mesh check, Fill hole and Cut below are above).
-      ...meshTools.filter((tool) => tool.id === "sculpt" || tool.id === "simplify" || tool.id === "roundMesh").map((tool) => fromTool(tool, t("editor.group.mesh"))),
+      ...meshTools.filter((tool) => tool.id === "sculpt" || tool.id === "simplify" || tool.id === "makeExact" || tool.id === "roundMesh").map((tool) => fromTool(tool, t("editor.group.mesh"))),
       plain("send-slicer", t("slicer.sendTo", { app: slicerName(readSlicer()) }), manageGroup, true, () => window.dispatchEvent(new CustomEvent(SEND_TO_BAMBU_EVENT, { detail: { format: readBambuFormat() } })), { icon: Printer }),
       plain("settings", t("editor.workspaceSettings"), manageGroup, true, () => window.dispatchEvent(new Event("layerling:open-workspace-settings")), { icon: ToolbarSettingsIcon }),
       plain("mode-sketch", t("palette.switchSketch"), t("palette.group.mode"), true, () => selectToolbarMode("sketch")),

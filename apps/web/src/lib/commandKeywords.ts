@@ -42,6 +42,7 @@ export const COMMAND_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
   snap: ["snap", "grid", "raster", "einrasten", "gitter"],
   chamfer: ["chamfer", "chamfillet", "bevel", "fase", "abschraegen", "abschrägen", "kante", "afschuinen", "rand"],
   fillet: ["fillet", "round", "radius", "verrunden", "abrunden", "runden", "kante", "afronden", "rand"],
+  makeExact: ["make exact", "exact", "brep", "step", "mesh to solid", "reverse engineer"],
   simplify: ["simplify", "decimate", "reduce", "fewer triangles", "optimize", "vereinfachen", "reduzieren", "dezimieren", "weniger dreiecke", "netz", "mesh", "optimieren"],
   hollow: ["hollow", "shell", "aushoehlen", "aushöhlen", "wand", "wandstaerke", "wandstärke", "hohl"],
   cutOut: ["cut out", "subtract", "subtract copy", "mating part", "fit", "clearance", "tolerance", "sleeve", "socket", "female", "male", "ausschneiden", "abziehen", "subtrahieren", "gegenstück", "gegenstueck", "passung", "spiel", "aussparung", "hülse", "huelse"],

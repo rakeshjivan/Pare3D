@@ -128,6 +128,14 @@ Cutting, merging and intersecting an imported mesh is calculated in your browser
 
 A DXF from a CAD program or a laser-cutting file comes in like an SVG: every closed outline becomes a face, a closed outline inside another is a hole, and the face is pushed up into a body at its real size. Pare 3D reads lines, polylines (with their arcs), circles, arcs, ellipses, splines and blocks placed in the drawing; lines and arcs that meet end to end, the way most CAD programs save an outline, are joined into one. The drawing's units come from the file; one that states none is read as millimetres. Text, dimensions and hatching are left out, and so are lines that never close - the notice says how many. Save the DXF as ASCII (text), not binary.
 
+## Making an imported mesh exact
+
+An STL, OBJ or 3MF file holds only triangles, even when the part was drawn in CAD with flat faces and round bores. {{ui:editor.tool.makeExact}} in the {{ui:editor.group.mesh}} tools (or in the right-click menu of the body) looks through those triangles for the planes, cylinders, cones, spheres and tori they were made of and rebuilds the body from them as an exact CAD body: a bore becomes one real cylinder with a round rim instead of a hundred narrow strips. After that, {{ui:editor.tool.fillet}} and {{ui:editor.tool.chamfer}} follow one clean edge, {{ui:editor.tool.deleteFace}} takes away a whole rounding or the wall of a hole, and a STEP export carries the real faces. The status line says what was found, such as "planes: 9, cylinders: 4".
+
+What fits none of these surfaces stays as small flat facets, and the message says how much of the surface that is. A body that is mostly free-form, such as a figure or a sculpted shape, stays a mesh, and so does a mesh with gaps or crossed walls, which cannot close into a solid. Up to 400,000 triangles are taken, and a large mesh can take a few minutes. A larger mesh goes below that with {{ui:simplify.title}} first; otherwise take the mesh as it came, it comes out cleanest. One undo step brings the mesh back.
+
+For a small mesh with round faces, up to 4,000 triangles, the edge tools do this by themselves: rounding an edge of such an STL rebuilds it the same way first.
+
 ## Rounding a mesh
 
 The fillet tool needs exact CAD geometry, so a dense imported mesh, a scan or a part made from many booleans can be too much for it. **{{ui:meshRound.title}}** rounds every edge of such a part by one radius instead - as if a ball of that size were rolled along the surface. It is in the {{ui:editor.group.mesh}} menu, under {{ui:editor.group.modify}} › {{ui:editor.more}} for any part, and in the right-click menu as {{ui:meshRound.menu}}.
