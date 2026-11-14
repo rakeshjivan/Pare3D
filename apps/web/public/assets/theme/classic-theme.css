@@ -665,16 +665,6 @@
   color: #2f3741;
 }
 
-:where(html[data-palette="classic"]) .dashboard-welcome-switch {
-  color: #414c5a;
-  background: #edf0f3;
-  border-left: 3px solid #4e97e5;
-}
-
-:where(html[data-palette="classic"]) .dashboard-welcome-switch strong {
-  color: #114b88;
-}
-
 :where(html[data-palette="classic"]) .dashboard-welcome-more h3 {
   color: #2f3741;
 }
