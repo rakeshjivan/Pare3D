@@ -1,6 +1,6 @@
 /*
  * When this browser's designs were last backed up as a whole (with "Back up all", not one folder or design), so the
- * notice over them says where they stand instead of the same warning every time (Jürgen Keller by mail, 10.11.2026):
+ * notice over them says where they stand instead of the same warning every time:
  * not yet backed up, backed up but changed since, or all backed up.
  */
 const LAST_FULL_BACKUP_KEY = "layerling.lastFullBackupAt";

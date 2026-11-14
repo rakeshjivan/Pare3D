@@ -4,8 +4,8 @@ import type { WorkplaneShape } from "@/types/layerling";
 
 /*
  * The kernel hands a hollowed or filleted body back as facets. A round side measured on them came out a few
- * hundredths short: a 38.7 mm cylinder hollowed showed 38.69, and typing 38.7 again stretched it into an ellipse
- * (Jürgen Keller, 25.10.2026). A size within the facets' reach of the body's own is the body's own.
+ * hundredths short: a 38.7 mm cylinder hollowed showed 38.69, and typing 38.7 again stretched it into an ellipse.
+ * A size within the facets' reach of the body's own is the body's own.
  */
 function facetedCylinder(diameter: number, height: number, sides: number, turn: number) {
   const positions: number[] = [];
