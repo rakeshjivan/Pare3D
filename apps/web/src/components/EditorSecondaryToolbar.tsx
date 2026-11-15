@@ -1,5 +1,6 @@
 "use client";
 
+import { withBase } from "@/lib/basePath";
 import { GuideHelpLink } from "@/components/GuideHelpLink";
 import { ShapeMenuPanel } from "@/components/workplane/ShapeMenuPanel";
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, PencilLine, Blend, Check, CircleHelp, Percent, Circle as CircleIcon, Eye, EyeOff, Hexagon as HexagonIcon, ListTree, MoreHorizontal, Pencil, Pentagon as PentagonIcon, Rotate3d, Route as RouteIcon, Search, Square as SquareIcon, Star as StarIcon, Triangle as TriangleIcon, X } from "lucide-react";
@@ -118,7 +119,7 @@ export function SketchReferenceIcon({ name }: { name: SketchReferenceIconName })
       className="sketch-reference-icon"
       data-sketch-icon={name}
       draggable={false}
-      src={`/assets/editor/${sketchReferenceIcons[name]}`}
+      src={withBase(`/assets/editor/${sketchReferenceIcons[name]}`)}
       alt=""
     />
   );
@@ -1365,7 +1366,7 @@ export function SecondaryToolbar({
                   >
                     <span
                       className="shape-menu-thumb"
-                      style={{ "--shape-icon": `url(/${shape.menuIcon.replace(/^\/+/, "")})` } as CSSProperties}
+                      style={{ "--shape-icon": `url(${withBase(`/${shape.menuIcon.replace(/^\/+/, "")}`)})` } as CSSProperties}
                     >
                       <img src={shape.menuIcon} alt="" draggable={false} />
                     </span>
@@ -1800,7 +1801,7 @@ export function SecondaryToolbar({
         {/* The brand, in the same corner as on the start page. Not a link:
             leaving the editor is not something to trigger by accident. */}
         <div className="toolbar-brand">
-          <img src="/assets/pare3d/pare3d-icon.svg" alt="Pare 3D" />
+          <img src={withBase("/assets/pare3d/pare3d-icon.svg")} alt="Pare 3D" />
           <span className="toolbar-brand-text">
             <span className="toolbar-brand-name">Pare 3D</span>
             <span className="toolbar-brand-tagline">{t("brand.tagline")} <PareBuildBadge /></span>

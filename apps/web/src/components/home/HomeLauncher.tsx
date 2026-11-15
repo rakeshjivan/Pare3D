@@ -4,6 +4,7 @@
  * Build 104: the Home page - CAD Studio's card, and the designs found by a search below. Everything else the start page used to show in big boxes now lives in the
  * bar's menus (see HomeTopBar).
  */
+import { withBase } from "@/lib/basePath";
 import { ArrowRight, Lightbulb, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { t } from "@/lib/i18n";
@@ -112,7 +113,7 @@ export function HomeLauncher({
       <section className={`home-studio-card ${studio}`} aria-labelledby={`home-${studio}-title`}>
         {/* Build 104: the picture opens the studio - where the hand goes first. */}
         <button type="button" className="home-studio-stage" aria-label={t("home.openCad")} onClick={() => onOpenStudio(studio)}>
-          <img src="/assets/home/cad-hero.webp" alt={t("home.cadImageAlt")} draggable={false} />
+          <img src={withBase("/assets/home/cad-hero.webp")} alt={t("home.cadImageAlt")} draggable={false} />
           <span className="home-studio-kicker"><span className={`home-studio-dot ${studio}`} aria-hidden="true" />{t("home.studio")}</span>
         </button>
         <div className="home-studio-body">

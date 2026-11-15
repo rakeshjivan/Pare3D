@@ -33,6 +33,8 @@ run(["scripts/build-guide.mjs"]);
 const nextMajor = Number(createRequire(import.meta.url)("next/package.json").version.split(".")[0]);
 run([nextBin, "build", "apps/web", ...(nextMajor >= 16 ? ["--webpack"] : [])], { STATIC_EXPORT: "true", LAYERLING_BUILD_ID: `${Date.now()}` });
 run(["scripts/verify-static-worker-assets.mjs"]);
+// Build 113: a browser version served from a folder (PARE_BASE_PATH) gets the folder in every address.
+run(["scripts/apply-base-path.mjs"]);
 run(["scripts/generate-service-worker.mjs"]);
 
 console.log("Static export ready in apps/web/.next-export/");

@@ -1,3 +1,4 @@
+import { BASE_PATH } from "@/lib/basePath";
 import { FontLoader, type Font, type FontData } from "three/examples/jsm/loaders/FontLoader.js";
 import { isCustomFontId, type CustomTypeface } from "@/lib/customFonts";
 import { textNeedsJapanese, textNeedsJapaneseLevel2 } from "@/lib/japaneseText";
@@ -156,7 +157,7 @@ export const JAPANESE_FONT = "Japanese";
 type JapaneseFile = "base" | "level2";
 
 async function fetchJapaneseFile(file: JapaneseFile): Promise<FontData> {
-  const response = await fetch(`/fonts/japanese/${process.env.NEXT_PUBLIC_JAPANESE_FONT_VERSION ?? ""}/${file}.typeface.json`);
+  const response = await fetch(`${BASE_PATH}/fonts/japanese/${process.env.NEXT_PUBLIC_JAPANESE_FONT_VERSION ?? ""}/${file}.typeface.json`);
   if (!response.ok) throw new Error(`Japanese typeface ${file}: HTTP ${response.status}`);
   return (await response.json()) as FontData;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { PARE_WEB } from "@/lib/basePath";
 import { CheckCircle2, Download, LoaderCircle, RefreshCw, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { t } from "@/lib/i18n";
@@ -26,11 +27,11 @@ type Status =
  */
 export function PareVersionStatus({ compact = false }: { compact?: boolean } = {}) {
   useLanguage();
-  const [status, setStatus] = useState<Status>(PARE_BUILD > 0 ? { kind: "checking" } : { kind: "dev" });
+  const [status, setStatus] = useState<Status>(PARE_BUILD > 0 && !PARE_WEB ? { kind: "checking" } : { kind: "dev" });
   /** Build 107: a click on "Up to date" (or "couldn't check") checks again. */
   const [round, setRound] = useState(0);
   useEffect(() => {
-    if (PARE_BUILD <= 0) return;
+    if (PARE_BUILD <= 0 || PARE_WEB) return;
     let stopped = false;
     let timer = 0;
     let polls = 0;

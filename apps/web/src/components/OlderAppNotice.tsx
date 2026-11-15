@@ -1,5 +1,6 @@
 "use client";
 
+import { PARE_WEB } from "@/lib/basePath";
 import { Info, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { t } from "@/lib/i18n";
@@ -26,6 +27,8 @@ export function OlderAppNotice({ dismissible = false }: { dismissible?: boolean 
   });
   useEffect(() => {
     let live = true;
+    // Build 113: the browser version is always the newest; only the Mac app can be an older copy.
+    if (PARE_WEB) return () => { live = false; };
     void isOlderApp().then((value) => { if (live) setOlder(value); });
     return () => { live = false; };
   }, []);

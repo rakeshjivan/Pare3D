@@ -4,6 +4,12 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 113,
+    items: [
+      "Pare 3D now also runs in a web browser, at rakeshjivan.github.io/Pare3D, for example on an iPad with a mouse or trackpad. It is the same program; files are downloaded instead of going to a folder or straight to a slicer.",
+    ],
+  },
+  {
     build: 112,
     items: [
       "Bauble: the picture is now on the outside of the ball, so you see it on screen. Tick \"Smooth outside\" to put it inside instead; it lights up the same.",

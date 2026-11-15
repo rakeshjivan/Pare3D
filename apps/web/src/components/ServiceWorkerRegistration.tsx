@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { withBase } from "@/lib/basePath";
 import { offlineAvailable } from "@/lib/offlineSupport";
 
 /**
@@ -13,7 +14,7 @@ import { offlineAvailable } from "@/lib/offlineSupport";
 export function ServiceWorkerRegistration() {
   useEffect(() => {
     if (!offlineAvailable()) return;
-    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+    navigator.serviceWorker.register(withBase("/sw.js"), { scope: withBase("/") }).catch(() => {
       // Without it layerling works exactly as before, just not offline.
     });
   }, []);

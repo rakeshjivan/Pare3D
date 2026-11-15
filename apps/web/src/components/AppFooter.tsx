@@ -1,5 +1,6 @@
 "use client";
 
+import { withBase } from "@/lib/basePath";
 import { openFeedback } from "@/lib/feedback";
 
 import { Heart, Sparkles } from "lucide-react";
@@ -127,7 +128,7 @@ export function AppFooter({
     {/* Build 108: no band under the workspace - its links are in the Help menu. */}
     {variant === "editor" ? null : <footer className="dashboard-legal">
       <div className="dashboard-legal-group">
-        <a href={t("welcome.guideUrl")} target="_blank" rel="noreferrer">
+        <a href={withBase(t("welcome.guideUrl"))} target="_blank" rel="noreferrer">
           {t("dashboard.userGuide")}
         </a>
         {/* Fork (build 37): the feedback form, always a click away. */}
@@ -140,7 +141,7 @@ export function AppFooter({
             on the Licences & credits page, a click away, and the source as section 13 asks. */}
         <span className="footer-build">{PARE_BUILD ? `Pare 3D build ${PARE_BUILD}` : "Pare 3D"}</span>
         <a href={SOURCE_CODE_URL} target="_blank" rel="noreferrer" title={`Pare 3D's source code (AGPL-3.0) - based on layerling ${version}`}>Open source</a>
-        <a href={t("welcome.guideUrl").replace(/[^/]*$/, "licences-and-credits.html")} target="_blank" rel="noreferrer">Licences &amp; credits</a>
+        <a href={withBase(t("welcome.guideUrl").replace(/[^/]*$/, "licences-and-credits.html"))} target="_blank" rel="noreferrer">Licences &amp; credits</a>
       </div>
     </footer>}
     </>

@@ -1,3 +1,4 @@
+import { withBase } from "@/lib/basePath";
 import { cleanText, compareVersions, isText as isLocalizedText, type WhatsNewText } from "@/lib/whatsNew";
 
 /**
@@ -13,7 +14,7 @@ export interface VersionInfo {
   highlights: Array<{ version: string; title: WhatsNewText }>;
 }
 
-export const VERSION_FILE = "/version.json";
+export const VERSION_FILE = withBase("/version.json");
 
 /** How often an open page asks, and how long "Later" holds the offer back. */
 export const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;

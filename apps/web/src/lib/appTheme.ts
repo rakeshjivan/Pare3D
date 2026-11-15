@@ -1,3 +1,4 @@
+import { withBase } from "@/lib/basePath";
 export const APP_THEME_STORAGE_KEY = "layerling.theme";
 
 export const APP_THEME_OPTIONS = [
@@ -99,7 +100,7 @@ export const GRAPHITE_STYLESHEET_ID = "layerling-graphite-theme";
 // version query keeps a cached stylesheet from an older release out, since
 // the file is regenerated from globals.css under the same name every build.
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION;
-export const GRAPHITE_STYLESHEET_HREF = `/assets/theme/graphite-theme.css${appVersion ? `?v=${appVersion}` : ""}`;
+export const GRAPHITE_STYLESHEET_HREF = withBase(`/assets/theme/graphite-theme.css${appVersion ? `?v=${appVersion}` : ""}`);
 
 /**
  * Graphite's colours live in a generated stylesheet that is only fetched once
@@ -112,9 +113,9 @@ function ensureGraphiteStylesheet() {
 }
 
 export const CLASSIC_STYLESHEET_ID = "layerling-classic-theme";
-export const CLASSIC_STYLESHEET_HREF = `/assets/theme/classic-theme.css${appVersion ? `?v=${appVersion}` : ""}`;
+export const CLASSIC_STYLESHEET_HREF = withBase(`/assets/theme/classic-theme.css${appVersion ? `?v=${appVersion}` : ""}`);
 export const CLASSIC_DARK_STYLESHEET_ID = "layerling-classic-dark-theme";
-export const CLASSIC_DARK_STYLESHEET_HREF = `/assets/theme/classic-dark-theme.css${appVersion ? `?v=${appVersion}` : ""}`;
+export const CLASSIC_DARK_STYLESHEET_HREF = withBase(`/assets/theme/classic-dark-theme.css${appVersion ? `?v=${appVersion}` : ""}`);
 
 function ensurePaletteStylesheet(id: string, href: string) {
   if (document.getElementById(id)) return;

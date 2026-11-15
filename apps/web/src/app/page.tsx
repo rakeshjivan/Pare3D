@@ -1,5 +1,6 @@
 "use client";
 
+import { withBase } from "@/lib/basePath";
 import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { requestPersistentStorage } from "@/lib/persistentStorage";
 import { designDiskAvailable, designDiskDelete, designDiskGet, designDiskId, designDiskList, designDiskPut } from "@/lib/designDiskStore";
@@ -1455,7 +1456,7 @@ export default function Home() {
     setActiveProjectId(null);
     setView("dashboard");
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", "/");
+      window.history.replaceState(null, "", withBase("/"));
     }
   }, [activeProjectId, projects]);
 
@@ -1602,7 +1603,7 @@ export default function Home() {
         setProjects(storedProjects);
         setActiveProjectId(null);
         setView("dashboard");
-        window.history.replaceState(null, "", "/");
+        window.history.replaceState(null, "", withBase("/"));
         return;
       }
       setProjects(storedProjects.map((project) => (project.id === projectId ? { ...project, updatedAt: Date.now() } : project)));
@@ -1615,7 +1616,7 @@ export default function Home() {
     setView("editor");
     if (typeof window !== "undefined") {
       const nextUrl = projectId ? `/?editor=1&project=${encodeURIComponent(projectId)}` : "/?editor=1";
-      window.history.replaceState(null, "", nextUrl);
+      window.history.replaceState(null, "", withBase(nextUrl));
     }
   };
 
@@ -2601,7 +2602,7 @@ export default function Home() {
     setEditorLoading(false);
     setView("dashboard");
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", "/");
+      window.history.replaceState(null, "", withBase("/"));
     }
   };
 
@@ -3557,14 +3558,14 @@ function Dashboard({
         learn={(close) => (
           <div className="home-menu-list">
             <div className="home-menu-title">{t("home.learn")}</div>
-            <a href="/guide/index.html" target="_blank" rel="noreferrer" onClick={close}>{t("home.userGuide")}</a>
-            <a href="/guide/shortcuts.html" target="_blank" rel="noreferrer" onClick={close}>{t("home.shortcutsGuide")}</a>
+            <a href={withBase("/guide/index.html")} target="_blank" rel="noreferrer" onClick={close}>{t("home.userGuide")}</a>
+            <a href={withBase("/guide/shortcuts.html")} target="_blank" rel="noreferrer" onClick={close}>{t("home.shortcutsGuide")}</a>
             <button type="button" onClick={() => { close(); window.dispatchEvent(new Event(OPEN_WHATS_NEW_EVENT)); }}>{t("helpMenu.whatsNew")}</button>
             {/* Build 108: what the footer held, here - the start pages end with their content. The source stays a click away, as AGPL-3.0 section 13 asks. */}
             <hr className="home-menu-rule" />
             <button type="button" onClick={() => { close(); openFeedback(); }}>{t("feedback.footer")}</button>
             <a href={SOURCE_CODE_URL} target="_blank" rel="noreferrer" onClick={close} title={`Pare 3D's source code (AGPL-3.0) - based on layerling ${LYL_CREATED_WITH_VERSION}`}>{t("home.openSource")}</a>
-            <a href="/guide/licences-and-credits.html" target="_blank" rel="noreferrer" onClick={close}>{t("home.licences")}</a>
+            <a href={withBase("/guide/licences-and-credits.html")} target="_blank" rel="noreferrer" onClick={close}>{t("home.licences")}</a>
           </div>
         )}
         settings={() => (

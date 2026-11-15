@@ -1,0 +1,54 @@
+# Build 113: the browser version of Pare 3D, on GitHub Pages at https://rakeshjivan.github.io/Pare3D/.
+# Published from the "release" branch with every live build, so the browser and the Mac app match.
+# The same static export as the Mac app, served from the /Pare3D folder (PARE_BASE_PATH) and marked
+# as the browser version (PARE_WEB): no "new build to download" notices, since a reload updates it.
+name: Pare 3D web
+
+on:
+  push:
+    branches: [release]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+      - run: npm ci
+      - name: Static export for the web
+        run: |
+          BUILD="$(tr -dc '0-9' < PARE_BUILD)"
+          NEXT_PUBLIC_PARE_BUILD="${BUILD:-0}" node scripts/build-static-export.mjs
+        env:
+          PARE_BASE_PATH: /Pare3D
+          PARE_WEB: "true"
+          NEXT_PUBLIC_SUPPORT_HINT: "off"
+          NEXT_PUBLIC_SOURCE_CODE_URL: https://github.com/${{ github.repository }}
+      - name: No server scripts on Pages
+        run: find apps/web/.next-export -name "*.php" -delete
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/.next-export
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

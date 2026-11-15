@@ -38,10 +38,12 @@ if (workerChunks.length === 0) {
   throw new Error("Could not find the generated CAD worker runtime to verify its public path.");
 }
 
+// Build 113: a browser version served from a folder (PARE_BASE_PATH) has the folder in front.
+const publicPath = `${(process.env.PARE_BASE_PATH ?? "").replace(/\/+$/, "")}/_next/`;
 for (const { path, source } of workerChunks) {
-  if (!source.includes('.p="/_next/"') && !source.includes(".p='/_next/'")) {
-    throw new Error(`Worker runtime ${path} does not use the root-relative /_next/ public path.`);
+  if (!source.includes(`.p="${publicPath}"`) && !source.includes(`.p='${publicPath}'`)) {
+    throw new Error(`Worker runtime ${path} does not use the root-relative ${publicPath} public path.`);
   }
 }
 
-console.log(`Verified ${workerChunks.length} static worker runtime(s) use /_next/.`);
+console.log(`Verified ${workerChunks.length} static worker runtime(s) use ${publicPath}.`);

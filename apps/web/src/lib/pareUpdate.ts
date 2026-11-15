@@ -3,6 +3,7 @@
  * GitHub release (tags "pare-<build>", made by .github/workflows/pare3d-release.yml).
  * Asks GitHub at most every six hours; a build of 0 (a local build) never asks.
  */
+import { PARE_WEB } from "@/lib/basePath";
 export const PARE_BUILD = Number(process.env.NEXT_PUBLIC_PARE_BUILD || 0) || 0;
 /** Build 103: a test build's number (0 for a public build); test builds update to newer test builds only. */
 export const PARE_PREVIEW = Number(process.env.NEXT_PUBLIC_PARE_PREVIEW || 0) || 0;
@@ -41,7 +42,8 @@ async function serverUpdateState(fetchFn: typeof fetch): Promise<PareUpdate | nu
 }
 
 export async function checkPareUpdate(fetchFn: typeof fetch = fetch): Promise<PareUpdate | null> {
-  if (PARE_BUILD <= 0 || typeof window === "undefined") return null;
+  // Build 113: the browser version updates itself on reload (its service worker); no download to offer.
+  if (PARE_BUILD <= 0 || PARE_WEB || typeof window === "undefined") return null;
   const fromServer = await serverUpdateState(fetchFn);
   if (fromServer !== undefined) {
     if (!fromServer) return null;

@@ -1,4 +1,5 @@
 
+import { withBase } from "@/lib/basePath";
 import { createScrewBossGeometry } from "@/lib/screwBoss";
 import { createSnapFitGeometry } from "@/lib/snapFit";
 import { createRibGeometry } from "@/lib/rib";
@@ -91,7 +92,7 @@ export function setManifoldAssetBase(base: string) {
 }
 
 export function getManifoldRuntime() {
-  const assetBase = manifoldAssetBaseOverride ?? (typeof window === "undefined" ? "/" : new URL(".", window.location.href).href);
+  const assetBase = manifoldAssetBaseOverride ?? (typeof window === "undefined" ? "/" : new URL(withBase("/"), window.location.href).href);
   const manifoldScriptUrl = new URL("manifold.js", assetBase).href;
   const runtimeModule = import(/* webpackIgnore: true */ manifoldScriptUrl).then((module) => (module as { default: typeof manifoldModule }).default);
   // Drop a rejected attempt so a transient failure (e.g. a network blip

@@ -1,3 +1,4 @@
+import { withBase } from "@/lib/basePath";
 import type { MessageKey } from "@/lib/i18n";
 import { LAYERLING_VIDEOS } from "@/lib/layerlingVideos";
 
@@ -111,7 +112,7 @@ export function WelcomeGuideBody({ tr, offline = true }: { tr: Translate; offlin
         <p>{tr("welcome.localBody")}</p>
       </div>
       <p className="dashboard-welcome-help">{tr("welcome.help")}</p>
-      <a className="dashboard-welcome-guide-link" href={tr("welcome.guideUrl")}>
+      <a className="dashboard-welcome-guide-link" href={withBase(tr("welcome.guideUrl"))}>
         {tr("welcome.guideLink")}
         <span aria-hidden="true">&rarr;</span>
       </a>

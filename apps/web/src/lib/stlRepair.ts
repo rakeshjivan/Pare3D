@@ -1,3 +1,4 @@
+import { withBase } from "@/lib/basePath";
 /**
  * Fork (build 49): the repair engine of Pare's STL View, Repair & Resize (parepdf.app), run in its own
  * worker (public/stl-repair). It joins loose corners, removes broken and doubled triangles, separates
@@ -24,7 +25,7 @@ function call(type: string, data: Record<string, unknown> = {}, transfer: Transf
 
 function start(): Promise<void> {
   if (ready) return ready;
-  const base = new URL("/stl-repair/", window.location.href).href;
+  const base = new URL(withBase("/stl-repair/"), window.location.href).href;
   worker = new Worker(new URL("pare-mesh-worker.mjs", base), { type: "module" });
   worker.onmessage = (event: MessageEvent<Reply>) => {
     const waiting = pending.get(event.data.id);

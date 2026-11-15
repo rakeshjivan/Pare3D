@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const isStaticExport = process.env.STATIC_EXPORT === "true";
+// Build 113: the browser version is served from a folder (GitHub Pages: /Pare3D); the Mac app from the top.
+const basePath = isStaticExport ? (process.env.PARE_BASE_PATH ?? "").replace(/\/+$/, "") : "";
 const extraAllowedDevOrigins = (process.env.LAYERLING_ALLOWED_DEV_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim())
@@ -31,10 +33,13 @@ const nextConfig: NextConfig = {
   // Keep the live development compiler isolated from `next build`. Sharing
   // `.next` lets a production verification build invalidate chunks used by a
   // running dev server, which also breaks API routes such as project snapshots.
+  ...(basePath ? { basePath } : {}),
   distDir: isStaticExport ? ".next-export" : process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   allowedDevOrigins: ["localhost", "127.0.0.1", ...extraAllowedDevOrigins],
   env: {
     NEXT_PUBLIC_STATIC_EXPORT: isStaticExport ? "true" : "false",
+    NEXT_PUBLIC_BASE_PATH: basePath,
+    NEXT_PUBLIC_PARE_WEB: process.env.PARE_WEB === "true" ? "true" : "false",
     NEXT_PUBLIC_OCCT_RUNTIME_VERSION: occtRuntimeVersion,
     NEXT_PUBLIC_JAPANESE_FONT_VERSION: japaneseFontVersion,
     NEXT_PUBLIC_APP_VERSION: appVersion,
