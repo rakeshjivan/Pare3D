@@ -1,12 +1,13 @@
 # Build 113: the browser version of Pare 3D, on GitHub Pages at https://rakeshjivan.github.io/Pare3D/.
-# Published from the "release" branch with every live build, so the browser and the Mac app match.
+# Published from "main", which is pushed together with "release" for every live build, so the browser
+# and the Mac app match. (GitHub lets only the default branch deploy to Pages unless told otherwise.)
 # The same static export as the Mac app, served from the /Pare3D folder (PARE_BASE_PATH) and marked
 # as the browser version (PARE_WEB): no "new build to download" notices, since a reload updates it.
 name: Pare 3D web
 
 on:
   push:
-    branches: [release]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
