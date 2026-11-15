@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 112,
+    items: [
+      "Bauble: the picture is now on the outside of the ball, so you see it on screen. Tick \"Smooth outside\" to put it inside instead; it lights up the same.",
+      "Bauble: round underneath by default. Tick the small flat if you want to print it without supports.",
+    ],
+  },
+  {
     build: 111,
     items: [
       "Christmas bauble: your photo all the way round a hollow ball, lit from inside by a fairy light, a Christmas-tree light bulb or an LED base. Search for \"bauble\", or find it under Ready parts > Pictures.",

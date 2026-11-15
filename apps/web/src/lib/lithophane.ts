@@ -42,6 +42,10 @@ export type LithophaneOptions = {
   openingAt: "top" | "bottom";
   collar: boolean;
   copies: number;
+  /** Bauble: the picture's relief on the outside (seen on screen) or inside (a smooth ball). */
+  reliefOutside: boolean;
+  /** Bauble hanging from its top: a small flat underneath to print on, instead of round. */
+  flatBase: boolean;
 };
 
 export const DEFAULT_LITHOPHANE: LithophaneOptions = {
@@ -62,6 +66,8 @@ export const DEFAULT_LITHOPHANE: LithophaneOptions = {
   openingAt: "top",
   collar: true,
   copies: 1,
+  reliefOutside: true,
+  flatBase: false,
 };
 
 /** Above this many height-map points the mesh would be too heavy to work with comfortably. */
@@ -89,6 +95,8 @@ export function normalizeLithophane(raw: Partial<LithophaneOptions>): Lithophane
     openingAt: o.openingAt === "bottom" ? "bottom" : "top",
     collar: o.collar !== false,
     copies: Math.round(clamp(o.copies, 1, 6, 1)),
+    reliefOutside: o.reliefOutside !== false,
+    flatBase: o.flatBase === true,
   };
 }
 

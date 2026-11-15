@@ -50,7 +50,7 @@ export const BAUBLE_BANDS = [
 export const mercator = (latitude: number) => Math.log(Math.tan(Math.PI / 4 + latitude / 2));
 export const fromMercator = (value: number) => 2 * Math.atan(Math.exp(value)) - Math.PI / 2;
 
-type BaubleSettings = Pick<LithophaneOptions, "diameter" | "opening" | "openingAt" | "collar" | "copies" | "maxThickness">;
+type BaubleSettings = Pick<LithophaneOptions, "diameter" | "opening" | "openingAt" | "collar" | "copies" | "maxThickness"> & { flatBase?: boolean };
 
 /** The ball's fixed parts: radii, opening and how far up and down a picture may reach. */
 export function baubleFrame(o: BaubleSettings) {
@@ -63,8 +63,8 @@ export function baubleFrame(o: BaubleSettings) {
   const outerEdge = hole + (collar ? collar.wall : 0);
   // Where the opening (or the collar round it) leaves the outside of the ball.
   const openingLatitude = Math.acos(Math.min(1, outerEdge / radius));
-  // A hanging ball prints on a small flat at its bottom; one standing over a light is round there.
-  const foot = o.openingAt === "top" ? radius * BAUBLE_FOOT.share : 0;
+  // A hanging ball is round underneath unless asked for a small flat to print on; one standing over a light is round there.
+  const foot = o.openingAt === "top" && o.flatBase ? radius * BAUBLE_FOOT.share : 0;
   const footLatitude = foot ? -Math.acos(foot / radius) : -Math.PI / 2;
   const top = openingLatitude - BAUBLE_EDGE_MARGIN;
   const bottom = foot ? footLatitude + BAUBLE_EDGE_MARGIN : -BAUBLE_POLE_LIMIT;
@@ -209,19 +209,22 @@ export function baublePositions(map: { thickness: Float32Array; layout: ReturnTy
   const bandBottom = latitudeOfRow(rows - 1);
   const { radius, innerRadius, hole } = frame;
 
-  // The band: outside going down, inside (with the relief) going up.
-  for (let row = 0; row < rows - 1; row += 1) {
-    const a = latitudeOfRow(row), b = latitudeOfRow(row + 1);
-    const ringA = radius * Math.cos(a), yA = radius * Math.sin(a);
-    const ringB = radius * Math.cos(b), yB = radius * Math.sin(b);
-    strip((column) => point(ringA, yA, column), (column) => point(ringB, yB, column));
-  }
-  const inside = (row: number, column: number): Vec3 => {
+  // The band: outside going down, inside going up. The relief is on the outside (seen on screen,
+  // a textured ball when unlit) or, with a smooth outside, on the inside; the light only sees thickness.
+  const reliefOutside = o.reliefOutside !== false;
+  const depthAt = (row: number, column: number) => (row === 0 || row === rows - 1 ? frame.shell : thickness[row * columns + (column % columns)]);
+  const surface = (outer: boolean) => (row: number, column: number): Vec3 => {
     const latitude = latitudeOfRow(row);
-    const depth = row === 0 || row === rows - 1 ? frame.shell : thickness[row * columns + (column % columns)];
-    const r = radius - depth;
+    const r = outer
+      ? (reliefOutside ? innerRadius + depthAt(row, column) : radius)
+      : (reliefOutside ? innerRadius : radius - depthAt(row, column));
     return point(r * Math.cos(latitude), r * Math.sin(latitude), column);
   };
+  const outside = surface(true);
+  const inside = surface(false);
+  for (let row = 0; row < rows - 1; row += 1) {
+    strip((column) => outside(row, column), (column) => outside(row + 1, column));
+  }
   for (let row = rows - 1; row > 0; row -= 1) {
     strip((column) => inside(row, column), (column) => inside(row - 1, column));
   }

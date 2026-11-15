@@ -197,6 +197,16 @@ export function LithophanePanel({ busy, onCreate, onClose, initialShape }: { bus
               <input type="checkbox" checked={options.collar} onChange={(event) => set({ collar: event.currentTarget.checked })} />
               {t("bauble.collar")}
             </label>
+            <label className="lithophane-check">
+              <input type="checkbox" checked={!options.reliefOutside} onChange={(event) => set({ reliefOutside: !event.currentTarget.checked })} />
+              {t("bauble.smoothOutside")}
+            </label>
+            {options.openingAt === "top" ? (
+              <label className="lithophane-check">
+                <input type="checkbox" checked={options.flatBase} onChange={(event) => set({ flatBase: event.currentTarget.checked })} />
+                {t("bauble.flatBase")}
+              </label>
+            ) : null}
             <div className="lithophane-field">
               <span>{t("bauble.copies")}</span>
               <div className="lithophane-choice" role="radiogroup" aria-label={t("bauble.copies")}>
@@ -281,7 +291,7 @@ export function LithophanePanel({ busy, onCreate, onClose, initialShape }: { bus
             <p className="lithophane-info">
               {t("bauble.fit", { diameter: Math.round(options.diameter), below: toDegrees(baubleFit.pictureBottom), above: toDegrees(baubleFit.pictureTop), percent: Math.round(Math.cos(Math.max(Math.abs(baubleFit.pictureTop), Math.abs(baubleFit.pictureBottom))) * 100) })}
               {" "}
-              {t(options.openingAt === "top" ? "bauble.printTipTop" : "bauble.printTipBottom")}
+              {t(options.openingAt === "bottom" ? "bauble.printTipBottom" : options.flatBase ? "bauble.printTipTop" : "bauble.printTipRound")}
             </p>
             {baubleFit.kept < 0.999 ? <p className="lithophane-info warning">{t("bauble.cropped", { percent: Math.round(baubleFit.kept * 100) })}</p> : null}
           </>

@@ -44,11 +44,13 @@ function bounds(positions: number[]) {
 const stripe = (u: number, v: number) => ((Math.floor(u * 8) + Math.floor(v * 4)) % 2 ? 0.9 : 0.1);
 
 describe("Christmas bauble lithophane", () => {
-  const cases = [
-    { name: "hanging, with collar and flat", patch: {} },
+  const cases: Array<{ name: string; patch: Record<string, unknown> }> = [
+    { name: "hanging, with collar and flat", patch: { flatBase: true } },
+    { name: "hanging, round underneath", patch: {} },
     { name: "hanging, no collar", patch: { collar: false } },
     { name: "standing over a light", patch: { openingAt: "bottom" as const, opening: 40 } },
     { name: "three copies round", patch: { copies: 3, diameter: 60 } },
+    { name: "smooth outside, picture inside", patch: { reliefOutside: false } },
   ];
   for (const entry of cases) {
     it(`is one closed solid: ${entry.name}`, () => {
