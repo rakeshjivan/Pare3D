@@ -1056,6 +1056,7 @@ export const MESSAGES_EN = {
   "transform.cornerDepth": "Depth",
   "transform.resize": "Resize",
   "transform.height": "Height",
+  "transform.cornerRadius": "Corner radius",
   "transform.lift": "Lift",
   "sketch.modeBadge": "Sketch view",
   "sketch.modeBadgeRevolve": "Revolve sketch",

@@ -86,7 +86,7 @@ import { createTeardropGeometry } from "@/lib/teardropGeometry";
 import { createPortGeometry } from "@/lib/portGeometry";
 import { createScrewHoleGeometry } from "@/lib/screwHoleGeometry";
 import { createHoneycombGeometry } from "@/lib/honeycombGeometry";
-import { createRoundedBoxGeometry } from "@/lib/roundedBoxGeometry";
+import { cornerRadiusDragPatch, createRoundedBoxGeometry, DEFAULT_ROUNDED_BOX_CORNER_FILLET } from "@/lib/roundedBoxGeometry";
 import { createBentTubeGeometry, createBentTubeSegmentGeometry } from "@/lib/bentTubeGeometry";
 import { createThreadGeometry } from "@/lib/threadGeometry";
 import { createSpringGeometry } from "@/lib/springGeometry";
@@ -4364,6 +4364,8 @@ export function WorkplaneViewport({
   );
 
   const rememberResizeAnchor = useCallback((shapeId: string, kind: TransformHandleKind, handleKey: string) => {
+    // The corner radius dot changes no size: it leaves the anchor of the last resize as it was.
+    if (handleKey === "corner-radius") return;
     if (kind === "scale") {
       const signs = resizeSignsForHandle(handleKey);
       if (signs.x || signs.z) {
@@ -6200,7 +6202,8 @@ export function WorkplaneViewport({
       const scaleStartPoint = scalePlane ? toRawPlanePoint(event.clientX, event.clientY, scalePlane) ?? undefined : undefined;
       const scaleSigns = kind === "scale" ? resizeSignsForHandle(resizeHandleKey) : undefined;
       const scaleAnchorPoint = kind === "scale" && scaleSigns ? resizeAnchorPointForFrame(frame, scaleSigns) : undefined;
-      const liftAxis = kind === "lift" ? (moveAlong?.clone().normalize() ?? lift.axis) : kind === "height" ? frame.yAxis.clone().normalize() : undefined;
+      // Build 115: the corner radius dot runs along the top's back edge, the width's axis.
+      const liftAxis = kind === "lift" ? (moveAlong?.clone().normalize() ?? lift.axis) : handleKey === "corner-radius" ? frame.xAxis.clone().normalize() : kind === "height" ? frame.yAxis.clone().normalize() : undefined;
       const liftHandlePoint = liftAxis
         ? (moveAlong ? frame.center.clone() : kind === "lift"
             ? lift.pointAt(handlesLowerSide ? lift.low : lift.high).addScaledVector(liftAxis, liftOffset)
@@ -6502,6 +6505,12 @@ export function WorkplaneViewport({
         const rawDelta = currentPoint && transform.liftStartPoint
           ? currentPoint.clone().sub(transform.liftStartPoint).dot(axis)
           : 0;
+        // Build 115: the corner radius dot - pulled towards its corner the radius shrinks, away from it it grows.
+        if (transform.handleKey === "corner-radius") {
+          const start = transform.items[0]?.startShape;
+          if (start) onUpdateShape(start.id, cornerRadiusDragPatch(start, snapValue(rawDelta, step)));
+          return true;
+        }
         const resizingFromBottom = transform.handleKey === "bottom-height";
         const rawFrameHeight = transform.selectionFrame.height + (resizingFromBottom ? -rawDelta : rawDelta);
         const printerHeight = printerPresetById(workspaceRef.current.printer)?.height;
@@ -8697,7 +8706,7 @@ export function WorkplaneViewport({
         const rotationCenter = handle.kind === "rotate" ? wheel ?? projectToScreen(pivot, state) : undefined;
         const rotationStartPoint = handle.kind === "rotate" ? rayPointOnRotationPlane(state, event.clientX, event.clientY, rotationPlaneCenter, axisVector) : null;
         const rotationStartVector = rotationStartPoint ? rotationStartPoint.sub(rotationPlaneCenter) : undefined;
-        const liftAxis = handle.kind === "lift" ? lift.axis : handle.kind === "height" ? frame.yAxis.clone().normalize() : undefined;
+        const liftAxis = handle.kind === "lift" ? lift.axis : handle.handleKey === "corner-radius" ? frame.xAxis.clone().normalize() : handle.kind === "height" ? frame.yAxis.clone().normalize() : undefined;
         const liftHandlePoint = liftAxis
           ? (handle.kind === "lift"
               ? lift.pointAt(handlesLowerSide ? lift.low : lift.high).addScaledVector(liftAxis, liftOffset)
@@ -13958,6 +13967,27 @@ function syncTransformOverlay(
   const rightOut = xFootAxis;
   const leftOut = xFootAxis.clone().multiplyScalar(-1);
   const heightHandleKey = showLowerHandles ? "bottom-height" : "top-height";
+  // Build 115 (from layerling): the corner radius dot, orange, on the top's back edge where the back right corner's
+  // rounding starts; dragged along the edge, the radius follows. A plain Box has it too, with no radius yet: the first
+  // pull makes it a Rounded box. It keeps a little clear of the other handles on the screen.
+  const cornerPoint = (() => {
+    const shape = frame.singleShape;
+    const plainBox = shape?.kind === "box" && !shape.imagePlate && !((shape.radius ?? 0) > 0);
+    if (!shape || (!plainBox && shape.kind !== "roundedBox") || showLowerHandles) return { x: 0, y: 0, visible: false };
+    const largest = Math.min(frame.max.x - frame.min.x, frame.max.z - frame.min.z) / 2;
+    const radius = plainBox ? 0 : Math.min(Math.max(0, shape.cornerFillet ?? DEFAULT_ROUNDED_BOX_CORNER_FILLET), largest);
+    const edgeX = frame.max.x - radius;
+    let point = project(framePoint(frame, edgeX, frame.max.y, frame.min.z));
+    const others = [bottom.nearLeft, bottom.nearRight, bottom.farRight, bottom.farLeft, mid.near, mid.right, mid.far, mid.left, heightPoint].filter((other) => other.visible);
+    const crowded = (candidate: { x: number; y: number }) => others.some((other) => Math.hypot(other.x - candidate.x, other.y - candidate.y) < 16);
+    for (let step = 1; step <= 8 && point.visible && crowded(point); step += 1) {
+      // Slide along the edge into the body until it is clear.
+      const along = Math.min(1, step * 0.06);
+      const at = project(framePoint(frame, edgeX - largest * along, frame.max.y, frame.min.z));
+      point = at.visible ? at : point;
+    }
+    return point;
+  })();
   const liftHandleKey = showLowerLiftHandle ? "lower-shape" : "lift-shape";
   const liftAnchor = lift.pointAt(0);
   const liftTarget = lift.pointAt(lift.elevation);
@@ -14129,6 +14159,7 @@ function syncTransformOverlay(
     { point: mid.far, handle: { key: "far-mid", className: "edge dark", kind: "scale" as const, x: mid.far.x, y: mid.far.y, title: t("transform.resize") } },
     { point: mid.left, handle: { key: "left-mid", className: "edge dark", kind: "scale" as const, x: mid.left.x, y: mid.left.y, title: t("transform.resize") } },
     { point: heightPoint, handle: { key: heightHandleKey, className: "height-top", kind: "height" as const, x: heightPoint.x, y: heightPoint.y, title: t("transform.height") } },
+    { point: cornerPoint, handle: { key: "corner-radius", className: "height-top corner-radius", kind: "height" as const, x: cornerPoint.x, y: cornerPoint.y, title: t("transform.cornerRadius") } },
     { point: liftPoint, handle: { key: liftHandleKey, className: showLowerLiftHandle ? "height-lift lower" : "height-lift", kind: "lift" as const, x: liftPoint.x, y: liftPoint.y, title: t("transform.lift"), angle: liftHandleAngle } },
   ].filter(({ point }) => point.visible).map(({ handle }) => handle);
   const rotationChromeVisible = !cameraInsideSelection && centerPoint.visible;

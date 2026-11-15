@@ -4,6 +4,12 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 115,
+    items: [
+      "Round a box's corners by dragging: an orange dot on the top edge of a box or rounded box. Drag it along the edge, away from the corner, for rounder corners. A plain box becomes a rounded box on the first pull.",
+    ],
+  },
+  {
     build: 114,
     items: [
       "Imported STL models take less memory: a 400,000-triangle scan now uses about a fifth less, and designs that hold one save smaller. Designs made earlier shrink the next time they are opened.",

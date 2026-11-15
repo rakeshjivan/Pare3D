@@ -2133,3 +2133,7 @@ html[data-theme="dark"] .clearance-row.fine { border-left-color: #5fd47c; }
 }
 .bauble-template-button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
 .bauble-template-button:disabled { opacity: 0.5; cursor: default; }
+
+/* Build 115 (from layerling): the corner radius dot, round and orange so it is not taken for the height. */
+.transform-handle.height-top.corner-radius { border-radius: 50%; background: #e0873a; border-color: #6b3a12; }
+.transform-handle.height-top.corner-radius:hover { background: #f0a35f; border-color: #6b3a12; }

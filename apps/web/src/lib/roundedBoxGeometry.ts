@@ -22,6 +22,24 @@ export function normalizeTopBottomFillet(val: unknown, maxFillet = 50): number {
   return Math.max(0, Math.min(maxFillet, Math.round(n * 100) / 100));
 }
 
+/**
+ * Build 115 (from layerling 1.165): what a drag on the corner radius dot changes - the orange dot on the top's back
+ * edge where the back right corner's rounding starts, like the corner dot in Inkscape. `delta` is how far the dot
+ * was pulled along the top's back edge in mm, towards +x of the body: towards the corner the radius shrinks, away
+ * from it it grows. A plain Box has no rounding to start from: its first pull makes it a Rounded box with a flat top
+ * and bottom, so the body keeps its shape and only the upright corners round.
+ */
+export function cornerRadiusDragPatch(
+  start: { kind: string; width?: number; depth?: number; size: number; cornerFillet?: number },
+  delta: number,
+): { kind?: "roundedBox"; cornerFillet: number; topBottomFillet?: number } {
+  const largest = Math.min(start.width ?? start.size, start.depth ?? start.size) / 2;
+  const plainBox = start.kind === "box";
+  const startRadius = plainBox ? 0 : Math.min(largest, normalizeCornerFillet(start.cornerFillet ?? DEFAULT_ROUNDED_BOX_CORNER_FILLET, Math.max(largest, 50)));
+  const cornerFillet = Math.round(Math.max(0, Math.min(largest, startRadius - delta)) * 1e2) / 1e2;
+  return plainBox ? { kind: "roundedBox", cornerFillet, topBottomFillet: 0 } : { cornerFillet };
+}
+
 export function normalizeRoundedBoxQuality(val: unknown): number {
   const n = typeof val === "number" && Number.isFinite(val) ? Math.round(val) : DEFAULT_ROUNDED_BOX_QUALITY;
   return Math.max(MIN_ROUNDED_BOX_QUALITY, Math.min(MAX_ROUNDED_BOX_QUALITY, n));
