@@ -2123,3 +2123,13 @@ html[data-theme="dark"] .clearance-row.fine { border-left-color: #5fd47c; }
 .layerling-editor:has(.plate-bar) .bed-overhang-warning { bottom: 66px; }
 .layerling-editor:has(.plate-bar):has(.bed-overhang-warning) .editor-status { bottom: calc(var(--editor-footer-height) + 122px); }
 .plate-bar-rename::placeholder { color: var(--muted-strong); }
+
+/* Build 111: the bauble's template box in the lithophane panel. */
+.bauble-template { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--subbar); border: 1px solid var(--border); border-radius: 9px; }
+.bauble-template-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px;
+  color: var(--foreground); background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  font: 700 12.5px var(--font-ui); cursor: pointer;
+}
+.bauble-template-button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.bauble-template-button:disabled { opacity: 0.5; cursor: default; }

@@ -4,6 +4,14 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 111,
+    items: [
+      "Christmas bauble: your photo all the way round a hollow ball, lit from inside by a fairy light, a Christmas-tree light bulb or an LED base. Search for \"bauble\", or find it under Ready parts > Pictures.",
+      "The photo wraps shape-true: faces and circles keep their proportions on the ball. A template at the exact pixel size (for Canva or any photo editor) shows where it prints at full size and where the seam is.",
+      "The photo can go round the ball once or repeat two to four times, so an ordinary photo fits.",
+    ],
+  },
+  {
     build: 110,
     items: [
       "Build plates: lay a design out on several plates side by side, move parts between them, arrange them, and export all plates or one plate at a time. Under Arrange, and Onto plate in the right-click menu.",

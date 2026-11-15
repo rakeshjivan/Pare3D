@@ -1,11 +1,13 @@
 "use client";
 
-import { Check, ImagePlus, X } from "lucide-react";
+import { Check, Download, ImagePlus, X } from "lucide-react";
 import { GuideHelpLink } from "@/components/GuideHelpLink";
 import { useEffect, useRef, useState } from "react";
 import { MovableToolPanel } from "@/components/workplane/MovableToolPanel";
 import { t } from "@/lib/i18n";
 import { useLanguage } from "@/lib/useLanguage";
+import { BAUBLE_BANDS, BAUBLE_LIGHTS, baubleLayout, baubleTemplate } from "@/lib/baubleLithophane";
+import { downloadBaubleTemplate } from "@/components/workplane/baubleTemplateImage";
 import { DEFAULT_LITHOPHANE, adjustBrightness, lithophaneGrid, lithophaneHeight, normalizeLithophane, type LithophaneOptions, type LithophaneShape } from "@/lib/lithophane";
 
 /** A photo's brightness, 0 to 1, as many points across and down as it was read at. */
@@ -62,11 +64,13 @@ export function sampleImage(image: LithophaneImage, u: number, v: number) {
   return (at(x0, y0) * (1 - fx) + at(x1, y0) * fx) * (1 - fy) + (at(x0, y1) * (1 - fx) + at(x1, y1) * fx) * fy;
 }
 
-export function LithophanePanel({ busy, onCreate, onClose }: { busy: boolean; onCreate: (image: LithophaneImage, options: LithophaneOptions) => void; onClose: () => void }) {
+export function LithophanePanel({ busy, onCreate, onClose, initialShape }: { busy: boolean; onCreate: (image: LithophaneImage, options: LithophaneOptions) => void; onClose: () => void; initialShape?: LithophaneShape }) {
   useLanguage();
   const [image, setImage] = useState<LithophaneImage | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [options, setOptions] = useState<LithophaneOptions>(DEFAULT_LITHOPHANE);
+  const [options, setOptions] = useState<LithophaneOptions>(() => normalizeLithophane({ ...DEFAULT_LITHOPHANE, ...(initialShape ? { shape: initialShape } : {}) }));
+  const [band, setBand] = useState<(typeof BAUBLE_BANDS)[number]["id"]>("standard");
+  const [templateBusy, setTemplateBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<HTMLCanvasElement>(null);
   const set = (patch: Partial<LithophaneOptions>) => setOptions(normalizeLithophane({ ...options, ...patch }));
@@ -99,11 +103,18 @@ export function LithophanePanel({ busy, onCreate, onClose }: { busy: boolean; on
   }, [image, options]);
 
   const pictureHeight = image ? lithophaneHeight(options.width, image.width, image.height) : 0;
+  const bauble = options.shape === "bauble";
+  const baubleFit = bauble && image ? baubleLayout(options, image.width, image.height) : null;
+  const bandDegrees = BAUBLE_BANDS.find((entry) => entry.id === band)?.degrees ?? 45;
+  const templateSize = bauble ? baubleTemplate(options, bandDegrees) : null;
+  const light = BAUBLE_LIGHTS.find((entry) => entry.opening === options.opening && entry.at === options.openingAt)?.id ?? null;
+  const toDegrees = (radians: number) => Math.round((Math.abs(radians) * 180) / Math.PI);
   const grid = image ? lithophaneGrid(options, image.width, image.height) : null;
   const shapes = [
     { value: "flat", label: "lithophane.flat" },
     { value: "curved", label: "lithophane.curved" },
     { value: "cylinder", label: "lithophane.cylinder" },
+    { value: "bauble", label: "lithophane.bauble" },
   ] as const satisfies ReadonlyArray<{ value: LithophaneShape; label: string }>;
 
   return (
@@ -111,8 +122,8 @@ export function LithophanePanel({ busy, onCreate, onClose }: { busy: boolean; on
       {(handleProps) => (<>
         <div className="edge-modifier-header movable" title={t("panel.moveHint")} {...handleProps}>
           <div>
-            <strong>{t("lithophane.title")}</strong>
-            <span>{t("lithophane.subtitle")}</span>
+            <strong>{t(options.shape === "bauble" ? "bauble.title" : "lithophane.title")}</strong>
+            <span>{t(options.shape === "bauble" ? "bauble.subtitle" : "lithophane.subtitle")}</span>
           </div>
           <div className="panel-header-actions">
             <GuideHelpLink section="makeFromPhoto" />
@@ -156,8 +167,84 @@ export function LithophanePanel({ busy, onCreate, onClose }: { busy: boolean; on
           </div>
         </div>
 
+        {bauble ? (
+          <>
+            <div className="lithophane-field">
+              <span>{t("bauble.light")}</span>
+              <div className="lithophane-choice" role="radiogroup" aria-label={t("bauble.light")}>
+                {BAUBLE_LIGHTS.map((entry) => (
+                  <button key={entry.id} type="button" role="radio" aria-checked={light === entry.id} className={light === entry.id ? "active" : ""} title={t(`bauble.light.${entry.id}Hint`)} onClick={() => set({ opening: entry.opening, openingAt: entry.at })}>
+                    {t(`bauble.light.${entry.id}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="lithophane-grid">
+              <Field label={t("bauble.diameter")} value={options.diameter} onChange={(diameter) => set({ diameter })} />
+              <Field label={t("bauble.opening")} value={options.opening} onChange={(opening) => set({ opening })} />
+            </div>
+            <div className="lithophane-field">
+              <span>{t("bauble.openingAt")}</span>
+              <div className="lithophane-choice" role="radiogroup" aria-label={t("bauble.openingAt")}>
+                {(["top", "bottom"] as const).map((at) => (
+                  <button key={at} type="button" role="radio" aria-checked={options.openingAt === at} className={options.openingAt === at ? "active" : ""} onClick={() => set({ openingAt: at })}>
+                    {t(at === "top" ? "bauble.top" : "bauble.bottom")}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="lithophane-check">
+              <input type="checkbox" checked={options.collar} onChange={(event) => set({ collar: event.currentTarget.checked })} />
+              {t("bauble.collar")}
+            </label>
+            <div className="lithophane-field">
+              <span>{t("bauble.copies")}</span>
+              <div className="lithophane-choice" role="radiogroup" aria-label={t("bauble.copies")}>
+                {[1, 2, 3, 4].map((copies) => (
+                  <button key={copies} type="button" role="radio" aria-checked={options.copies === copies} className={options.copies === copies ? "active" : ""} onClick={() => set({ copies })}>
+                    {copies === 1 ? t("bauble.copiesOnce") : `${copies}×`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="bauble-template">
+              <div className="lithophane-field">
+                <span>{t("bauble.template")}</span>
+                <div className="lithophane-choice" role="radiogroup" aria-label={t("bauble.template")}>
+                  {BAUBLE_BANDS.map((entry) => (
+                    <button key={entry.id} type="button" role="radio" aria-checked={band === entry.id} className={band === entry.id ? "active" : ""} onClick={() => setBand(entry.id)}>
+                      {t(`bauble.band.${entry.id}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {templateSize ? (
+                <p className="lithophane-info">
+                  {t("bauble.templateSize", { width: templateSize.widthPx, height: templateSize.heightPx, mmWidth: templateSize.widthMm.toFixed(0), mmHeight: templateSize.heightMm.toFixed(0), degrees: bandDegrees, percent: Math.round(Math.cos((bandDegrees * Math.PI) / 180) * 100) })}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                className="secondary bauble-template-button"
+                disabled={templateBusy}
+                onClick={() => {
+                  setTemplateBusy(true);
+                  setError(null);
+                  void downloadBaubleTemplate(options, bandDegrees)
+                    .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
+                    .finally(() => setTemplateBusy(false));
+                }}
+              >
+                <Download size={16} aria-hidden="true" />
+                {t("bauble.templateDownload")}
+              </button>
+              <p className="lithophane-info">{t("bauble.canva", { width: templateSize?.widthPx ?? 0, height: templateSize?.heightPx ?? 0 })}</p>
+            </div>
+          </>
+        ) : null}
+
         <div className="lithophane-grid">
-          <Field label={t(options.shape === "cylinder" ? "lithophane.around" : "lithophane.width")} value={options.width} onChange={(width) => set({ width })} />
+          {bauble ? null : <Field label={t(options.shape === "cylinder" ? "lithophane.around" : "lithophane.width")} value={options.width} onChange={(width) => set({ width })} />}
           <Field label={t("lithophane.border")} value={options.border} onChange={(border) => set({ border })} />
           <Field label={t("lithophane.thinnest")} value={options.minThickness} onChange={(minThickness) => set({ minThickness })} />
           <Field label={t("lithophane.thickest")} value={options.maxThickness} onChange={(maxThickness) => set({ maxThickness })} />
@@ -189,7 +276,18 @@ export function LithophanePanel({ busy, onCreate, onClose }: { busy: boolean; on
           </label>
         ) : null}
 
-        {image && grid ? (
+        {bauble && baubleFit ? (
+          <>
+            <p className="lithophane-info">
+              {t("bauble.fit", { diameter: Math.round(options.diameter), below: toDegrees(baubleFit.pictureBottom), above: toDegrees(baubleFit.pictureTop), percent: Math.round(Math.cos(Math.max(Math.abs(baubleFit.pictureTop), Math.abs(baubleFit.pictureBottom))) * 100) })}
+              {" "}
+              {t(options.openingAt === "top" ? "bauble.printTipTop" : "bauble.printTipBottom")}
+            </p>
+            {baubleFit.kept < 0.999 ? <p className="lithophane-info warning">{t("bauble.cropped", { percent: Math.round(baubleFit.kept * 100) })}</p> : null}
+          </>
+        ) : bauble ? (
+          <p className="lithophane-info">{t("bauble.intro")}</p>
+        ) : image && grid ? (
           <p className="lithophane-info">
             {t("lithophane.size", { width: (options.width + (options.shape === "cylinder" ? 0 : 2 * options.border)).toFixed(0), height: (pictureHeight + 2 * options.border).toFixed(0), thick: options.maxThickness.toFixed(1) })}
             {" "}

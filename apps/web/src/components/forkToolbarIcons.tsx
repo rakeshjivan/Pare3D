@@ -296,6 +296,19 @@ export function ForkLithophaneIcon(props: IconProps) {
   );
 }
 
+/** Build 111: a Christmas bauble - a ball with its cap and a picture band round it. */
+export function ForkBaubleIcon(props: IconProps) {
+  return (
+    <ForkIcon strokeWidth="2.4" {...props}>
+      <circle cx="24" cy="27" r="15" {...SOFT} />
+      <circle cx="24" cy="27" r="15" />
+      <path d="M9.6 23c9.6 3 19.2 3 28.8 0M9.6 31c9.6 3 19.2 3 28.8 0" {...ACCENT} />
+      <path d="M20 12.5V8h8v4.5" />
+      <path d="M24 8V4" />
+    </ForkIcon>
+  );
+}
+
 /** Fork (build 21): photo to outline - a photo with a traced line round a spanner shape. */
 export function ForkTraceIcon(props: IconProps) {
   // Fork (build 22): finer - crop corners round a spanner outline traced in the accent colour.

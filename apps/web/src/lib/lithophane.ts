@@ -13,7 +13,7 @@ import type { WorkplaneShape } from "@/types/layerling";
  * Sizes in mm. The image is given as brightness values (0 black, 1 white), row 0 at the top.
  */
 
-export type LithophaneShape = "flat" | "curved" | "cylinder";
+export type LithophaneShape = "flat" | "curved" | "cylinder" | "bauble";
 
 export type LithophaneOptions = {
   shape: LithophaneShape;
@@ -36,6 +36,12 @@ export type LithophaneOptions = {
   invert: boolean;
   /** Flat: a foot so the plate stands on its own. */
   stand: boolean;
+  /** Bauble: the ball's size, the opening for the light and where it is, a collar round it, and how often the photo goes round. */
+  diameter: number;
+  opening: number;
+  openingAt: "top" | "bottom";
+  collar: boolean;
+  copies: number;
 };
 
 export const DEFAULT_LITHOPHANE: LithophaneOptions = {
@@ -51,6 +57,11 @@ export const DEFAULT_LITHOPHANE: LithophaneOptions = {
   gamma: 1,
   invert: false,
   stand: true,
+  diameter: 80,
+  opening: 13,
+  openingAt: "top",
+  collar: true,
+  copies: 1,
 };
 
 /** Above this many height-map points the mesh would be too heavy to work with comfortably. */
@@ -61,7 +72,7 @@ export function normalizeLithophane(raw: Partial<LithophaneOptions>): Lithophane
   const clamp = (value: number, min: number, max: number, fallback: number) => (Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback);
   const minThickness = clamp(o.minThickness, 0.3, 10, DEFAULT_LITHOPHANE.minThickness);
   return {
-    shape: o.shape === "curved" || o.shape === "cylinder" ? o.shape : "flat",
+    shape: o.shape === "curved" || o.shape === "cylinder" || o.shape === "bauble" ? o.shape : "flat",
     width: clamp(o.width, 20, 400, DEFAULT_LITHOPHANE.width),
     minThickness,
     maxThickness: clamp(o.maxThickness, minThickness + 0.2, 15, Math.max(DEFAULT_LITHOPHANE.maxThickness, minThickness + 0.2)),
@@ -73,6 +84,11 @@ export function normalizeLithophane(raw: Partial<LithophaneOptions>): Lithophane
     gamma: clamp(o.gamma, 0.2, 5, 1),
     invert: Boolean(o.invert),
     stand: o.stand !== false,
+    diameter: clamp(o.diameter, 40, 200, DEFAULT_LITHOPHANE.diameter),
+    opening: clamp(o.opening, 3, 80, DEFAULT_LITHOPHANE.opening),
+    openingAt: o.openingAt === "bottom" ? "bottom" : "top",
+    collar: o.collar !== false,
+    copies: Math.round(clamp(o.copies, 1, 6, 1)),
   };
 }
 

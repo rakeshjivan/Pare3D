@@ -5,7 +5,7 @@ import { DEFAULT_JAR, jarParts, normalizeJar, type JarOptions } from "@/lib/read
 import { DEFAULT_FLEXI_CHAIN, flexiChainParts, normalizeFlexiChain, type FlexiChainOptions } from "@/lib/flexiJoint";
 import { useState } from "react";
 import { CLICKER_DEFAULT_GAP, CLICKER_GAPS, CLICKER_TOP_HEIGHT, clickerBaseDepth, clickerBasePart, clickerTopPart, type ClickerGap } from "@/lib/clickerParts";
-import { ForkLithophaneIcon, ForkTraceIcon, ForkVoronoiIcon } from "@/components/forkToolbarIcons";
+import { ForkBaubleIcon, ForkLithophaneIcon, ForkTraceIcon, ForkVoronoiIcon } from "@/components/forkToolbarIcons";
 import { t } from "@/lib/i18n";
 import { useLanguage } from "@/lib/useLanguage";
 import { EnclosureCard, FitTestCard } from "@/components/ReadyPartsMore";
@@ -35,7 +35,7 @@ import {
 } from "@/lib/readyParts";
 
 /** Fork: the Shapes panel's "Ready-made parts" - built from ordinary shapes, placed with a click. */
-export function ReadyPartsSection({ onInsert, onMake }: { onInsert: (parts: ReadyPart[], options?: { sink?: number; carry?: boolean; onFace?: { hint: string; placed: string; cutInto?: boolean } }) => void; onMake?: (maker: "lithophane" | "trace" | "voronoi") => void }) {
+export function ReadyPartsSection({ onInsert, onMake }: { onInsert: (parts: ReadyPart[], options?: { sink?: number; carry?: boolean; onFace?: { hint: string; placed: string; cutInto?: boolean } }) => void; onMake?: (maker: "lithophane" | "bauble" | "trace" | "voronoi") => void }) {
   useLanguage();
   const [insertSize, setInsertSize] = useState<MetricSize>("M3");
   const [nutSize, setNutSize] = useState<MetricSize>("M3");
@@ -303,6 +303,7 @@ export function ReadyPartsSection({ onInsert, onMake }: { onInsert: (parts: Read
               <h4 className="ready-parts-category">{t("readyParts.cat.pictures")}</h4>
               {([
                 ["lithophane", t("lithophane.title"), t("readyParts.makeLithophaneHint"), <ForkLithophaneIcon key="i" />],
+                ["bauble", t("bauble.title"), t("readyParts.makeBaubleHint"), <ForkBaubleIcon key="i" />],
                 ["trace", t("trace.title"), t("readyParts.makeTraceHint"), <ForkTraceIcon key="i" />],
                 ["voronoi", t("voronoi.title"), t("readyParts.makeVoronoiHint"), <ForkVoronoiIcon key="i" />],
               ] as const).map(([maker, title, hint, icon]) => (

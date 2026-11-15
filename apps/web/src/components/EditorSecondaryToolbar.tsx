@@ -75,6 +75,7 @@ import { Brush, ChevronDown, Cookie, Grip, MessageSquareText, PackageOpen, Print
 import { PareBuildBadge } from "./PareVersionStatus";
 import { ArchiveRestore, Signature } from "lucide-react";
 import { OPEN_FILE_BACKUPS_EVENT } from "@/lib/fileBackups";
+import { OPEN_BAUBLE_EVENT } from "@/lib/baubleLithophane";
 import { CommandPalette, type PaletteCommand } from "./workplane/CommandPalette";
 import { COMMAND_KEYWORDS, SHAPE_KEYWORDS } from "@/lib/commandKeywords";
 import { ExportButton } from "@/components/ExportButton";
@@ -1226,6 +1227,7 @@ export function SecondaryToolbar({
       plain("split-to-fit", t("splitToFit.command"), manageGroup, true, () => window.dispatchEvent(new Event(SPLIT_TO_FIT_EVENT))),
       plain("cut-below-bed", t("cutBelowBed.command"), manageGroup, true, () => window.dispatchEvent(new Event(CUT_BELOW_BED_EVENT))),
       plain("mesh-check", t("meshCheck.command"), manageGroup, hasSelection, () => window.dispatchEvent(new Event(MESH_CHECK_EVENT))),
+      plain("bauble", t("bauble.title"), manageGroup, true, () => window.dispatchEvent(new Event(OPEN_BAUBLE_EVENT)), { keywords: ["christmas", "bauble", "ornament", "ball", "lithophane", "sphere", "xmas"] }),
       plain("file-backups", t("backups.title"), manageGroup, true, () => window.dispatchEvent(new Event(OPEN_FILE_BACKUPS_EVENT)), { icon: ArchiveRestore, keywords: ["backup", "backups", "version", "versions", "restore", "earlier"] }),
       plain("fill-hole", t("fillHole.command"), t("editor.group.modify"), hasSelection, () => window.dispatchEvent(new Event(FILL_HOLE_EVENT))),
       // Build 70: the Mesh tools in the search too (Mesh check, Fill hole and Cut below are above).

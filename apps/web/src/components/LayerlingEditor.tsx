@@ -145,6 +145,7 @@ import { layOutOnPlate, splitToFit } from "@/lib/splitToFit";
 import { whileBusy } from "@/lib/busy";
 import { LithophanePanel, sampleImage, type LithophaneImage } from "./workplane/LithophanePanel";
 import { VoronoiPanel } from "./workplane/VoronoiPanel";
+import { baublePositions, baubleThicknessMap, OPEN_BAUBLE_EVENT } from "@/lib/baubleLithophane";
 import { LITHOPHANE_STAND, lithophanePositions, lithophaneThicknessMap, meshShapeFromPositions, normalizeLithophane, type LithophaneOptions } from "@/lib/lithophane";
 import { normalizeVoronoi, voronoiPositions, type VoronoiOptions } from "@/lib/voronoi";
 import { sweepPlan } from "@/lib/cadSketchSweep";
@@ -6575,7 +6576,13 @@ export function LayerlingEditor({
   }, [commitShapes]);
 
   // Fork: the lithophane and Voronoi makers.
-  const [makerPanel, setMakerPanel] = useState<"lithophane" | "voronoi" | "trace" | null>(null);
+  const [makerPanel, setMakerPanel] = useState<"lithophane" | "bauble" | "voronoi" | "trace" | null>(null);
+  // Build 111: the command search opens the bauble maker.
+  useEffect(() => {
+    const open = () => setMakerPanel("bauble");
+    window.addEventListener(OPEN_BAUBLE_EVENT, open);
+    return () => window.removeEventListener(OPEN_BAUBLE_EVENT, open);
+  }, []);
   const [makerBusy, setMakerBusy] = useState(false);
   const placeMade = useLatestCallback((made: WorkplaneShape, notice: string) => {
     const { shapes: inserted } = placeCustomShape({ shapes: [made] }, placementWorkplaneRef.current.origin, []);
@@ -6592,6 +6599,13 @@ export function LayerlingEditor({
       // Let the button show it is working before the heavy part.
       await new Promise((resolve) => window.setTimeout(resolve, 30));
       const o = normalizeLithophane(raw);
+      if (o.shape === "bauble") {
+        // Build 111: the Christmas bauble, the photo wrapped shape-true all the way round a hollow ball.
+        const ball = meshShapeFromPositions(t("bauble.name", { name: image.name }), "#f4f1ea", baublePositions(baubleThicknessMap(o, image.width, image.height, (u, v) => sampleImage(image, u, v)), o));
+        setMakerPanel(null);
+        placeMade(ball, t("bauble.created", { triangles: Math.round((ball.importedMesh?.triangleCount ?? 0) / 1000) }));
+        return;
+      }
       const map = lithophaneThicknessMap(o, image.width, image.height, (u, v) => sampleImage(image, u, v));
       const plate = meshShapeFromPositions(t("lithophane.name", { name: image.name }), "#f4f1ea", lithophanePositions(map, o));
       let made = plate;
@@ -17314,7 +17328,7 @@ export function LayerlingEditor({
           </button>
         </div>
       ) : null}
-      {makerPanel === "lithophane" ? <LithophanePanel busy={makerBusy} onCreate={(image, options) => void createLithophane(image, options)} onClose={() => setMakerPanel(null)} /> : null}
+      {makerPanel === "lithophane" || makerPanel === "bauble" ? <LithophanePanel key={makerPanel} initialShape={makerPanel === "bauble" ? "bauble" : undefined} busy={makerBusy} onCreate={(image, options) => void createLithophane(image, options)} onClose={() => setMakerPanel(null)} /> : null}
       {makerPanel === "trace" ? <TracePanel busy={makerBusy} onCreate={(trace, options, name) => void createTrace(trace, options, name)} onCreateBin={(traces, options, name) => void createToolBin(traces, options, name)} onClose={() => setMakerPanel(null)} /> : null}
       {makerPanel === "voronoi" ? <VoronoiPanel busy={makerBusy} onCreate={(options) => void createVoronoi(options)} onClose={() => setMakerPanel(null)} /> : null}
       {alignMode && selectedShapes.length >= 2 ? (
