@@ -1,3 +1,4 @@
+import { areFacetNormals } from "@/lib/meshNormals";
 import { checkedTypefaceData, customFontName, isCustomFontId, textCharacters, typefaceSubset } from "@/lib/customFonts";
 import { customFontEntry, registerCustomFont } from "@/lib/textFonts";
 import { strFromU8, strToU8, unzip } from "fflate";
@@ -388,7 +389,8 @@ function decodeMeshCache(bytes: Uint8Array) {
     (normals as number[])[index] = view.getFloat64(offset, true);
     offset += 8;
   }
-  return { positions, normals };
+  // Build 114: normals that are only the faces' are not kept (lib/meshNormals.ts).
+  return { positions, normals: normals && !areFacetNormals(normals) ? normals : undefined };
 }
 
 function encodeDisplayEdges(edges: CadDisplayEdge[]) {

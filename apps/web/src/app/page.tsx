@@ -1,5 +1,6 @@
 "use client";
 
+import { withoutFacetNormals } from "@/lib/meshNormals";
 import { withBase } from "@/lib/basePath";
 import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { requestPersistentStorage } from "@/lib/persistentStorage";
@@ -458,7 +459,8 @@ async function loadProjectShapes(projectId: string) {
   const meshResources = new Map<string, ImportedMeshResource>();
   const assets: ProjectAsset[] = [];
   resourceRecords.forEach((resource) => {
-    if (resource.kind === "mesh") meshResources.set(resource.resourceId, resource.mesh);
+    // Build 114: a design stored with face-only normals sheds them on opening (lib/meshNormals.ts).
+    if (resource.kind === "mesh") meshResources.set(resource.resourceId, withoutFacetNormals(resource.mesh));
     else assets.push(resource.asset);
   });
   if (meshResources.size !== meshResourceIds.length || assets.length !== assetResourceIds.length) {

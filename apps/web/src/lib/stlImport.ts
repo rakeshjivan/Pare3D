@@ -1,3 +1,4 @@
+import { areFacetNormals } from "@/lib/meshNormals";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { reportedMeshExtent } from "@/lib/importedMeshBase";
@@ -117,7 +118,8 @@ export function importedShapeFromTriangleSoup(
     rotationZ: 0,
     importedMesh: {
       positions,
-      normals: normals.length ? normals : undefined,
+      // Build 114: an STL's normals are only its faces' and are worked out again where needed (lib/meshNormals.ts).
+      normals: normals.length && !areFacetNormals(normals) ? normals : undefined,
       sourceOrigin: [center.x, box.min.y, center.z],
       ...(sourceTurned ? { sourceTurned: true } : {}),
       baseWidth: width,

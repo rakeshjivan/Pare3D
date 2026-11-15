@@ -1,4 +1,4 @@
-import { withBase } from "@/lib/basePath";
+import { BASE_PATH } from "@/lib/basePath";
 import { buildsDiffer, BUILD_ID, isBuildMessage, reportWorkerBuild } from "@/lib/buildStamp";
 import { buildGroupedShapeFromSelection, exportSolidVolume, splitShapeIfCrossed, splitShapesByPlane, type ExportSolidVolume, type GroupBuildResult, type SplitShapesOutcome } from "@/lib/editorBooleans";
 import { packValue, packedTransfer, unpackValue } from "@/lib/geometryTransfer";
@@ -184,7 +184,7 @@ async function runGeometryTask<T>(task: GeometryTask, args: unknown, fallback: (
     requestId,
     task,
     language: getLanguage(),
-    assetBase: new URL(withBase("/"), window.location.href).href,
+    assetBase: new URL(BASE_PATH ? `${BASE_PATH}/` : ".", window.location.href).href,
     payload: packed.value,
     buffers: packed.buffers,
   };

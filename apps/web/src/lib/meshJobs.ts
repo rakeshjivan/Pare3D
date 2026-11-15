@@ -3,7 +3,7 @@
  * cannot start - an old browser, the tests - the same work runs here as before.
  * Pare 3D is CAD only: Round a mesh, Remesh, surface textures and the fit check.
  */
-import { withBase } from "@/lib/basePath";
+import { BASE_PATH } from "@/lib/basePath";
 import type { MeshRoundMode, MeshRoundResult } from "@/lib/meshRound";
 import type { FitReport } from "@/lib/partTools";
 import type { WorkplaneShape } from "@/types/layerling";
@@ -95,7 +95,7 @@ export async function roundMeshInBackground(positions: ArrayLike<number>, radius
   try {
     return await new Promise<MeshRoundResult>((resolve, reject) => {
       pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
-      const request: MeshJobRequest = { id, base: new URL(withBase("/"), window.location.href).href, kind: "round", positions: data, radius, mode };
+      const request: MeshJobRequest = { id, base: new URL(BASE_PATH ? `${BASE_PATH}/` : ".", window.location.href).href, kind: "round", positions: data, radius, mode };
       target.postMessage(request, [data.buffer]);
     });
   } catch (error) {
@@ -115,7 +115,7 @@ export async function remeshInBackground(positions: ArrayLike<number>, options: 
   try {
     return await new Promise<RemeshResult>((resolve, reject) => {
       pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
-      const request: MeshJobRequest = { id, base: new URL(withBase("/"), window.location.href).href, kind: "remesh", positions: data, options };
+      const request: MeshJobRequest = { id, base: new URL(BASE_PATH ? `${BASE_PATH}/` : ".", window.location.href).href, kind: "remesh", positions: data, options };
       target.postMessage(request, [data.buffer]);
     });
   } catch (error) {
@@ -135,7 +135,7 @@ export async function textureMeshInBackground(positions: ArrayLike<number>, opti
   try {
     return await new Promise<SurfaceTextureResult>((resolve, reject) => {
       pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
-      const request: MeshJobRequest = { id, base: new URL(withBase("/"), window.location.href).href, kind: "texture", positions: data, options };
+      const request: MeshJobRequest = { id, base: new URL(BASE_PATH ? `${BASE_PATH}/` : ".", window.location.href).href, kind: "texture", positions: data, options };
       target.postMessage(request, [data.buffer]);
     });
   } catch (error) {
@@ -154,7 +154,7 @@ export async function checkFitInBackground(shapes: readonly WorkplaneShape[], cl
   try {
     return await new Promise<FitReport>((resolve, reject) => {
       pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
-      const request: MeshJobRequest = { id, base: new URL(withBase("/"), window.location.href).href, kind: "fit", shapes: shapes as WorkplaneShape[], clearance };
+      const request: MeshJobRequest = { id, base: new URL(BASE_PATH ? `${BASE_PATH}/` : ".", window.location.href).href, kind: "fit", shapes: shapes as WorkplaneShape[], clearance };
       target.postMessage(request);
     });
   } catch {

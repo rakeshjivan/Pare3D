@@ -4,6 +4,12 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 114,
+    items: [
+      "Imported STL models take less memory: a 400,000-triangle scan now uses about a fifth less, and designs that hold one save smaller. Designs made earlier shrink the next time they are opened.",
+    ],
+  },
+  {
     build: 113,
     items: [
       "Pare 3D now also runs in a web browser, at rakeshjivan.github.io/Pare3D, for example on an iPad with a mouse or trackpad. It is the same program; files are downloaded instead of going to a folder or straight to a slicer.",
