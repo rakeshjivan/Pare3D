@@ -79,7 +79,9 @@ import { createLoftGeometry } from "@/lib/loftGeometry";
 import { carriedOntoFace } from "@/lib/carryOntoFace";
 import { keepsProportionsOnAxis } from "@/lib/keepProportions";
 import { createHingeGeometry } from "@/lib/hingeGeometry";
-import { createGridfinityGeometry, gridfinityFootprintPatch } from "@/lib/gridfinityGeometry";
+import { gridfinityLabelLetters } from "@/lib/gridfinityLabelText";
+import { gridfinityLabelColor, gridfinityLetterGroups, gridfinityLettersInBox } from "@/lib/gridfinityLetterColor";
+import { createGridfinityGeometry, gridfinityFootprintPatch, gridfinityLabelTextGiven } from "@/lib/gridfinityGeometry";
 import { createKnurlGeometry } from "@/lib/knurlGeometry";
 import { createVaseGeometry, fittedVaseMesh } from "@/lib/vaseShape";
 import { createTeardropGeometry } from "@/lib/teardropGeometry";
@@ -434,6 +436,12 @@ type WorkplaneViewportProps = {
   onWrapAroundCylinder?: (diameter: number, inward: boolean) => void;
   /** Lays the selected vase's accessories out beside it. */
   onVaseAccessories?: () => void;
+  /** Lays a Swallowtail baseplate's keys out in front of it (#1061). */
+  onGridfinityKeys?: () => void;
+  /** Splits a baseplate into plates that fit the printer, with their keys (#1388). */
+  onGridfinitySplit?: () => void;
+  /** A baseplate and one other shape selected: fit the plate into what the other stands on (#1061). */
+  onSelectionFitGridfinityOutline?: (plateId: string, sourceId: string) => Promise<void> | void;
   onLayerText?: (patch: TextLayerPatch) => void;
   onTextTags?: (names: string[], gap: number) => void;
   /** Fixes the selected key ring tab to the nearest tag, where it was put (#598). */
@@ -1183,6 +1191,8 @@ export function tapeShapeTopologyKey(shape: WorkplaneShape): string {
     gridfinityLip: shape.gridfinityLip,
     gridfinityMagnets: shape.gridfinityMagnets,
     gridfinityHalfGrid: shape.gridfinityHalfGrid,
+    gridfinityLargePlate: shape.gridfinityLargePlate,
+    gridfinitySwallowtail: shape.gridfinitySwallowtail,
     gridfinityLabelBack: shape.gridfinityLabelBack,
     gridfinityLabelFront: shape.gridfinityLabelFront,
     gridfinityLabelLeft: shape.gridfinityLabelLeft,
@@ -1201,6 +1211,14 @@ export function tapeShapeTopologyKey(shape: WorkplaneShape): string {
     gridfinityLabelRightOffset: shape.gridfinityLabelRightOffset,
     gridfinityLabelCorner: shape.gridfinityLabelCorner,
     gridfinityLabelCornerSize: shape.gridfinityLabelCornerSize,
+    gridfinityLabelBackText: shape.gridfinityLabelBackText,
+    gridfinityLabelFrontText: shape.gridfinityLabelFrontText,
+    gridfinityLabelLeftText: shape.gridfinityLabelLeftText,
+    gridfinityLabelRightText: shape.gridfinityLabelRightText,
+    gridfinityLabelFont: shape.gridfinityLabelFont,
+    gridfinityLabelTextSize: shape.gridfinityLabelTextSize,
+    // The letters on the shelves are laid out against the mirroring, so they come out of it the right way round (#1308).
+    gridfinityLabelMirror: shape.kind === "gridfinity" && gridfinityLabelTextGiven(shape) ? [shape.mirrorX, shape.mirrorY, shape.mirrorZ] : undefined,
     gridfinityScoopBack: shape.gridfinityScoopBack,
     gridfinityScoopFront: shape.gridfinityScoopFront,
     gridfinityScoopLeft: shape.gridfinityScoopLeft,
@@ -1217,18 +1235,28 @@ export function tapeShapeTopologyKey(shape: WorkplaneShape): string {
     gridfinityPaddingFront: shape.gridfinityPaddingFront,
     gridfinityPaddingLeft: shape.gridfinityPaddingLeft,
     gridfinityPaddingRight: shape.gridfinityPaddingRight,
+    gridfinityOverhangBack: shape.gridfinityOverhangBack,
+    gridfinityOverhangFront: shape.gridfinityOverhangFront,
+    gridfinityOverhangLeft: shape.gridfinityOverhangLeft,
+    gridfinityOverhangRight: shape.gridfinityOverhangRight,
+    gridfinityOverhangChamfer: shape.gridfinityOverhangChamfer,
+    gridfinityOverhangSolid: shape.gridfinityOverhangSolid,
+    gridfinityOverhangLipOnGrid: shape.gridfinityOverhangLipOnGrid,
     gridfinityCornerRadius: shape.gridfinityCornerRadius,
+    gridfinityBinCornerRadius: shape.gridfinityBinCornerRadius,
     gridfinityCompartmentsX: shape.gridfinityCompartmentsX,
     gridfinityCompartmentsZ: shape.gridfinityCompartmentsZ,
     gridfinityDividerThickness: shape.gridfinityDividerThickness,
+    gridfinityDividerHeight: shape.gridfinityDividerHeight,
     gridfinityDividerPositionsX: shape.gridfinityDividerPositionsX,
     gridfinityDividerPositionsZ: shape.gridfinityDividerPositionsZ,
     gridfinityCompartmentLabels: shape.gridfinityCompartmentLabels,
     gridfinityOpenings: shape.gridfinityOpenings,
     gridfinityOpeningCorner: shape.gridfinityOpeningCorner,
     gridfinityOpeningCornerSize: shape.gridfinityOpeningCornerSize,
-    // Label shelves, finger scoops and dividers are joined by Manifold, and a side's notch is cut by it; until it has loaded the bin is drawn without them (#455, #554).
-    labelKernel: shape.gridfinityLabelBack || shape.gridfinityLabelFront || shape.gridfinityLabelLeft || shape.gridfinityLabelRight || shape.gridfinityScoopBack || shape.gridfinityScoopFront || shape.gridfinityScoopLeft || shape.gridfinityScoopRight || (shape.gridfinityCompartmentsX ?? 1) > 1 || (shape.gridfinityCompartmentsZ ?? 1) > 1 || (shape.gridfinityOpenings?.length ?? 0) > 0 ? manifoldRevision() : undefined,
+    gridfinityOutline: shape.gridfinityOutline,
+    // Label shelves, finger scoops and dividers are joined by Manifold, and a side's notch and an outline plate's sockets are cut by it; until it has loaded the bin is drawn without them (#455, #554, #1061).
+    labelKernel: shape.gridfinityLabelBack || shape.gridfinityLabelFront || shape.gridfinityLabelLeft || shape.gridfinityLabelRight || shape.gridfinityScoopBack || shape.gridfinityScoopFront || shape.gridfinityScoopLeft || shape.gridfinityScoopRight || (shape.gridfinityCompartmentsX ?? 1) > 1 || (shape.gridfinityCompartmentsZ ?? 1) > 1 || (shape.gridfinityOpenings?.length ?? 0) > 0 || (shape.gridfinityOutline?.length ?? 0) > 0 ? manifoldRevision() : undefined,
     knurlPattern: shape.knurlPattern,
     knurlCount: shape.knurlCount,
     knurlDepth: shape.knurlDepth,
@@ -1278,7 +1306,7 @@ export function tapeShapeTopologyKey(shape: WorkplaneShape): string {
     text: shape.text,
     font: shape.font,
     // A font of one's own can gain letters (a design's few, then the whole file): draw again then.
-    fontRevision: customFontRevision(shape.font),
+    fontRevision: customFontRevision(shape.kind === "gridfinity" ? shape.gridfinityLabelFont : shape.font),
     textStroke: shape.textStroke,
     textSilhouette: shape.textSilhouette,
     textStretch: shape.textStretch,
@@ -1344,10 +1372,12 @@ function dataUrlFingerprint(dataUrl: string | undefined): string {
   return `${length}:${sample(0)}:${sample(Math.floor(length / 3))}:${sample(Math.floor((length * 2) / 3))}:${sample(Math.max(0, length - 24))}`;
 }
 
-function shapeMaterialSignature(shape: WorkplaneShape): string {
+export function shapeMaterialSignature(shape: WorkplaneShape): string {
   return JSON.stringify({
     edgeLines: edgeLineStyle.enabled ? edgeLineStyle.color : "",
     color: shape.color,
+    // A bin's letters in a colour of their own (#1308) are drawn in a second material; the mesh stays as it is.
+    letterColor: gridfinityLabelColor(shape),
     hole: shape.hole ? (strongHoles ? "strong" : true) : false,
     transparent: Boolean(shape.transparent),
     multicolor: shape.groupedShapes?.length ? groupShowsPartColors(shape) : undefined,
@@ -1541,6 +1571,8 @@ export function shapeGeometrySignature(shape: WorkplaneShape): string {
     gridfinityLip: shape.gridfinityLip,
     gridfinityMagnets: shape.gridfinityMagnets,
     gridfinityHalfGrid: shape.gridfinityHalfGrid,
+    gridfinityLargePlate: shape.gridfinityLargePlate,
+    gridfinitySwallowtail: shape.gridfinitySwallowtail,
     gridfinityLabelBack: shape.gridfinityLabelBack,
     gridfinityLabelFront: shape.gridfinityLabelFront,
     gridfinityLabelLeft: shape.gridfinityLabelLeft,
@@ -1559,6 +1591,16 @@ export function shapeGeometrySignature(shape: WorkplaneShape): string {
     gridfinityLabelRightOffset: shape.gridfinityLabelRightOffset,
     gridfinityLabelCorner: shape.gridfinityLabelCorner,
     gridfinityLabelCornerSize: shape.gridfinityLabelCornerSize,
+    gridfinityLabelBackText: shape.gridfinityLabelBackText,
+    gridfinityLabelFrontText: shape.gridfinityLabelFrontText,
+    gridfinityLabelLeftText: shape.gridfinityLabelLeftText,
+    gridfinityLabelRightText: shape.gridfinityLabelRightText,
+    gridfinityLabelFont: shape.gridfinityLabelFont,
+    gridfinityLabelTextSize: shape.gridfinityLabelTextSize,
+    // The letters on the shelves are laid out against the mirroring, so they come out of it the right way round (#1308).
+    gridfinityLabelMirror: shape.kind === "gridfinity" && gridfinityLabelTextGiven(shape) ? [shape.mirrorX, shape.mirrorY, shape.mirrorZ] : undefined,
+    // The letters' faces are sorted into a group of their own once they have a colour of their own (#1308); which colour is the material's.
+    gridfinityLetterGroups: gridfinityLabelColor(shape) !== undefined,
     gridfinityScoopBack: shape.gridfinityScoopBack,
     gridfinityScoopFront: shape.gridfinityScoopFront,
     gridfinityScoopLeft: shape.gridfinityScoopLeft,
@@ -1575,18 +1617,28 @@ export function shapeGeometrySignature(shape: WorkplaneShape): string {
     gridfinityPaddingFront: shape.gridfinityPaddingFront,
     gridfinityPaddingLeft: shape.gridfinityPaddingLeft,
     gridfinityPaddingRight: shape.gridfinityPaddingRight,
+    gridfinityOverhangBack: shape.gridfinityOverhangBack,
+    gridfinityOverhangFront: shape.gridfinityOverhangFront,
+    gridfinityOverhangLeft: shape.gridfinityOverhangLeft,
+    gridfinityOverhangRight: shape.gridfinityOverhangRight,
+    gridfinityOverhangChamfer: shape.gridfinityOverhangChamfer,
+    gridfinityOverhangSolid: shape.gridfinityOverhangSolid,
+    gridfinityOverhangLipOnGrid: shape.gridfinityOverhangLipOnGrid,
     gridfinityCornerRadius: shape.gridfinityCornerRadius,
+    gridfinityBinCornerRadius: shape.gridfinityBinCornerRadius,
     gridfinityCompartmentsX: shape.gridfinityCompartmentsX,
     gridfinityCompartmentsZ: shape.gridfinityCompartmentsZ,
     gridfinityDividerThickness: shape.gridfinityDividerThickness,
+    gridfinityDividerHeight: shape.gridfinityDividerHeight,
     gridfinityDividerPositionsX: shape.gridfinityDividerPositionsX,
     gridfinityDividerPositionsZ: shape.gridfinityDividerPositionsZ,
     gridfinityCompartmentLabels: shape.gridfinityCompartmentLabels,
     gridfinityOpenings: shape.gridfinityOpenings,
     gridfinityOpeningCorner: shape.gridfinityOpeningCorner,
     gridfinityOpeningCornerSize: shape.gridfinityOpeningCornerSize,
-    // Label shelves, finger scoops and dividers are joined by Manifold, and a side's notch is cut by it; until it has loaded the bin is drawn without them (#455, #554).
-    labelKernel: shape.gridfinityLabelBack || shape.gridfinityLabelFront || shape.gridfinityLabelLeft || shape.gridfinityLabelRight || shape.gridfinityScoopBack || shape.gridfinityScoopFront || shape.gridfinityScoopLeft || shape.gridfinityScoopRight || (shape.gridfinityCompartmentsX ?? 1) > 1 || (shape.gridfinityCompartmentsZ ?? 1) > 1 || (shape.gridfinityOpenings?.length ?? 0) > 0 ? manifoldRevision() : undefined,
+    gridfinityOutline: shape.gridfinityOutline,
+    // Label shelves, finger scoops and dividers are joined by Manifold, and a side's notch and an outline plate's sockets are cut by it; until it has loaded the bin is drawn without them (#455, #554, #1061).
+    labelKernel: shape.gridfinityLabelBack || shape.gridfinityLabelFront || shape.gridfinityLabelLeft || shape.gridfinityLabelRight || shape.gridfinityScoopBack || shape.gridfinityScoopFront || shape.gridfinityScoopLeft || shape.gridfinityScoopRight || (shape.gridfinityCompartmentsX ?? 1) > 1 || (shape.gridfinityCompartmentsZ ?? 1) > 1 || (shape.gridfinityOpenings?.length ?? 0) > 0 || (shape.gridfinityOutline?.length ?? 0) > 0 ? manifoldRevision() : undefined,
     knurlPattern: shape.knurlPattern,
     knurlCount: shape.knurlCount,
     knurlDepth: shape.knurlDepth,
@@ -1636,7 +1688,7 @@ export function shapeGeometrySignature(shape: WorkplaneShape): string {
     text: shape.text,
     font: shape.font,
     // A font of one's own can gain letters (a design's few, then the whole file): draw again then.
-    fontRevision: customFontRevision(shape.font),
+    fontRevision: customFontRevision(shape.kind === "gridfinity" ? shape.gridfinityLabelFont : shape.font),
     textStroke: shape.textStroke,
     textSilhouette: shape.textSilhouette,
     textStretch: shape.textStretch,
@@ -3669,6 +3721,9 @@ export function WorkplaneViewport({
   onSelectionHide,
   onWrapAroundCylinder,
   onVaseAccessories,
+  onGridfinityKeys,
+  onGridfinitySplit,
+  onSelectionFitGridfinityOutline,
   onLayerText,
   onTextTags,
   onFixKeyringTab,
@@ -11367,6 +11422,8 @@ export function WorkplaneViewport({
           onSeparateParts={onSeparateParts}
           onWrapAroundCylinder={onWrapAroundCylinder}
           onVaseAccessories={onVaseAccessories}
+          onGridfinityKeys={onGridfinityKeys}
+          onGridfinitySplit={onGridfinitySplit}
           onLayerText={onLayerText}
           onTextTags={onTextTags}
           onFixKeyringTab={onFixKeyringTab}
@@ -11384,6 +11441,7 @@ export function WorkplaneViewport({
           onSetHole={onSelectionHole}
           onSetColor={onSelectionColor}
           onUpdateShapes={onSelectionUpdateShapes}
+          onFitGridfinityOutline={onSelectionFitGridfinityOutline}
           onToggleLocked={onSelectionLock}
           onToggleHidden={onSelectionHide}
           onInteractionActiveChange={onInteractionActiveChange}
@@ -13127,7 +13185,7 @@ function removeShapeDecorations(object: THREE.Group) {
     });
 }
 
-function syncShapeObjectAppearance(object: THREE.Group, shape: WorkplaneShape, selected: boolean, updateSurfaceMaterial: boolean, onTextureReady?: () => void) {
+export function syncShapeObjectAppearance(object: THREE.Group, shape: WorkplaneShape, selected: boolean, updateSurfaceMaterial: boolean, onTextureReady?: () => void) {
   object.userData.showEdges = selected;
   const groupedContent = object.children.find((child): child is THREE.Group => child instanceof THREE.Group && Boolean(child.userData.groupedShapeContent));
   if (groupedContent && shape.groupedShapes?.length && !shape.importedMesh) {
@@ -13153,7 +13211,7 @@ function syncShapeObjectAppearance(object: THREE.Group, shape: WorkplaneShape, s
     const material = sharedShapeMaterial(shape);
     const nextMaterial = shape.kind === "box" && shape.imagePlate && !shape.hole
       ? createImagePlateMaterials(shape, material, onTextureReady)
-      : material;
+      : shape.kind === "gridfinity" ? gridfinityMaterials(shape, material, surface.geometry) : material;
     const currentMaterials = Array.isArray(surface.material) ? surface.material : null;
     const sameMaterial = Array.isArray(nextMaterial)
       ? Boolean(currentMaterials && nextMaterial.every((entry, index) => currentMaterials[index] === entry))
@@ -15222,7 +15280,7 @@ function retainSharedShapeGeometry(mesh: THREE.Mesh, geometry: THREE.BufferGeome
 
 
 /** A group hands its hole or see-through state down to every child it draws. */
-function groupChildAppearance(group: WorkplaneShape, child: WorkplaneShape): WorkplaneShape {
+export function groupChildAppearance(group: WorkplaneShape, child: WorkplaneShape): WorkplaneShape {
   if (group.hole) return { ...child, hole: true, color: "#b8c2cc" };
   // One colour for the whole group, nested groups included.
   const tinted = groupShowsPartColors(group) ? child : { ...child, color: group.color, multicolor: false };
@@ -15243,6 +15301,12 @@ function holeOpacity(shape: WorkplaneShape) {
 /** Build 85: an imported mesh a little glossy, so its surface reads. */
 function shapeRoughness(shape: WorkplaneShape) {
   return shape.hole ? 0.88 : shape.importedMesh ? 0.35 : 0.57;
+}
+
+/** A bin's material, and a second one in its letters' colour when they have one of their own (#1308), for the second group of its mesh, which holds their faces. */
+function gridfinityMaterials(shape: WorkplaneShape, material: THREE.MeshStandardMaterial, geometry: THREE.BufferGeometry) {
+  const letterColor = geometry.groups.length > 1 ? gridfinityLabelColor(shape) : undefined;
+  return letterColor ? [material, sharedShapeMaterial({ ...shape, color: letterColor })] : material;
 }
 
 function sharedShapeMaterial(shape: WorkplaneShape, vertexColors = false) {
@@ -15352,7 +15416,7 @@ function enableAcceleratedMeshPicking(mesh: THREE.Mesh, geometry: THREE.BufferGe
   }
 }
 
-function createShapeObject(
+export function createShapeObject(
   shape: WorkplaneShape,
   showEdges = false,
   onTextureReady?: () => void,
@@ -15491,8 +15555,8 @@ function createShapeObject(
         sides: shape.sides,
       })), material, shape);
       break;
-    case "gridfinity":
-      addMesh(group, sharedShapeGeometry(geometryCacheKey, () => createGridfinityGeometry({
+    case "gridfinity": {
+      const fields = {
         width,
         depth,
         height,
@@ -15500,6 +15564,8 @@ function createShapeObject(
         gridfinityLip: shape.gridfinityLip,
         gridfinityMagnets: shape.gridfinityMagnets,
         gridfinityHalfGrid: shape.gridfinityHalfGrid,
+        gridfinityLargePlate: shape.gridfinityLargePlate,
+        gridfinitySwallowtail: shape.gridfinitySwallowtail,
         gridfinityLabelBack: shape.gridfinityLabelBack,
         gridfinityLabelFront: shape.gridfinityLabelFront,
         gridfinityLabelLeft: shape.gridfinityLabelLeft,
@@ -15518,6 +15584,10 @@ function createShapeObject(
         gridfinityLabelRightOffset: shape.gridfinityLabelRightOffset,
         gridfinityLabelCorner: shape.gridfinityLabelCorner,
         gridfinityLabelCornerSize: shape.gridfinityLabelCornerSize,
+        gridfinityLabelBackText: shape.gridfinityLabelBackText,
+        gridfinityLabelFrontText: shape.gridfinityLabelFrontText,
+        gridfinityLabelLeftText: shape.gridfinityLabelLeftText,
+        gridfinityLabelRightText: shape.gridfinityLabelRightText,
         gridfinityScoopBack: shape.gridfinityScoopBack,
         gridfinityScoopFront: shape.gridfinityScoopFront,
         gridfinityScoopLeft: shape.gridfinityScoopLeft,
@@ -15534,18 +15604,35 @@ function createShapeObject(
         gridfinityPaddingFront: shape.gridfinityPaddingFront,
         gridfinityPaddingLeft: shape.gridfinityPaddingLeft,
         gridfinityPaddingRight: shape.gridfinityPaddingRight,
+        gridfinityOverhangBack: shape.gridfinityOverhangBack,
+        gridfinityOverhangFront: shape.gridfinityOverhangFront,
+        gridfinityOverhangLeft: shape.gridfinityOverhangLeft,
+        gridfinityOverhangRight: shape.gridfinityOverhangRight,
+        gridfinityOverhangChamfer: shape.gridfinityOverhangChamfer,
+        gridfinityOverhangSolid: shape.gridfinityOverhangSolid,
+        gridfinityOverhangLipOnGrid: shape.gridfinityOverhangLipOnGrid,
         gridfinityCornerRadius: shape.gridfinityCornerRadius,
+        gridfinityBinCornerRadius: shape.gridfinityBinCornerRadius,
         gridfinityCompartmentsX: shape.gridfinityCompartmentsX,
         gridfinityCompartmentsZ: shape.gridfinityCompartmentsZ,
         gridfinityDividerThickness: shape.gridfinityDividerThickness,
+        gridfinityDividerHeight: shape.gridfinityDividerHeight,
         gridfinityDividerPositionsX: shape.gridfinityDividerPositionsX,
         gridfinityDividerPositionsZ: shape.gridfinityDividerPositionsZ,
         gridfinityCompartmentLabels: shape.gridfinityCompartmentLabels,
         gridfinityOpenings: shape.gridfinityOpenings,
         gridfinityOpeningCorner: shape.gridfinityOpeningCorner,
         gridfinityOpeningCornerSize: shape.gridfinityOpeningCornerSize,
-      })), material, shape);
+        gridfinityOutline: shape.gridfinityOutline,
+      };
+      const geometry = sharedShapeGeometry(geometryCacheKey, () => {
+        const letters = gridfinityLabelLetters({ ...shape, width, depth, height });
+        // Letters in a colour of their own (#1308): their faces come last, as a group drawn in that colour.
+        return gridfinityLetterGroups(createGridfinityGeometry(fields, letters), gridfinityLabelColor(shape) ? gridfinityLettersInBox({ ...shape, width, depth, height }, letters) : []);
+      });
+      addMesh(group, geometry, gridfinityMaterials(shape, material, geometry), shape);
       break;
+    }
     case "loft":
       addMesh(group, sharedShapeGeometry(geometryCacheKey, () => createLoftGeometry({ ...shape, width, depth, height })), material, shape);
       break;
@@ -16186,7 +16273,7 @@ function getPartColoredMeshGeometry(shape: WorkplaneShape): THREE.BufferGeometry
   return geometry;
 }
 
-function buildPartColoredMeshGeometry(
+export function buildPartColoredMeshGeometry(
   mesh: NonNullable<WorkplaneShape["importedMesh"]>,
   parts: WorkplaneShape[],
 ): THREE.BufferGeometry | null {

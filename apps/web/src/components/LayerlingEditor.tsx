@@ -19,7 +19,7 @@ import { useLanguage } from "@/lib/useLanguage";
 import { loftShapePatch } from "@/lib/loftGeometry";
 import { hingeWorldParts } from "@/lib/hingeParts";
 import { newestClipboard } from "@/lib/clipboardPayload";
-import { GRIDFINITY_CLEARANCE, GRIDFINITY_GRID, GRIDFINITY_HEIGHT_UNIT, MAX_GRIDFINITY_HEIGHT_UNITS, MAX_GRIDFINITY_UNITS, MIN_GRIDFINITY_FLOOR_HEIGHT, gridfinityListPatch, gridfinitySize } from "@/lib/gridfinityGeometry";
+import { gridfinityHasLabelText, GRIDFINITY_CLEARANCE, GRIDFINITY_GRID, GRIDFINITY_HEIGHT_UNIT, GRIDFINITY_SWALLOWTAIL_KEY_THICKNESS, MAX_GRIDFINITY_HEIGHT_UNITS, MAX_GRIDFINITY_UNITS, MIN_GRIDFINITY_FLOOR_HEIGHT, gridfinityListPatch, gridfinityOutlineFit, gridfinityOutlineFromLoops, gridfinityOutlineToPlate, gridfinityPlan, gridfinityPlateFlat, gridfinityPlatePieceKeys, gridfinityPlatePieces, gridfinityPlateSplit, gridfinityPlateToWorld, gridfinitySceneWithKeys, gridfinitySceneWithPieces, gridfinitySize, gridfinitySwallowtailKeyCount, gridfinitySwallowtailKeyProfile, gridfinitySwallowtailKeys } from "@/lib/gridfinityGeometry";
 import { DEFAULT_THREAD_PROFILE, defaultThreadHeadHeight, threadSettings } from "@/lib/threadGeometry";
 import { curvedTextPatch, MAX_TEXT_SPACING, MIN_TEXT_SPACING } from "@/lib/textGeometry";
 import { normalizeTextEdge } from "@/lib/textEdge";
@@ -165,13 +165,13 @@ import { ShortcutsModal } from "./workplane/ShortcutsModal";
 import { InteractiveHelp } from "./InteractiveHelp";
 import { ShapeContextMenu, type ShapeContextMenuItem } from "./workplane/ShapeContextMenu";
 import { nextSelectionTransparency } from "@/lib/selectionTransparency";
-import { canonicalizeShape, cloneWorkplaneShapeTreeWithFreshIds, cleanNearZero, cleanRotationDegrees, isNonSolidShape, isNonSolidShapeKind, meshYawDegrees, preservesEdgeTreatmentSize, shapeDepth, shapeHasShapeDeform, shapeTransformShouldRemainEditable, shapeWidth, shapeWithParametricSource, patchTouchesBodyParameters, withHoleMode, workplaneShapesEqual, shellNeedingRebuild, hollowStretchSincePicture } from "@/lib/workplaneShapes";
+import { canonicalizeShape, cloneWorkplaneShapeTreeWithFreshIds, cleanNearZero, cleanRotationDegrees, isNonSolidShape, isNonSolidShapeKind, meshYawDegrees, preservesEdgeTreatmentSize, shapeDepth, shapeHasShapeDeform, shapeTransformShouldRemainEditable, shapeWidth, shapeWithParametricSource, patchTouchesBodyParameters, withHoleMode, workplaneShapesEqual, shellNeedingRebuild, hollowStretchSincePicture, resizedShapeSize } from "@/lib/workplaneShapes";
 import { pasteCenteringShift } from "@/lib/pasteCentering";
 import { faceWorkplaneCenteringShift, workplaneCenteringOffset } from "@/lib/workplaneCentering";
 import { projectShapesExtent } from "@/components/workplane/ViewportOverlays";
 import { bakeCadMetadataForShapeTransform, cadBrepTransformForShape, cadModifierPrimitiveForAnalyticShape, cadModifierPrimitiveForBakedShape, importedStepPartForShape } from "@/lib/cadBakeMetadata";
 import { hasOneToOneCadComponentMapping } from "@/lib/cadModifierGroups";
-import { cadModifierEnclosureForShape, cadModifierGridfinityForShape, cadModifierHelicalGearForShape, cadModifierHirthForShape, cadModifierProfileForShape, cadModifierSpringForShape, cadModifierThreadForShape, cadProfileExpectation, cadProfileSegmentCount, textGlyphProfiles, withinExactProfileLimit } from "@/lib/cadProfileExtrusion";
+import { cadGridfinitySegmentCount, cadModifierEnclosureForShape, cadModifierGridfinityForShape, cadModifierHelicalGearForShape, cadModifierHirthForShape, cadModifierProfileForShape, cadModifierSpringForShape, cadModifierThreadForShape, cadProfileExpectation, cadProfileSegmentCount, textGlyphProfiles, withinExactProfileLimit } from "@/lib/cadProfileExtrusion";
 import { DEFAULT_OVERHANG_ANGLE, normalizeOverhangAngle, overhangArea } from "@/lib/overhang";
 import { sectionMeasurement, sectionPointToWorld, snapSectionPoint } from "@/lib/sectionMeasure";
 import { DEFAULT_INFILL_PERCENT, DEFAULT_WALLS, PRINT_MATERIAL_DENSITY, PRINT_MATERIALS, FILAMENT_DIAMETER_MM, normalizePrintMaterial, printEstimate, printEstimateWithInfill } from "@/lib/printEstimate";
@@ -1695,6 +1695,11 @@ function canWrapAroundCylinder(shape: WorkplaneShape | null | undefined) {
 
 
 /** A shape fresh from the library as it is placed: the name tag (#215) comes as a text "Name" in the default layers. */
+/** Whether the font window's font can go onto a shape: a text, or the letters of a Gridfinity bin with a text on a shelf that is built (#1308). */
+function takesCustomFont(shape: WorkplaneShape) {
+  return shape.kind === "text" || (shape.kind === "gridfinity" && gridfinityHasLabelText(shape));
+}
+
 function prepareNewShape(asset: ShapeAsset, shape: WorkplaneShape): WorkplaneShape {
   if (asset.id !== nameTagAsset.id || shape.kind !== "text") return withFixedSides(shape);
   const source = nameTagSource(shape, { text: t("nameTag.defaultText"), letterSize: NAME_TAG_LETTER_SIZE });
@@ -1940,13 +1945,23 @@ async function textCutterOutline(shapes: readonly WorkplaneShape[]) {
  * as a sketch round the middle of their box, with that middle and the height of their lowest point. Null when nothing closed is cut.
  */
 async function footprintOutline(shapes: readonly WorkplaneShape[]) {
+  const found = await footprintLoops(shapes);
+  if (!found) return null;
+  const outline = outlineFromLoops(found.loops);
+  return outline ? { ...outline, floor: found.floor } : null;
+}
+
+/**
+ * The closed outlines the workplane cuts through the shapes, in its x and z, and the height they stand on; for a cookie
+ * cutter (#982) and a baseplate fitted into an outline (#1061). Null when nothing is cut.
+ */
+async function footprintLoops(shapes: readonly WorkplaneShape[]) {
   const { solids, meshes: cut, cut: wasCut } = await exportBodiesWithLooseHoles(shapes);
   const { meshes } = await colorSeparatedExportMeshes(solids, cut, wasCut);
   const offset = footprintCutOffset(meshes);
   if (offset === null) return null;
   // Shapes that overlap give one outline round all of them, as if they were grouped.
-  const outline = outlineFromLoops(unitedFootprint(await getManifoldRuntime(), meshes.map((mesh) => sliceMeshContours(mesh, "y", offset))));
-  return outline ? { ...outline, floor: offset - FOOTPRINT_CUT_HEIGHT } : null;
+  return { loops: unitedFootprint(await getManifoldRuntime(), meshes.map((mesh) => sliceMeshContours(mesh, "y", offset))), floor: offset - FOOTPRINT_CUT_HEIGHT };
 }
 
 function withSelectionPivot(shape: WorkplaneShape, pivot: PivotPoint | null): WorkplaneShape {
@@ -6988,7 +7003,7 @@ export function LayerlingEditor({
     const triangleCount = partInputs.reduce((total, part) => total + (part.mesh?.faces.length ?? 0), 0);
     const profileTriangleCount = partInputs.reduce((total, part) => total + (part.profileMesh?.faces.length ?? 0), 0);
     const profilePartCount = partInputs.filter((part) => part.profile || part.step || part.thread || part.spring || part.helicalGear || part.gridfinity || part.hirth || part.enclosure).length;
-    const profileSegmentCount = partInputs.reduce((total, part) => total + (part.profile ? cadProfileSegmentCount(part.profile) : 0), 0);
+    const profileSegmentCount = partInputs.reduce((total, part) => total + (part.profile ? cadProfileSegmentCount(part.profile) : 0) + cadGridfinitySegmentCount(part.gridfinity), 0);
     const sendProfileMeshes = triangleCount + profileTriangleCount <= CAD_MODIFIER_PREPARE_TRIANGLE_LIMIT;
     // A STEP import's, a thread's, a spring's or a helical gear's mesh went
     // along as the part itself until it had its own body; it still goes along
@@ -7139,7 +7154,7 @@ export function LayerlingEditor({
     const triangleCount = partInputs.reduce((total, part) => total + (part.mesh?.faces.length ?? 0), 0);
     const profileTriangleCount = partInputs.reduce((total, part) => total + (part.profileMesh?.faces.length ?? 0), 0);
     const profilePartCount = partInputs.filter((part) => part.profile || part.step || part.thread || part.spring || part.helicalGear || part.gridfinity || part.hirth || part.enclosure).length;
-    const profileSegmentCount = partInputs.reduce((total, part) => total + (part.profile ? cadProfileSegmentCount(part.profile) : 0), 0);
+    const profileSegmentCount = partInputs.reduce((total, part) => total + (part.profile ? cadProfileSegmentCount(part.profile) : 0) + cadGridfinitySegmentCount(part.gridfinity), 0);
     const sendProfileMeshes = !options.faces && triangleCount + profileTriangleCount <= CAD_MODIFIER_PREPARE_TRIANGLE_LIMIT;
     // A STEP import's, a thread's, a spring's or a helical gear's mesh went
     // along as the part itself until it had its own body; it still goes along
@@ -11968,6 +11983,113 @@ export function LayerlingEditor({
   }, [commitShapes, cylinderWrapErrorText, selectedShape, selectedShapes.length, shapes]);
 
   /**
+   * A Gridfinity baseplate fitted into what another shape stands on (#1061): the outlines the workplane cuts through it,
+   * read in the plate's own frame and set in by 0.25 mm, filled with whole cells and the rest solid. The plate moves to
+   * the outline's middle and the other shape stays, in one Undo step.
+   */
+  const fitGridfinityOutline = useCallback(async (plateId: string, sourceId: string) => {
+    if (refuseLockedSelection()) return;
+    const plate = shapesRef.current.find((shape) => shape.id === plateId);
+    const source = shapesRef.current.find((shape) => shape.id === sourceId);
+    if (!plate || !source) return;
+    if (!gridfinityPlateFlat(plate)) {
+      setNotice(t("status.gridfinityOutlineTilted"));
+      return;
+    }
+    const sourceFingerprint = projectShapesFingerprint(shapesRef.current);
+    const sourceProjectId = projectInfoRef.current.projectId;
+    setNotice(t("status.gridfinityOutlineReading"), true);
+    try {
+      const found = await footprintLoops([withHoleMode(source, false)]);
+      const read = found
+        ? gridfinityOutlineFromLoops(await getManifoldRuntime(), gridfinityOutlineToPlate(found.loops.map((loop) => loop.points.map((p) => ({ x: p.u, z: p.v }))), plate))
+        : { error: "empty" as const };
+      if ("error" in read) {
+        setNotice(t(read.error === "several" ? "status.gridfinityOutlineSeveral" : "status.gridfinityOutlineNoOutline"));
+        return;
+      }
+      const fit = gridfinityOutlineFit(plate, read.points);
+      if (fit.error) {
+        setNotice(fit.error === "points" ? t("status.gridfinityOutlineNoOutline")
+          : fit.error === "complex" ? t("status.gridfinityOutlineTooComplex", { count: fit.limit })
+            : fit.error === "small" ? t("status.gridfinityOutlineTooSmall", { size: fit.limit })
+              : fit.large ? t("status.gridfinityOutlineTooLargeSwitch", { size: fit.limit, large: fit.large }) : t("status.gridfinityOutlineTooLarge", { size: fit.limit }));
+        return;
+      }
+      if (projectInfoRef.current.projectId !== sourceProjectId || projectShapesFingerprint(shapesRef.current) !== sourceFingerprint) {
+        setNotice(t("status.gridfinityOutlineChanged"));
+        return;
+      }
+      const place = gridfinityPlateToWorld(fit.centre, plate);
+      const fitted = canonicalizeShape({ ...plate, ...fit.patch, size: resizedShapeSize(fit.patch.width, fit.patch.depth), x: place.x, z: place.z });
+      commitShapes(shapesRef.current.map((shape) => (shape.id === plate.id ? fitted : shape)), plate.id, t("status.gridfinityOutlineFitted", { cells: gridfinityPlan(fitted).cells.length }));
+    } catch (error) {
+      setNotice(error instanceof Error ? localizedError(error.message) : t("status.gridfinityOutlineNoOutline"), true);
+    }
+  }, [commitShapes, refuseLockedSelection]);
+
+  /**
+   * A Swallowtail plate's keys (#1061), laid flat in a row in front of it, 4 mm apart, as sketch bodies ready to print: one for
+   * each pocket at its back and right, so that every pocket across a seam with the next plate gets one; the keys laid out
+   * for it before give way. The same code the MCP's gridfinityKeys uses.
+   */
+  const makeSwallowtailKeys = useCallback(async (plateId: string) => {
+    const fail = (message: string) => {
+      setNotice(message, true);
+      return { ok: false as const, message };
+    };
+    const plate = shapesRef.current.find((shape) => shape.id === plateId);
+    if (!plate) return { ok: false as const, message: t("status.gridfinityKeysNone") };
+    if (plate.locked) return fail(t("status.objectLocked"));
+    const count = gridfinitySwallowtailKeyCount({ ...plate, depth: shapeDepth(plate) });
+    if (count === 0) return fail(t("status.gridfinityKeysNone"));
+    const sourceFingerprint = projectShapesFingerprint(shapesRef.current);
+    const sourceProjectId = projectInfoRef.current.projectId;
+    try {
+      const built = await cadShapeFromSketchProfile(gridfinitySwallowtailKeyProfile(plate), GRIDFINITY_SWALLOWTAIL_KEY_THICKNESS, null);
+      if (projectInfoRef.current.projectId !== sourceProjectId || projectShapesFingerprint(shapesRef.current) !== sourceFingerprint) return fail(t("status.gridfinityKeysChanged"));
+      if (historyViewStateRef.current) return fail(t("status.historyViewBlocksEdits"));
+      const box = boundsForShapes([plate]);
+      const keys = gridfinitySwallowtailKeys(plate, box, built, shapeDepth(built), count, t("gridfinity.swallowtailKey"), () => createLocalId("swallowtail-key")).map(canonicalizeShape);
+      commitShapes(gridfinitySceneWithKeys(shapesRef.current, plate.id, keys), keys.map((key) => key.id), t("status.gridfinityKeysMade", { count }));
+      return { ok: true as const, keys };
+    } catch (error) {
+      return fail(error instanceof Error ? localizedError(error.message) : t("status.sketchCannotExtrude"));
+    }
+  }, [commitShapes]);
+
+  /**
+   * A baseplate larger than the chosen printer's bed, split on its cell lines into the fewest plates that fit it (#1388),
+   * each with Swallowtail, in its place and selected, and a key for each pair of pockets across a seam laid out in one row
+   * in front of it; its keys from before give way. One undo step. The same code the MCP's gridfinitySplit uses.
+   */
+  const splitGridfinityPlate = useCallback(async (plateId: string) => {
+    const fail = (message: string) => {
+      setNotice(message, true);
+      return { ok: false as const, message };
+    };
+    const plate = shapesRef.current.find((shape) => shape.id === plateId);
+    if (!plate) return { ok: false as const, message: t("status.gridfinitySplitNone") };
+    if (plate.locked) return fail(t("status.objectLocked"));
+        const printer = printerPresetById(workspaceSettingsRef.current.printer);
+    const split = gridfinityPlateSplit({ ...plate, depth: shapeDepth(plate) }, printer);
+    if (!printer || !split) return { ok: false as const, message: t("status.gridfinitySplitNone") };
+    const sourceFingerprint = projectShapesFingerprint(shapesRef.current);
+    const sourceProjectId = projectInfoRef.current.projectId;
+    try {
+      const built = await cadShapeFromSketchProfile(gridfinitySwallowtailKeyProfile(plate), GRIDFINITY_SWALLOWTAIL_KEY_THICKNESS, null);
+      if (projectInfoRef.current.projectId !== sourceProjectId || projectShapesFingerprint(shapesRef.current) !== sourceFingerprint) return fail(t("status.gridfinityKeysChanged"));
+      if (historyViewStateRef.current) return fail(t("status.historyViewBlocksEdits"));
+      const pieces = gridfinityPlatePieces(plate, split, displayShapeName(plate), () => createLocalId("gridfinity")).map(canonicalizeShape);
+      const keys = gridfinityPlatePieceKeys(pieces, split, boundsForShapes([plate]), built, shapeDepth(built), t("gridfinity.swallowtailKey"), () => createLocalId("swallowtail-key")).map(canonicalizeShape);
+      commitShapes(gridfinitySceneWithPieces(shapesRef.current, plate.id, pieces, keys), pieces.map((piece) => piece.id), t("status.gridfinitySplit", { count: pieces.length, printer: `${printer.vendor} ${printer.model}`, keys: keys.length }));
+      return { ok: true as const, pieces, keys };
+    } catch (error) {
+      return fail(error instanceof Error ? localizedError(error.message) : t("status.sketchCannotExtrude"));
+    }
+  }, [commitShapes]);
+
+  /**
    * A vase's accessories (legs to plug in, a stand, a saucer, an insert, a lid), laid out beside it ready to
    * print; the ones laid out for it before give way, so changed settings come out new. Returns the new parts
    * and the kinds asked for that this vase does not allow.
@@ -12182,16 +12304,17 @@ export function LayerlingEditor({
 
   /** Puts a font of one's own on every selected text, as one step. */
   const applyCustomFontToSelection = useCallback((fontId: string) => {
+    if (refuseLockedSelection()) return;
     const selected = new Set(selectedIdsRef.current);
-    const texts = shapesRef.current.filter((shape) => selected.has(shape.id) && shape.kind === "text");
-    if (!texts.length) return;
+    const targets = shapesRef.current.filter((shape) => selected.has(shape.id) && takesCustomFont(shape));
+    if (!targets.length) return;
     const name = textFontLabel(fontId) ?? fontId;
     commitShapes(
-      shapesRef.current.map((shape) => (selected.has(shape.id) && shape.kind === "text" ? canonicalizeShape({ ...shape, font: fontId }) : shape)),
+      shapesRef.current.map((shape) => (selected.has(shape.id) && takesCustomFont(shape) ? canonicalizeShape(shape.kind === "text" ? { ...shape, font: fontId } : { ...shape, gridfinityLabelFont: fontId }) : shape)),
       selectedIdsRef.current,
       t("font.usedOnText", { name }),
     );
-  }, [commitShapes]);
+  }, [commitShapes, refuseLockedSelection]);
 
   const startSimplifyTool = useCallback(() => {
     if (simplifyToolShape) {
@@ -17091,9 +17214,12 @@ export function LayerlingEditor({
           onSelectionHole={setSelectionHoleMode}
           onSelectionColor={setSelectionColor}
           onSelectionUpdateShapes={updateShapesTogether}
+          onSelectionFitGridfinityOutline={fitGridfinityOutline}
           onSelectionLock={toggleLocked}
           onSelectionHide={toggleHidden}
           onWrapAroundCylinder={selectedShapes.length === 1 && offersCylinderWrap(selectedShape) ? wrapSelectionAroundCylinder : undefined}
+          onGridfinityKeys={selectedShapes.length === 1 && selectedShape?.kind === "gridfinity" && selectedShape.gridfinitySwallowtail === true && !historyViewState ? () => void makeSwallowtailKeys(selectedShape.id) : undefined}
+          onGridfinitySplit={selectedShapes.length === 1 && selectedShape?.kind === "gridfinity" && !historyViewState ? () => void splitGridfinityPlate(selectedShape.id) : undefined}
           onVaseAccessories={selectedShapes.length === 1 && selectedShape?.kind === "vase" && !selectedShape.locked ? () => layOutVaseAccessories(selectedShape.id) : undefined}
           onLayerText={selectedShapes.length === 1 && offersTextLayers(selectedShape) ? layerSelectedText : undefined}
           onTextTags={selectedShapes.length === 1 && offersTextLayers(selectedShape) ? makeTextTags : undefined}

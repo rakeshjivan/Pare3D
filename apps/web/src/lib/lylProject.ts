@@ -21,6 +21,8 @@ import { isSketchKeyring } from "@/lib/sketchKeyring";
 import { isThreadProfile } from "@/lib/threadProfiles";
 import { PORT_PROFILES } from "@/lib/portGeometry";
 import type { PortProfile } from "@/types/layerling";
+import { GRIDFINITY_LABEL_FONTS, GRIDFINITY_LABEL_TEXT_KEYS, MAX_GRIDFINITY_LABEL_TEXT_LENGTH, MAX_GRIDFINITY_OUTLINE_POINTS } from "@/lib/gridfinityGeometry";
+import { findSketchOutlineIntersection } from "@/lib/sketchProfileValidation";
 import { normalizeSnapGrid, normalizeWorkspaceSettings } from "@/lib/workplaneSettings";
 import type { CadDisplayEdge, GridSize, ProjectAsset, ProjectAssetSourceFormat, SketchOperation, SketchRevolveSettings, WorkplaneNote, WorkplaneShape, WorkplaneWorkspaceSettings } from "@/types/layerling";
 
@@ -147,16 +149,18 @@ const LYL_MAX_FONTS = 64;
  */
 function embeddedFonts(states: WorkplaneShape[][]): LylFontV1[] {
   const characters = new Map<string, Set<string>>();
+  const use = (font: string, texts: string[]) => {
+    const used = characters.get(font) ?? new Set<string>();
+    const glyphs = customFontEntry(font)?.data.glyphs as Record<string, unknown> | undefined;
+    texts.forEach((text) => textCharacters(text.trim() || " ", glyphs).forEach((character) => used.add(character)));
+    characters.set(font, used);
+  };
   const visit = (shape: WorkplaneShape) => {
-    const add = (font: string, text: string) => {
-      const used = characters.get(font) ?? new Set<string>();
-      const glyphs = customFontEntry(font)?.data.glyphs as Record<string, unknown> | undefined;
-      textCharacters(text.trim() || " ", glyphs).forEach((character) => used.add(character));
-      characters.set(font, used);
-    };
-    if (isCustomFontId(shape.font) && shape.kind === "text") add(shape.font, shape.text ?? "TEXT");
-    // Fork (build 35): text laid on a surface keeps its font for the next edit.
-    if (shape.surfaceText && isCustomFontId(shape.surfaceText.font)) add(shape.surfaceText.font, shape.surfaceText.text);
+    if (isCustomFontId(shape.font) && shape.kind === "text") use(shape.font, [shape.text ?? "TEXT"]);
+    // A bin's letters (#1308) and the H their size is measured on: without it they would come out another size elsewhere.
+    if (isCustomFontId(shape.gridfinityLabelFont) && shape.kind === "gridfinity") {
+      use(shape.gridfinityLabelFont, ["H", ...Object.values(GRIDFINITY_LABEL_TEXT_KEYS).map((key) => shape[key] ?? ""), ...(shape.gridfinityCompartmentLabels ?? []).map((label) => label.text ?? "")]);
+    }
     shape.groupedShapes?.forEach(visit);
   };
   states.forEach((shapes) => shapes.forEach(visit));
@@ -1644,14 +1648,14 @@ function validateShapeDefinition(definition: Record<string, unknown>, label: str
     }
   }
   if (kind === "gridfinity") {
-    // The size is rounded to whole grid units on loading, and the geometry clamps the label shelf's, the finger scoop's, the floor's, the lip chamfer's, the wall's, the corners' and the dividers' values; only nonsense is refused.
-    if (definition.gridfinityType !== undefined && definition.gridfinityType !== "bin" && definition.gridfinityType !== "baseplate") {
+    // The size is rounded to whole grid units on loading (a tray's is kept to its limits), and the geometry clamps the label shelf's, the finger scoop's, the floor's, the lip chamfer's, the wall's, the corners' (a baseplate's and a bin's), the keys' clearance and the dividers' values; only nonsense is refused.
+    if (definition.gridfinityType !== undefined && definition.gridfinityType !== "bin" && definition.gridfinityType !== "baseplate" && definition.gridfinityType !== "tray") {
       throw new Error(`${label}.gridfinityType is invalid`);
     }
-    for (const key of ["gridfinityLip", "gridfinityMagnets", "gridfinityHalfGrid", "gridfinityLabelBack", "gridfinityLabelFront", "gridfinityLabelLeft", "gridfinityLabelRight", "gridfinityScoopBack", "gridfinityScoopFront", "gridfinityScoopLeft", "gridfinityScoopRight", "gridfinityOpenBack", "gridfinityOpenFront", "gridfinityOpenLeft", "gridfinityOpenRight", "hingePinless"] as const) {
+    for (const key of ["gridfinityLip", "gridfinityMagnets", "gridfinityHalfGrid", "gridfinityLargePlate", "gridfinitySwallowtail", "gridfinityLabelBack", "gridfinityLabelFront", "gridfinityLabelLeft", "gridfinityLabelRight", "gridfinityScoopBack", "gridfinityScoopFront", "gridfinityScoopLeft", "gridfinityScoopRight", "gridfinityOpenBack", "gridfinityOpenFront", "gridfinityOpenLeft", "gridfinityOpenRight", "gridfinityOverhangSolid", "gridfinityOverhangLipOnGrid", "hingePinless"] as const) {
       if (definition[key] !== undefined && typeof definition[key] !== "boolean") throw new Error(`${label}.${key} must be true or false`);
     }
-    for (const key of ["gridfinityLabelBackWidth", "gridfinityLabelBackLength", "gridfinityLabelBackOffset", "gridfinityLabelFrontWidth", "gridfinityLabelFrontLength", "gridfinityLabelFrontOffset", "gridfinityLabelLeftWidth", "gridfinityLabelLeftLength", "gridfinityLabelLeftOffset", "gridfinityLabelRightWidth", "gridfinityLabelRightLength", "gridfinityLabelRightOffset", "gridfinityLabelCornerSize", "gridfinityScoopRadius", "gridfinityFloorHeight", "gridfinityLipChamfer", "gridfinityWallThickness", "gridfinityOpeningCornerSize", "gridfinityPaddingBack", "gridfinityPaddingFront", "gridfinityPaddingLeft", "gridfinityPaddingRight", "gridfinityCornerRadius", "gridfinityCompartmentsX", "gridfinityCompartmentsZ", "gridfinityDividerThickness"] as const) {
+    for (const key of ["gridfinityLabelBackWidth", "gridfinityLabelBackLength", "gridfinityLabelBackOffset", "gridfinityLabelFrontWidth", "gridfinityLabelFrontLength", "gridfinityLabelFrontOffset", "gridfinityLabelLeftWidth", "gridfinityLabelLeftLength", "gridfinityLabelLeftOffset", "gridfinityLabelRightWidth", "gridfinityLabelRightLength", "gridfinityLabelRightOffset", "gridfinityLabelCornerSize", "gridfinityLabelTextSize", "gridfinityOverhangBack", "gridfinityOverhangFront", "gridfinityOverhangLeft", "gridfinityOverhangRight", "gridfinityOverhangChamfer", "gridfinityScoopRadius", "gridfinityFloorHeight", "gridfinityLipChamfer", "gridfinityWallThickness", "gridfinityOpeningCornerSize", "gridfinityPaddingBack", "gridfinityPaddingFront", "gridfinityPaddingLeft", "gridfinityPaddingRight", "gridfinityCornerRadius", "gridfinityBinCornerRadius", "gridfinitySwallowtailClearance", "gridfinityCompartmentsX", "gridfinityCompartmentsZ", "gridfinityDividerThickness", "gridfinityDividerHeight"] as const) {
       if (definition[key] === undefined) continue;
       const value = finiteNumber(definition[key], `${label}.${key}`);
       // Only an offset runs both ways along a wall.
@@ -1659,6 +1663,16 @@ function validateShapeDefinition(definition: Record<string, unknown>, label: str
     }
     if (definition.gridfinityLabelCorner !== undefined && definition.gridfinityLabelCorner !== "round" && definition.gridfinityLabelCorner !== "chamfer") {
       throw new Error(`${label}.gridfinityLabelCorner is invalid`);
+    }
+    // The letters on the shelves (#1308): a text as long as a text shape's, in a built-in font or a font of one's own, whose letters the design brings along.
+    for (const key of Object.values(GRIDFINITY_LABEL_TEXT_KEYS)) {
+      if (definition[key] !== undefined && (typeof definition[key] !== "string" || definition[key].length > MAX_GRIDFINITY_LABEL_TEXT_LENGTH)) throw new Error(`${label}.${key} must be a string of at most ${MAX_GRIDFINITY_LABEL_TEXT_LENGTH} characters`);
+    }
+    if (definition.gridfinityLabelFont !== undefined && !GRIDFINITY_LABEL_FONTS.includes(definition.gridfinityLabelFont as string) && !isCustomFontId(definition.gridfinityLabelFont)) {
+      throw new Error(`${label}.gridfinityLabelFont is invalid`);
+    }
+    if (definition.gridfinityLabelColor !== undefined && (typeof definition.gridfinityLabelColor !== "string" || !/^#[0-9a-f]{6}$/i.test(definition.gridfinityLabelColor))) {
+      throw new Error(`${label}.gridfinityLabelColor must be a colour as #rrggbb`);
     }
     if (definition.gridfinityOpeningCorner !== undefined && definition.gridfinityOpeningCorner !== "round" && definition.gridfinityOpeningCorner !== "chamfer") {
       throw new Error(`${label}.gridfinityOpeningCorner is invalid`);
@@ -1691,6 +1705,7 @@ function validateShapeDefinition(definition: Record<string, unknown>, label: str
           if (value < 0 || value > 1e6) throw new Error(`${entryLabel}.${key} is outside the supported range`);
         }
         if (entry.align !== undefined && entry.align !== "start" && entry.align !== "middle" && entry.align !== "end") throw new Error(`${entryLabel}.align is invalid`);
+        if (entry.text !== undefined && (typeof entry.text !== "string" || entry.text.length > MAX_GRIDFINITY_LABEL_TEXT_LENGTH)) throw new Error(`${entryLabel}.text must be a string of at most ${MAX_GRIDFINITY_LABEL_TEXT_LENGTH} characters`);
       });
     }
     if (definition.gridfinityOpenings !== undefined) {
@@ -1711,6 +1726,17 @@ function validateShapeDefinition(definition: Record<string, unknown>, label: str
         }
         if (entry.align !== undefined && entry.align !== "start" && entry.align !== "middle" && entry.align !== "end") throw new Error(`${entryLabel}.align is invalid`);
       });
+    }
+    if (definition.gridfinityOutline !== undefined) {
+      if (!Array.isArray(definition.gridfinityOutline)) throw new Error(`${label}.gridfinityOutline must be an array`);
+      const outline = definition.gridfinityOutline as unknown[];
+      if (outline.length > MAX_GRIDFINITY_OUTLINE_POINTS) throw new Error(`${label}.gridfinityOutline has too many points`);
+      const points = outline.map((raw, index) => {
+        const entryLabel = `${label}.gridfinityOutline[${index}]`;
+        const entry = objectRecord(raw, entryLabel);
+        return { x: finiteNumber(entry.x, `${entryLabel}.x`), y: finiteNumber(entry.z, `${entryLabel}.z`) };
+      });
+      if (findSketchOutlineIntersection([points])) throw new Error(`${label}.gridfinityOutline crosses itself`);
     }
   }
   if (kind === "hinge") {

@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { numberLocale, t } from "@/lib/i18n";
 import { sphereTessellation } from "@/lib/sphereTessellation";
 import { groupShowsPartColors } from "@/lib/groupColors";
+import { gridfinityLabelColor, gridfinityLetterMeshes } from "@/lib/gridfinityLetterColor";
 import { acceleratedRaycast, computeBoundsTree } from "three-mesh-bvh";
 import { groupedContentScale, groupedPartSizeScale, scaleGroupedVertices } from "@/lib/groupScale";
 import { dropSplitSlivers, unionSplitManifoldComponents } from "@/lib/manifoldSplit";
@@ -1396,6 +1397,16 @@ export type PartColorSolid = { probe: THREE.Mesh; box: THREE.Box3; color: string
  * the frame its children have before the group's own size and place are applied.
  */
 export function multicolorExportSolids(shape: WorkplaneShape): PartColorSolid[] | null {
+  // The first solid a point lies in gives its colour, so a bin's letters in a colour of their own come first (#1308).
+  // The box round the bin keeps the nearest-box fallback from giving the faces beside the letters their colour.
+  const letterColor = shape.hole ? undefined : gridfinityLabelColor(shape);
+  if (letterColor) {
+    const letters = gridfinityLetterMeshes(shape).map((letter) => partColorSolid(transformMesh(letter, shape), letterColor));
+    const bin = transformMesh(meshForShape(shape), shape);
+    const box = new THREE.Box3().setFromArray(bin.vertices.flat());
+    const cuboid = { minX: box.min.x, maxX: box.max.x, minY: box.min.y, maxY: box.max.y, minZ: box.min.z, maxZ: box.max.z };
+    return letters.length && !box.isEmpty() ? [...letters, partColorSolid(cuboidsToMesh("bin", [cuboid], 0, 0), shape.color)] : null;
+  }
   if (shape.hole || !shape.groupedShapes?.length || !groupShowsPartColors(shape)) return null;
   const parts = shape.groupedShapes.filter((part) => !part.hole && !part.hidden);
   if (parts.length === 0 || new Set(parts.map((part) => part.color)).size < 2) return null;
@@ -1431,6 +1442,21 @@ export function multicolorExportSolids(shape: WorkplaneShape): PartColorSolid[] 
     solids.push({ probe, box: geometry.boundingBox ?? new THREE.Box3(), color: part.color });
   });
   return solids.length ? solids : null;
+}
+
+function partColorSolid(world: MeshData, color: string): PartColorSolid {
+  const positions = new Float32Array(world.faces.length * 9);
+  world.faces.forEach((face, faceIndex) => face.forEach((point, corner) => {
+    const vertex = world.vertices[point];
+    positions.set([vertex[0], vertex[1], vertex[2]], faceIndex * 9 + corner * 3);
+  }));
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.computeBoundingBox();
+  computeBoundsTree.call(geometry, { targetLeafSize: 12 });
+  const probe = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  probe.raycast = acceleratedRaycast;
+  return { probe, box: geometry.boundingBox ?? new THREE.Box3(), color };
 }
 
 const PART_COLOR_PROBE = new THREE.Vector3(0.5773, 0.5774, 0.5775).normalize();

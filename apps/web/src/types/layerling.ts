@@ -317,6 +317,56 @@ export type ShapeCustomization = {
   gridfinityCompartmentsZ?: number;
   /** Gridfinity bin: the dividers' thickness in mm, 0.8 to 3; missing is 1.2. */
   gridfinityDividerThickness?: number;
+  /** Gridfinity baseplate: up to 12 units across and deep instead of 6, for print beds over 256 mm (#1061); missing means 6. */
+  gridfinityLargePlate?: boolean;
+  /** Gridfinity baseplate: Swallowtail, on a 2.4 mm floor with a pocket for a key under each side without padding (#1061); missing means off. */
+  gridfinitySwallowtail?: boolean;
+  /** Gridfinity baseplate with Swallowtail: the clearance of the keys Add keys lays out, in mm on every side; missing means 0.05, at most 0.15; the plate stays as it is (#1061). */
+  gridfinitySwallowtailClearance?: number;
+  /** Gridfinity bin: the font of the letters on its label shelves (#1308), one of the built-in ones; missing is Multilanguage. */
+  gridfinityLabelFont?: string;
+  /** Gridfinity bin: the colour of the letters on its label shelves (#1308), "#rrggbb"; missing, or the bin's own colour, is the bin's. */
+  gridfinityLabelColor?: string;
+  /** Gridfinity bin: how high the capitals on its label shelves are, in mm (#1308), the same on every shelf as far as each lets them; missing or 0 is as large as each shelf lets them. */
+  gridfinityLabelTextSize?: number;
+  /** Gridfinity bin: how far its body above the feet reaches out beyond the grid at the back, in mm from the grid line, over a baseplate's padding; missing is none, at most 41. The feet stay on the grid. */
+  gridfinityOverhangBack?: number;
+  /** Gridfinity bin: the overhang at the front. */
+  gridfinityOverhangFront?: number;
+  /** Gridfinity bin: the overhang on the left. */
+  gridfinityOverhangLeft?: number;
+  /** Gridfinity bin: the overhang on the right. */
+  gridfinityOverhangRight?: number;
+  /** Gridfinity bin: the height in mm the overhang's underside rises to at the outer wall, sloping straight up to it from the grid line so it prints without supports; missing or 0 leaves it flat on the padding. */
+  gridfinityOverhangChamfer?: number;
+  /** Gridfinity bin: the overhang is solid, and the inside stays on the grid; missing is hollow, the inside reaching out into it. */
+  gridfinityOverhangSolid?: boolean;
+  /** Gridfinity bin: the stacking lip stays on the grid, and the overhang is solid with a flat top at the lip's foot; missing is the lip on the wider outline. */
+  gridfinityOverhangLipOnGrid?: boolean;
+  /** Gridfinity bin: the radius of its outer corners above the feet in mm; missing is the specification's 3.75, at least 0 (square), at most 3.75; the feet, the inside and the lip's slopes keep theirs (#856). */
+  gridfinityBinCornerRadius?: number;
+  /** Gridfinity bin: the dividers' height over the floor in mm, at least 3; missing, 0, or within 0.1 mm of the full height or over it is the full height (#1560). */
+  gridfinityDividerHeight?: number;
+  /** Gridfinity bin: the text raised on the back wall's label shelf (#1308), up to 24 characters; missing or blank has none. */
+  gridfinityLabelBackText?: string;
+  /** Gridfinity bin: the text raised on the front wall's label shelf. */
+  gridfinityLabelFrontText?: string;
+  /** Gridfinity bin: the text raised on the left wall's label shelf. */
+  gridfinityLabelLeftText?: string;
+  /** Gridfinity bin: the text raised on the right wall's label shelf. */
+  gridfinityLabelRightText?: string;
+  /** Gridfinity bin: each divider across, in mm from the inside of the left wall to its middle, left to right; missing spaces them evenly. */
+  gridfinityDividerPositionsX?: number[];
+  /** Gridfinity bin: each divider deep, in mm from the inside of the back wall to its middle, back to front; missing spaces them evenly. */
+  gridfinityDividerPositionsZ?: number[];
+  /** Gridfinity bin with dividers: the compartments' labels, one for each compartment that has one. */
+  gridfinityCompartmentLabels?: GridfinityCompartmentLabel[];
+  /** Gridfinity bin: how far each side switched open is opened (#455), one entry a side; missing is the whole side. */
+  gridfinityOpenings?: GridfinityOpening[];
+  /** Gridfinity baseplate: the outline it fills (#1061), centred on its bounds; built stretched to the box, whole cells inside, the rest solid. */
+  gridfinityOutline?: GridfinityOutlinePoint[];
+  /** A Swallowtail key laid out for a Gridfinity plate (its id, #1061): laying them out again replaces it. */
+  gridfinityKeyOf?: string;
   /** Knurling: grooves straight along the axis, or crossed into diamonds. */
   knurlPattern?: "straight" | "diamond" | "round";
   /** Knurling: number of grooves around the grip. */
@@ -628,8 +678,8 @@ export type SketchOperation = "extrude" | "revolve" | "sweep";
 export type GearType = "spur" | "helical" | "herringbone" | "bevel" | "internal" | "rack";
 export type GearProfile = "involute" | "round" | "simple";
 
-/** A Gridfinity bin, or the baseplate bins stand in. */
-export type GridfinityType = "bin" | "baseplate";
+/** A Gridfinity bin, the baseplate bins stand in, or a tray of any size with a flat bottom (#837). */
+export type GridfinityType = "bin" | "baseplate" | "tray";
 /** How a label shelf's corners are finished where it meets a wall or another shelf. */
 export type GridfinityLabelCorner = "round" | "chamfer";
 /**
@@ -637,7 +687,7 @@ export type GridfinityLabelCorner = "round" | "chamfer";
  * against one side of the compartment, the bin's wall or a divider; `length` is a share of that side in per cent (10 to
  * 100, missing the full length), `align` where a shorter one sits along it (start towards -x on a back or front side and
  * towards -z on a left or right one; missing the middle), `width` how far it reaches out in mm (missing 14, within what
- * the compartment takes).
+ * the compartment takes), `text` the letters raised on it (#1308), up to 24 characters.
  */
 export type GridfinityCompartmentLabel = {
   column: number;
@@ -646,6 +696,7 @@ export type GridfinityCompartmentLabel = {
   length?: number;
   align?: "start" | "middle" | "end";
   width?: number;
+  text?: string;
 };
 
 /**
@@ -661,6 +712,9 @@ export type GridfinityOpening = {
   align?: "start" | "middle" | "end";
   distance?: number;
 };
+
+/** A point of a Gridfinity baseplate's outline (#1061), in the plate's own frame: x across, z deep, in mm. */
+export type GridfinityOutlinePoint = { x: number; z: number };
 
 /** Was aus dem Gewinde wird: Stange, Schraube, Mutter oder das Loch dafuer. */
 export type ThreadRole = "rod" | "screw" | "nut" | "bore";
@@ -1112,6 +1166,48 @@ export type WorkplaneShape = {
   gridfinityOpeningCorner?: GridfinityLabelCorner;
   /** Gridfinity bin: the size of that rounding or chamfer in mm; missing, 0 or under 0.5 leaves them square. */
   gridfinityOpeningCornerSize?: number;
+  /** Gridfinity baseplate: up to 12 units across and deep instead of 6, for print beds over 256 mm (#1061); missing means 6. */
+  gridfinityLargePlate?: boolean;
+  /** Gridfinity baseplate: Swallowtail, on a 2.4 mm floor with a pocket for a key under each side without padding (#1061); missing means off. */
+  gridfinitySwallowtail?: boolean;
+  /** Gridfinity baseplate with Swallowtail: the clearance of the keys Add keys lays out, in mm on every side; missing means 0.05, at most 0.15; the plate stays as it is (#1061). */
+  gridfinitySwallowtailClearance?: number;
+  /** Gridfinity bin: the font of the letters on its label shelves (#1308), a built-in one or a font of one's own (custom:...); missing is Multilanguage. */
+  gridfinityLabelFont?: string;
+  /** Gridfinity bin: the colour of the letters on its label shelves (#1308), "#rrggbb"; missing, or the bin's own colour, is the bin's. */
+  gridfinityLabelColor?: string;
+  /** Gridfinity bin: how high the capitals on its label shelves are, in mm (#1308), the same on every shelf as far as each lets them; missing or 0 is as large as each shelf lets them. */
+  gridfinityLabelTextSize?: number;
+  /** Gridfinity bin: how far its body above the feet reaches out beyond the grid at the back, in mm from the grid line, over a baseplate's padding; missing is none, at most 41. The feet stay on the grid. */
+  gridfinityOverhangBack?: number;
+  /** Gridfinity bin: the overhang at the front. */
+  gridfinityOverhangFront?: number;
+  /** Gridfinity bin: the overhang on the left. */
+  gridfinityOverhangLeft?: number;
+  /** Gridfinity bin: the overhang on the right. */
+  gridfinityOverhangRight?: number;
+  /** Gridfinity bin: the height in mm the overhang's underside rises to at the outer wall, sloping straight up to it from the grid line so it prints without supports; missing or 0 leaves it flat on the padding. */
+  gridfinityOverhangChamfer?: number;
+  /** Gridfinity bin: the overhang is solid, and the inside stays on the grid; missing is hollow, the inside reaching out into it. */
+  gridfinityOverhangSolid?: boolean;
+  /** Gridfinity bin: the stacking lip stays on the grid, and the overhang is solid with a flat top at the lip's foot; missing is the lip on the wider outline. */
+  gridfinityOverhangLipOnGrid?: boolean;
+  /** Gridfinity bin: the radius of its outer corners above the feet in mm; missing is the specification's 3.75, at least 0 (square), at most 3.75; the feet, the inside and the lip's slopes keep theirs (#856). */
+  gridfinityBinCornerRadius?: number;
+  /** Gridfinity bin: the dividers' height over the floor in mm, at least 3; missing, 0, or within 0.1 mm of the full height or over it is the full height (#1560). */
+  gridfinityDividerHeight?: number;
+  /** Gridfinity bin: the text raised on the back wall's label shelf (#1308), up to 24 characters; missing or blank has none. */
+  gridfinityLabelBackText?: string;
+  /** Gridfinity bin: the text raised on the front wall's label shelf. */
+  gridfinityLabelFrontText?: string;
+  /** Gridfinity bin: the text raised on the left wall's label shelf. */
+  gridfinityLabelLeftText?: string;
+  /** Gridfinity bin: the text raised on the right wall's label shelf. */
+  gridfinityLabelRightText?: string;
+  /** Gridfinity baseplate: the outline it fills (#1061), centred on its bounds; built stretched to the box, whole cells inside, the rest solid. */
+  gridfinityOutline?: GridfinityOutlinePoint[];
+  /** A Swallowtail key laid out for a Gridfinity plate (its id, #1061): laying them out again replaces it. */
+  gridfinityKeyOf?: string;
   /** Knurling: grooves straight along the axis, or crossed into diamonds. */
   knurlPattern?: "straight" | "diamond" | "round";
   /** Knurling: number of grooves around the grip. */

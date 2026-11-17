@@ -4,7 +4,7 @@ import type { ThreadHead } from "@/types/layerling";
 import type { SnapFitFields } from "@/lib/snapFit";
 import type { RibFields } from "@/lib/rib";
 import type { ThreadDriveOutline } from "@/lib/threadGeometry";
-import type { GridfinityCompartmentLabel, GridfinityLabelCorner, GridfinityOpening, GridfinityType, ShellEdges, ShellOpenings } from "@/types/layerling";
+import type { GridfinityCompartmentLabel, GridfinityLabelCorner, GridfinityOpening, GridfinityOutlinePoint, GridfinityType, ShellEdges, ShellOpenings } from "@/types/layerling";
 
 export type CadModifierKind = "chamfer" | "chamfillet" | "fillet" | "shell" | "deleteFace" | "draft" | "offset";
 
@@ -327,6 +327,8 @@ export type CadModifierGridfinityPart = {
   gridfinityLip: boolean;
   gridfinityMagnets: boolean;
   gridfinityHalfGrid?: boolean;
+  gridfinityLargePlate?: boolean;
+  gridfinitySwallowtail?: boolean;
   gridfinityLabelBack?: boolean;
   gridfinityLabelFront?: boolean;
   gridfinityLabelLeft?: boolean;
@@ -345,6 +347,10 @@ export type CadModifierGridfinityPart = {
   gridfinityLabelRightOffset?: number;
   gridfinityLabelCorner?: GridfinityLabelCorner;
   gridfinityLabelCornerSize?: number;
+  gridfinityLabelBackText?: string;
+  gridfinityLabelFrontText?: string;
+  gridfinityLabelLeftText?: string;
+  gridfinityLabelRightText?: string;
   gridfinityScoopBack?: boolean;
   gridfinityScoopFront?: boolean;
   gridfinityScoopLeft?: boolean;
@@ -361,16 +367,31 @@ export type CadModifierGridfinityPart = {
   gridfinityPaddingFront?: number;
   gridfinityPaddingLeft?: number;
   gridfinityPaddingRight?: number;
+  gridfinityOverhangBack?: number;
+  gridfinityOverhangFront?: number;
+  gridfinityOverhangLeft?: number;
+  gridfinityOverhangRight?: number;
+  gridfinityOverhangChamfer?: number;
+  gridfinityOverhangSolid?: boolean;
+  gridfinityOverhangLipOnGrid?: boolean;
   gridfinityCornerRadius?: number;
+  gridfinityBinCornerRadius?: number;
   gridfinityCompartmentsX?: number;
   gridfinityCompartmentsZ?: number;
   gridfinityDividerThickness?: number;
+  gridfinityDividerHeight?: number;
   gridfinityDividerPositionsX?: number[];
   gridfinityDividerPositionsZ?: number[];
   gridfinityCompartmentLabels?: GridfinityCompartmentLabel[];
   gridfinityOpenings?: GridfinityOpening[];
   gridfinityOpeningCorner?: GridfinityLabelCorner;
   gridfinityOpeningCornerSize?: number;
+  gridfinityOutline?: GridfinityOutlinePoint[];
+  /**
+   * The letters on its shelves (#1308), made on the page from the fonts: for each shelf its top, and each glyph as its
+   * outline and holes with the font's own curves, in the shape's x and z.
+   */
+  gridfinityLetters?: Array<{ top: number; glyphs: CadModifierProfileLoop[][] }>;
   transform?: number[];
   expected?: { bounds: number[]; volume: number };
 };

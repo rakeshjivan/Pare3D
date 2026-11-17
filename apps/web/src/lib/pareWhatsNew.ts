@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 117,
+    items: [
+      "Gridfinity brought up to date: trays of any size for board games, baseplates that split to fit your printer with Swallowtail keys to join them, a baseplate fitted into any drawer outline, and bins that overhang the grid.",
+      "Bins can have raised text on their label shelves, in any font and in a colour of their own for a second filament, lower dividers, and rounded or square outer corners.",
+    ],
+  },
+  {
     build: 116,
     items: [
       "Each corner of a rounded box can have its own radius: tick \"Each corner its own radius\" and every corner gets its own orange dot and its own field.",

@@ -3,7 +3,7 @@ import { createLocalId } from "@/lib/localIds";
 import { repairClampedMeshBase } from "@/lib/importedMeshBase";
 import { fieldFormulasEqual } from "@/lib/fieldFormulas";
 import { threadFootprintPatch } from "@/lib/threadGeometry";
-import { GRIDFINITY_PADDING_KEYS, gridfinityCompartmentLabelsEqual, gridfinityDividerPositionsEqual, gridfinityFootprintPatch, gridfinityOpeningsEqual, normalizeGridfinityPadding } from "@/lib/gridfinityGeometry";
+import { GRIDFINITY_OVERHANG_KEYS, GRIDFINITY_PADDING_KEYS, gridfinityCompartmentLabelsEqual, gridfinityDividerPositionsEqual, gridfinityFootprintPatch, gridfinityOpeningsEqual, gridfinityOutlinesEqual, normalizeGridfinityOverhang, normalizeGridfinityPadding } from "@/lib/gridfinityGeometry";
 import { MCP_SHAPE_SETTING_KEYS } from "@/lib/mcpShapeSettings";
 import { bentTubeSegmentsEqual } from "@/lib/bentTubeGeometry";
 import { vaseSettingsEqual } from "@/lib/vaseSettings";
@@ -502,6 +502,8 @@ export function canonicalizeShape(unrepaired: WorkplaneShape): WorkplaneShape {
   if (shape.kind === "gridfinity") {
     // Padding is stored as the geometry reads it, 0 to 41 mm, so a saved project opens again whatever gave it (#455).
     for (const key of Object.values(GRIDFINITY_PADDING_KEYS)) if (typeof next[key] === "number") next[key] = normalizeGridfinityPadding(next[key]);
+    for (const key of Object.values(GRIDFINITY_OVERHANG_KEYS)) if (typeof next[key] === "number") next[key] = normalizeGridfinityOverhang(next[key]);
+    if (typeof next.gridfinityOverhangChamfer === "number") next.gridfinityOverhangChamfer = Number.isFinite(next.gridfinityOverhangChamfer) ? Math.max(0, Math.round(next.gridfinityOverhangChamfer * 100) / 100) : 0;
     const footprint = gridfinityFootprintPatch(next);
     Object.assign(next, footprint);
     next.size = resizedShapeSize(footprint.width, footprint.depth);
@@ -719,12 +721,33 @@ export function workplaneShapesEqual(a: WorkplaneShape, b: WorkplaneShape) {
     a.gridfinityCompartmentsX === b.gridfinityCompartmentsX &&
     a.gridfinityCompartmentsZ === b.gridfinityCompartmentsZ &&
     a.gridfinityDividerThickness === b.gridfinityDividerThickness &&
+    a.gridfinityLargePlate === b.gridfinityLargePlate &&
+    a.gridfinitySwallowtail === b.gridfinitySwallowtail &&
+    a.gridfinitySwallowtailClearance === b.gridfinitySwallowtailClearance &&
+    a.gridfinityLabelBackText === b.gridfinityLabelBackText &&
+    a.gridfinityLabelFrontText === b.gridfinityLabelFrontText &&
+    a.gridfinityLabelLeftText === b.gridfinityLabelLeftText &&
+    a.gridfinityLabelRightText === b.gridfinityLabelRightText &&
+    a.gridfinityLabelFont === b.gridfinityLabelFont &&
+    a.gridfinityLabelColor === b.gridfinityLabelColor &&
+    a.gridfinityLabelTextSize === b.gridfinityLabelTextSize &&
+    a.gridfinityOverhangBack === b.gridfinityOverhangBack &&
+    a.gridfinityOverhangFront === b.gridfinityOverhangFront &&
+    a.gridfinityOverhangLeft === b.gridfinityOverhangLeft &&
+    a.gridfinityOverhangRight === b.gridfinityOverhangRight &&
+    a.gridfinityOverhangChamfer === b.gridfinityOverhangChamfer &&
+    a.gridfinityOverhangSolid === b.gridfinityOverhangSolid &&
+    a.gridfinityOverhangLipOnGrid === b.gridfinityOverhangLipOnGrid &&
+    a.gridfinityBinCornerRadius === b.gridfinityBinCornerRadius &&
+    a.gridfinityDividerHeight === b.gridfinityDividerHeight &&
     gridfinityDividerPositionsEqual(a.gridfinityDividerPositionsX, b.gridfinityDividerPositionsX) &&
     gridfinityDividerPositionsEqual(a.gridfinityDividerPositionsZ, b.gridfinityDividerPositionsZ) &&
     gridfinityCompartmentLabelsEqual(a.gridfinityCompartmentLabels, b.gridfinityCompartmentLabels) &&
     gridfinityOpeningsEqual(a.gridfinityOpenings, b.gridfinityOpenings) &&
     a.gridfinityOpeningCorner === b.gridfinityOpeningCorner &&
     a.gridfinityOpeningCornerSize === b.gridfinityOpeningCornerSize &&
+    gridfinityOutlinesEqual(a.gridfinityOutline, b.gridfinityOutline) &&
+    a.gridfinityKeyOf === b.gridfinityKeyOf &&
     a.dovetailNeckWidth === b.dovetailNeckWidth &&
     a.dovetailClearance === b.dovetailClearance &&
     a.loftBottomOutline === b.loftBottomOutline &&
@@ -815,4 +838,27 @@ export function workplaneShapesEqual(a: WorkplaneShape, b: WorkplaneShape) {
 
 export function serializeShapesForSync(shapes: WorkplaneShape[]) {
   return JSON.stringify(shapes.map(canonicalizeShape));
+}
+
+function eulerRotation(xDegrees: number, yDegrees: number, zDegrees: number): number[][] {
+  const [a, b, c] = [xDegrees, yDegrees, zDegrees].map((degrees) => (degrees * Math.PI) / 180);
+  const [ca, sa, cb, sb, cc, sc] = [Math.cos(a), Math.sin(a), Math.cos(b), Math.sin(b), Math.cos(c), Math.sin(c)];
+  return [
+    [cb * cc, -cb * sc, sb],
+    [ca * sc + sa * sb * cc, ca * cc - sa * sb * sc, -sa * cb],
+    [sa * sc - ca * sb * cc, sa * cc + ca * sb * sc, ca * cb],
+  ];
+}
+
+/**
+ * A move of (dx, 0, dz) in a shape's own frame, as it is on the plate: turned as three.js turns the shape (Euler
+ * "XYZ"). Used where a body grows on one side and its other parts must stay where they are, as a Gridfinity bin's
+ * feet when its overhang changes.
+ */
+export function shapeLocalOffset(shape: Pick<WorkplaneShape, "rotation"> & Partial<Pick<WorkplaneShape, "rotationX" | "rotationZ" | "mirrorX" | "mirrorZ">>, localX: number, localZ: number) {
+  const r = eulerRotation(shape.rotationX ?? 0, shape.rotation ?? 0, shape.rotationZ ?? 0);
+  // A mirrored shape is scaled by -1 in its own frame before it is turned, as the viewport draws it.
+  const dx = shape.mirrorX ? -localX : localX;
+  const dz = shape.mirrorZ ? -localZ : localZ;
+  return { x: cleanNearZero(r[0][0] * dx + r[0][2] * dz, 1e-12), z: cleanNearZero(r[2][0] * dx + r[2][2] * dz, 1e-12) };
 }

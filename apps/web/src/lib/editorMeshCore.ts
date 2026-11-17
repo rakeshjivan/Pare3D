@@ -20,7 +20,9 @@ import { createSlotGeometry } from "@/lib/slotGeometry";
 import { createDovetailGeometry } from "@/lib/dovetailGeometry";
 import { createLoftGeometry } from "@/lib/loftGeometry";
 import { createHingeGeometry } from "@/lib/hingeGeometry";
-import { createGridfinityGeometry } from "@/lib/gridfinityGeometry";
+import { createGridfinityGeometry, gridfinityLabelTextGiven } from "@/lib/gridfinityGeometry";
+import { customFontRevision, textFontsLoaded } from "@/lib/textFonts";
+import { gridfinityLabelLetters } from "@/lib/gridfinityLabelText";
 import { createKnurlGeometry } from "@/lib/knurlGeometry";
 import { fittedVaseMesh } from "@/lib/vaseShape";
 import { createTeardropGeometry } from "@/lib/teardropGeometry";
@@ -531,6 +533,8 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         gridfinityLip: shape.gridfinityLip,
         gridfinityMagnets: shape.gridfinityMagnets,
         gridfinityHalfGrid: shape.gridfinityHalfGrid,
+        gridfinityLargePlate: shape.gridfinityLargePlate,
+        gridfinitySwallowtail: shape.gridfinitySwallowtail,
         gridfinityLabelBack: shape.gridfinityLabelBack,
         gridfinityLabelFront: shape.gridfinityLabelFront,
         gridfinityLabelLeft: shape.gridfinityLabelLeft,
@@ -549,6 +553,10 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         gridfinityLabelRightOffset: shape.gridfinityLabelRightOffset,
         gridfinityLabelCorner: shape.gridfinityLabelCorner,
         gridfinityLabelCornerSize: shape.gridfinityLabelCornerSize,
+        gridfinityLabelBackText: shape.gridfinityLabelBackText,
+        gridfinityLabelFrontText: shape.gridfinityLabelFrontText,
+        gridfinityLabelLeftText: shape.gridfinityLabelLeftText,
+        gridfinityLabelRightText: shape.gridfinityLabelRightText,
         gridfinityScoopBack: shape.gridfinityScoopBack,
         gridfinityScoopFront: shape.gridfinityScoopFront,
         gridfinityScoopLeft: shape.gridfinityScoopLeft,
@@ -565,17 +573,27 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         gridfinityPaddingFront: shape.gridfinityPaddingFront,
         gridfinityPaddingLeft: shape.gridfinityPaddingLeft,
         gridfinityPaddingRight: shape.gridfinityPaddingRight,
+        gridfinityOverhangBack: shape.gridfinityOverhangBack,
+        gridfinityOverhangFront: shape.gridfinityOverhangFront,
+        gridfinityOverhangLeft: shape.gridfinityOverhangLeft,
+        gridfinityOverhangRight: shape.gridfinityOverhangRight,
+        gridfinityOverhangChamfer: shape.gridfinityOverhangChamfer,
+        gridfinityOverhangSolid: shape.gridfinityOverhangSolid,
+        gridfinityOverhangLipOnGrid: shape.gridfinityOverhangLipOnGrid,
         gridfinityCornerRadius: shape.gridfinityCornerRadius,
+        gridfinityBinCornerRadius: shape.gridfinityBinCornerRadius,
         gridfinityCompartmentsX: shape.gridfinityCompartmentsX,
         gridfinityCompartmentsZ: shape.gridfinityCompartmentsZ,
         gridfinityDividerThickness: shape.gridfinityDividerThickness,
+        gridfinityDividerHeight: shape.gridfinityDividerHeight,
         gridfinityDividerPositionsX: shape.gridfinityDividerPositionsX,
         gridfinityDividerPositionsZ: shape.gridfinityDividerPositionsZ,
         gridfinityCompartmentLabels: shape.gridfinityCompartmentLabels,
         gridfinityOpenings: shape.gridfinityOpenings,
         gridfinityOpeningCorner: shape.gridfinityOpeningCorner,
         gridfinityOpeningCornerSize: shape.gridfinityOpeningCornerSize,
-      });
+        gridfinityOutline: shape.gridfinityOutline,
+      }, gridfinityLabelLetters({ ...shape, width, depth, height }));
       break;
     case "loft":
       geometry = createLoftGeometry({ ...shape, width, depth, height });
@@ -777,10 +795,10 @@ export function meshForShape(shape: WorkplaneShape): MeshData {
 // exported or split. The mesh before transformMesh does not depend on where the shape stands, so
 // the last ones are kept and found by the other fields. Text is left out: it builds a stand-in
 // until its font has loaded.
-const PLACEMENT_FIELDS = new Set(["id", "name", "color", "x", "z", "elevation", "rotation", "rotationX", "rotationZ"]);
+const PLACEMENT_FIELDS = new Set(["id", "name", "color", "gridfinityLabelColor", "x", "z", "elevation", "rotation", "rotationX", "rotationZ"]);
 const MAX_UNPLACED_MESHES = 24;
 const MAX_UNPLACED_MESH_VERTICES = 1_500_000;
-const unplacedMeshCache: Array<{ shape: WorkplaneShape; mesh: MeshData }> = [];
+const unplacedMeshCache: Array<{ shape: WorkplaneShape; mesh: MeshData; fontRevision: number }> = [];
 
 /** Whether two shapes differ only in where they stand and how they are turned, named and coloured. */
 export function sameShapeApartFromPlacement(a: WorkplaneShape, b: WorkplaneShape) {
@@ -796,9 +814,16 @@ export function sameShapeApartFromPlacement(a: WorkplaneShape, b: WorkplaneShape
   return true;
 }
 
+/** A bin with letters on its shelves (#1308): built without them until the fonts are there, and anew when its font's letters change (the Japanese face arriving). */
+function lettered(shape: WorkplaneShape) {
+  return shape.kind === "gridfinity" && gridfinityLabelTextGiven(shape);
+}
+
 function cachedUnplacedMesh(shape: WorkplaneShape) {
   if (shape.kind === "text") return null;
-  const index = unplacedMeshCache.findIndex((entry) => sameShapeApartFromPlacement(entry.shape, shape));
+  // A bin with letters is only kept once the fonts are there (rememberUnplacedMesh), with the revision of its font's letters.
+  const letters = lettered(shape);
+  const index = unplacedMeshCache.findIndex((entry) => sameShapeApartFromPlacement(entry.shape, shape) && (!letters || entry.fontRevision === customFontRevision(shape.gridfinityLabelFont)));
   if (index < 0) return null;
   const [entry] = unplacedMeshCache.splice(index, 1);
   unplacedMeshCache.push(entry);
@@ -806,8 +831,8 @@ function cachedUnplacedMesh(shape: WorkplaneShape) {
 }
 
 function rememberUnplacedMesh(shape: WorkplaneShape, mesh: MeshData) {
-  if (shape.kind === "text" || mesh.vertices.length > MAX_UNPLACED_MESH_VERTICES) return;
-  unplacedMeshCache.push({ shape: { ...shape }, mesh: { name: mesh.name, vertices: mesh.vertices, faces: mesh.faces.map(([a, b, c]) => [a, b, c]) } });
+  if (shape.kind === "text" || (lettered(shape) && !textFontsLoaded()) || mesh.vertices.length > MAX_UNPLACED_MESH_VERTICES) return;
+  unplacedMeshCache.push({ shape: { ...shape }, mesh: { name: mesh.name, vertices: mesh.vertices, faces: mesh.faces.map(([a, b, c]) => [a, b, c]) }, fontRevision: customFontRevision(shape.gridfinityLabelFont) });
   let vertexCount = unplacedMeshCache.reduce((sum, entry) => sum + entry.mesh.vertices.length, 0);
   while (unplacedMeshCache.length > MAX_UNPLACED_MESHES || vertexCount > MAX_UNPLACED_MESH_VERTICES) {
     vertexCount -= unplacedMeshCache.shift()!.mesh.vertices.length;

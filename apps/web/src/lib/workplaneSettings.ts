@@ -1,3 +1,4 @@
+import { GRIDFINITY_LABEL_FONTS, MIN_GRIDFINITY_LABEL_TEXT_SIZE } from "@/lib/gridfinityGeometry";
 import { normalizePlateNames } from "@/lib/buildPlateNames";
 import { normalizeDesignParameters } from "@/lib/designParameters";
 import { DEFAULT_OVERHANG_ANGLE, normalizeOverhangAngle } from "@/lib/overhangLimits";
@@ -400,10 +401,13 @@ export function normalizeShapeCustomizations(value: unknown, fallback: ShapeCust
       entry.hingePinless = typeof source.hingePinless === "boolean" ? source.hingePinless : fallbackEntry?.hingePinless;
     }
     if (kind === "gridfinity") {
-      entry.gridfinityType = source.gridfinityType === "bin" || source.gridfinityType === "baseplate" ? source.gridfinityType : fallbackEntry?.gridfinityType;
+      entry.gridfinityType = source.gridfinityType === "bin" || source.gridfinityType === "baseplate" || source.gridfinityType === "tray" ? source.gridfinityType : fallbackEntry?.gridfinityType;
       entry.gridfinityLip = typeof source.gridfinityLip === "boolean" ? source.gridfinityLip : fallbackEntry?.gridfinityLip;
       entry.gridfinityMagnets = typeof source.gridfinityMagnets === "boolean" ? source.gridfinityMagnets : fallbackEntry?.gridfinityMagnets;
       entry.gridfinityHalfGrid = typeof source.gridfinityHalfGrid === "boolean" ? source.gridfinityHalfGrid : fallbackEntry?.gridfinityHalfGrid;
+      entry.gridfinityLargePlate = typeof source.gridfinityLargePlate === "boolean" ? source.gridfinityLargePlate : fallbackEntry?.gridfinityLargePlate;
+      entry.gridfinitySwallowtail = typeof source.gridfinitySwallowtail === "boolean" ? source.gridfinitySwallowtail : fallbackEntry?.gridfinitySwallowtail;
+      entry.gridfinitySwallowtailClearance = optionalShapeNumber(source.gridfinitySwallowtailClearance, fallbackEntry?.gridfinitySwallowtailClearance, 0, MAX_CUSTOM_SHAPE_DIMENSION);
       entry.gridfinityLabelBack = typeof source.gridfinityLabelBack === "boolean" ? source.gridfinityLabelBack : fallbackEntry?.gridfinityLabelBack;
       entry.gridfinityLabelFront = typeof source.gridfinityLabelFront === "boolean" ? source.gridfinityLabelFront : fallbackEntry?.gridfinityLabelFront;
       entry.gridfinityLabelLeft = typeof source.gridfinityLabelLeft === "boolean" ? source.gridfinityLabelLeft : fallbackEntry?.gridfinityLabelLeft;
@@ -422,6 +426,11 @@ export function normalizeShapeCustomizations(value: unknown, fallback: ShapeCust
       entry.gridfinityLabelRightOffset = optionalShapeNumber(source.gridfinityLabelRightOffset, fallbackEntry?.gridfinityLabelRightOffset, -MAX_CUSTOM_SHAPE_DIMENSION, MAX_CUSTOM_SHAPE_DIMENSION);
       entry.gridfinityLabelCorner = source.gridfinityLabelCorner === "round" || source.gridfinityLabelCorner === "chamfer" ? source.gridfinityLabelCorner : fallbackEntry?.gridfinityLabelCorner;
       entry.gridfinityLabelCornerSize = optionalShapeNumber(source.gridfinityLabelCornerSize, fallbackEntry?.gridfinityLabelCornerSize, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityLabelFont = typeof source.gridfinityLabelFont === "string" && GRIDFINITY_LABEL_FONTS.includes(source.gridfinityLabelFont) ? source.gridfinityLabelFont : fallbackEntry?.gridfinityLabelFont;
+      entry.gridfinityLabelColor = normalizeHexColor(typeof source.gridfinityLabelColor === "string" ? source.gridfinityLabelColor : undefined) ?? fallbackEntry?.gridfinityLabelColor;
+      // A letter size under 3 mm is stored as 3, as the settings row stores it (#1308); MCP comes through here too.
+      const letterSize = optionalShapeNumber(source.gridfinityLabelTextSize, fallbackEntry?.gridfinityLabelTextSize, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityLabelTextSize = letterSize ? Math.max(letterSize, MIN_GRIDFINITY_LABEL_TEXT_SIZE) : letterSize;
       entry.gridfinityScoopBack = typeof source.gridfinityScoopBack === "boolean" ? source.gridfinityScoopBack : fallbackEntry?.gridfinityScoopBack;
       entry.gridfinityScoopFront = typeof source.gridfinityScoopFront === "boolean" ? source.gridfinityScoopFront : fallbackEntry?.gridfinityScoopFront;
       entry.gridfinityScoopLeft = typeof source.gridfinityScoopLeft === "boolean" ? source.gridfinityScoopLeft : fallbackEntry?.gridfinityScoopLeft;
@@ -440,10 +449,19 @@ export function normalizeShapeCustomizations(value: unknown, fallback: ShapeCust
       entry.gridfinityPaddingFront = optionalShapeNumber(source.gridfinityPaddingFront, fallbackEntry?.gridfinityPaddingFront, 0, MAX_CUSTOM_SHAPE_DIMENSION);
       entry.gridfinityPaddingLeft = optionalShapeNumber(source.gridfinityPaddingLeft, fallbackEntry?.gridfinityPaddingLeft, 0, MAX_CUSTOM_SHAPE_DIMENSION);
       entry.gridfinityPaddingRight = optionalShapeNumber(source.gridfinityPaddingRight, fallbackEntry?.gridfinityPaddingRight, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityOverhangBack = optionalShapeNumber(source.gridfinityOverhangBack, fallbackEntry?.gridfinityOverhangBack, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityOverhangFront = optionalShapeNumber(source.gridfinityOverhangFront, fallbackEntry?.gridfinityOverhangFront, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityOverhangLeft = optionalShapeNumber(source.gridfinityOverhangLeft, fallbackEntry?.gridfinityOverhangLeft, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityOverhangRight = optionalShapeNumber(source.gridfinityOverhangRight, fallbackEntry?.gridfinityOverhangRight, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityOverhangChamfer = optionalShapeNumber(source.gridfinityOverhangChamfer, fallbackEntry?.gridfinityOverhangChamfer, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityOverhangSolid = typeof source.gridfinityOverhangSolid === "boolean" ? source.gridfinityOverhangSolid : fallbackEntry?.gridfinityOverhangSolid;
+      entry.gridfinityOverhangLipOnGrid = typeof source.gridfinityOverhangLipOnGrid === "boolean" ? source.gridfinityOverhangLipOnGrid : fallbackEntry?.gridfinityOverhangLipOnGrid;
       entry.gridfinityCornerRadius = optionalShapeNumber(source.gridfinityCornerRadius, fallbackEntry?.gridfinityCornerRadius, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityBinCornerRadius = optionalShapeNumber(source.gridfinityBinCornerRadius, fallbackEntry?.gridfinityBinCornerRadius, 0, MAX_CUSTOM_SHAPE_DIMENSION);
       entry.gridfinityCompartmentsX = optionalShapeNumber(source.gridfinityCompartmentsX, fallbackEntry?.gridfinityCompartmentsX, 1, MAX_CUSTOM_SHAPE_DIMENSION, true);
       entry.gridfinityCompartmentsZ = optionalShapeNumber(source.gridfinityCompartmentsZ, fallbackEntry?.gridfinityCompartmentsZ, 1, MAX_CUSTOM_SHAPE_DIMENSION, true);
       entry.gridfinityDividerThickness = optionalShapeNumber(source.gridfinityDividerThickness, fallbackEntry?.gridfinityDividerThickness, 0, MAX_CUSTOM_SHAPE_DIMENSION);
+      entry.gridfinityDividerHeight = optionalShapeNumber(source.gridfinityDividerHeight, fallbackEntry?.gridfinityDividerHeight, 0, MAX_CUSTOM_SHAPE_DIMENSION);
     }
     if (kind === "screwBoss") {
       entry.screwBossFastener = source.screwBossFastener === "insert" || source.screwBossFastener === "selfTapping" || source.screwBossFastener === "custom" ? source.screwBossFastener : fallbackEntry?.screwBossFastener;

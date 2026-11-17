@@ -215,25 +215,35 @@ import { MAX_KNURL_ANGLE, MIN_KNURL_ANGLE, MIN_KNURL_COUNT, MIN_KNURL_DEPTH, knu
 import {
   DEFAULT_GRIDFINITY_LABEL_CORNER,
   GRIDFINITY_BASEPLATE_RADIUS,
+  GRIDFINITY_BIN_RADIUS,
+  GRIDFINITY_LABEL_TEXT_KEYS,
   GRIDFINITY_LABEL_WALL_KEYS,
   GRIDFINITY_OPEN_WALL_KEYS,
   GRIDFINITY_PADDING_KEYS,
   GRIDFINITY_SCOOP_WALL_KEYS,
   MAX_GRIDFINITY_DIVIDER_THICKNESS,
-  MAX_GRIDFINITY_DRAWER,
   MAX_GRIDFINITY_HEIGHT_UNITS,
+  MAX_GRIDFINITY_LABEL_TEXT_LENGTH,
   MAX_GRIDFINITY_LIP_CHAMFER,
   MAX_GRIDFINITY_PADDING,
+  MAX_GRIDFINITY_SWALLOWTAIL_CLEARANCE,
+  MAX_GRIDFINITY_TRAY_HEIGHT,
+  MAX_GRIDFINITY_TRAY_SIZE,
   MIN_GRIDFINITY_COMPARTMENT_LABEL_LENGTH,
   MIN_GRIDFINITY_COMPARTMENT_LABEL_MM,
+  MIN_GRIDFINITY_DIVIDER_HEIGHT,
   MIN_GRIDFINITY_DIVIDER_THICKNESS,
   MIN_GRIDFINITY_DRAWER,
-  MIN_GRIDFINITY_FLOOR_HEIGHT,
+  MIN_GRIDFINITY_LABEL_TEXT_SIZE,
   MIN_GRIDFINITY_LABEL_WIDTH,
   MIN_GRIDFINITY_SCOOP_RADIUS,
+  MIN_GRIDFINITY_TRAY_HEIGHT,
+  MIN_GRIDFINITY_TRAY_SIZE,
   MIN_GRIDFINITY_UNITS,
   MIN_GRIDFINITY_WALL_THICKNESS,
   type GridfinityAxis,
+  type GridfinityLabelTextPlace,
+  type GridfinityShapeFields,
   type GridfinityWall,
   gridfinityCompartmentCount,
   gridfinityCompartmentCountPatch,
@@ -242,23 +252,30 @@ import {
   gridfinityCompartmentLabelMaxWidth,
   gridfinityCompartmentMax,
   gridfinityCompartments,
+  gridfinityBinCornerFits,
+  gridfinityBinCornerRadius,
   gridfinityCornerRadius,
   gridfinityDividerFits,
+  gridfinityDividerHeight,
   gridfinityDividerLimits,
   gridfinityDividerPositionPatch,
   gridfinityDividerPositions,
   gridfinityDividerThickness,
+  gridfinityDrawerMax,
   gridfinityDrawerPatch,
   gridfinityDrawerSize,
   gridfinityFloorFits,
+  gridfinityFloorFullHeight,
   gridfinityFloorHeight,
   gridfinityFloorMaxHeight,
+  gridfinityFloorMinHeight,
   gridfinityLabelCornerSize,
   gridfinityLabelFits,
   gridfinityLabelLength,
   gridfinityLabelLimits,
   gridfinityLabelMaxCornerSize,
   gridfinityLabelMaxWidth,
+  gridfinityLabelTextPlaces,
   gridfinityLabelWidth,
   gridfinityLipChamfer,
   gridfinityMaxUnits,
@@ -269,24 +286,39 @@ import {
   gridfinityOpeningLimits,
   gridfinityOpeningMaxCornerSize,
   gridfinityOpeningPatch,
+  gridfinityOutlineLimit,
+  gridfinityOutlineNeedsLargePlate,
+  gridfinityOutlineRemovalPatch,
   gridfinityPaddingPatch,
+  GRIDFINITY_OVERHANG_KEYS,
+  gridfinityOverhangChamfer,
+  gridfinityOverhangChamferMax,
+ 
+  gridfinityOverhangPatch,
+  gridfinityOverhangSupportSides,
   gridfinityPlan,
+  gridfinityPlateSplit,
   gridfinityScoopFits,
   gridfinityScoopMaxRadius,
   gridfinityScoopRadius,
   gridfinityScoopsLeftOut,
   gridfinityShapePatch,
+  gridfinitySwallowtailClearance,
   gridfinityWallFits,
   gridfinityWallMaxThickness,
   gridfinityWallSolid,
   gridfinityWallThickness,
   normalizeGridfinityType,
 } from "@/lib/gridfinityGeometry";
+import { gridfinityLabelFont, gridfinityLabelTextLeftOut } from "@/lib/gridfinityLabelText";
+import { gridfinityLabelColor } from "@/lib/gridfinityLetterColor";
 import { MAX_HINGE_ANGLE, MAX_HINGE_CLEARANCE, MAX_HINGE_KNUCKLES, MIN_HINGE_CLEARANCE, MIN_HINGE_KNUCKLES, hingePlan, minimumHingeDepth, normalizeHingeAngle, normalizeHingeClearance, normalizeHingeKnuckles, normalizeHingeLeafThickness, normalizeHingePinDiameter } from "@/lib/hingeGeometry";
 import { useLanguage } from "@/lib/useLanguage";
+import { usePrinterPlay } from "@/lib/usePrinterPlay";
+import { withPrinterPlay } from "@/lib/printerPlay";
 import { useMovablePanel, type MovablePanelOptions } from "@/lib/useMovablePanel";
 import { SelectionSizeCard } from "@/components/workplane/SelectionSizeCard";
-import { isNonSolidShapeKind, resizedShapeSize, shapeDepth, shapeHasTaper, shapeOverallFootprintDimensions, shapeSupportsTaper, shapeTaperDimensions, shapeWidth } from "@/lib/workplaneShapes";
+import { isNonSolidShapeKind, resizedShapeSize, shapeDepth, shapeHasTaper, shapeOverallFootprintDimensions, shapeSupportsTaper, shapeTaperDimensions, shapeWidth, shapeLocalOffset } from "@/lib/workplaneShapes";
 import { MAX_SKETCH_REVOLVE_TURNS, normalizeSketchRevolveSettings } from "@/lib/sketchRevolve";
 import { roundSideCount } from "@/lib/roundSideCount";
 import { torusTessellation } from "@/lib/torusTessellation";
@@ -305,7 +337,7 @@ import {
 import { regularPolygonAspect } from "@/lib/regularPolygonFootprint";
 import { DEFAULT_TAPER_DIMENSION_MAX, MAX_HIGH_RESOLUTION_SIDES, MAX_HIGH_RESOLUTION_STEPS, POSITION_TYPED_LIMIT, RULER_MAX_LENGTH, customSnapGridLabel, positionReach, shapeDimensionLimit, snapGridOptions, snapGridStep } from "@/lib/workplaneSettings";
 import { printerPresetById } from "@/lib/printBed";
-import type { ThreadDrive, BentTubeInnerProfile, BentTubeProfile, CustomSnapGrid, GearType, GridfinityCompartmentLabel, GridSize, MeasurementAccuracy, ShapeCustomization, SketchProfile, SketchStroke, SketchStrokeAlign, SketchStrokeJoin, ThreadHead, ThreadProfile, ThreadRole, WorkplaneShape, WorkplaneWorkspaceSettings } from "@/types/layerling";
+import type { GridfinityType, ThreadDrive, BentTubeInnerProfile, BentTubeProfile, CustomSnapGrid, GearType, GridfinityCompartmentLabel, GridSize, MeasurementAccuracy, ShapeCustomization, SketchProfile, SketchStroke, SketchStrokeAlign, SketchStrokeJoin, ThreadHead, ThreadProfile, ThreadRole, WorkplaneShape, WorkplaneWorkspaceSettings } from "@/types/layerling";
 import { selectWholeValue } from "@/lib/numberField";
 import { formulaMatchesValue, formulaToRemember, withFieldFormula, type FieldFormulas } from "@/lib/fieldFormulas";
 import { useKeptColors, useRecentColors } from "@/lib/recentColors";
@@ -464,6 +496,8 @@ type RangePropertyConfig = {
   disabled?: boolean;
   /** A line under the row saying what the value measures (#215). */
   hint?: string;
+  /** Values the row skips, in millimetres for a length (#1126): one inside goes on to the end it moves towards. */
+  gap?: { from: number; to: number };
   onChange: (value: number) => void;
 };
 
@@ -472,6 +506,8 @@ type TogglePropertyConfig = {
   id: string;
   label: string;
   value: boolean;
+  /** Greyed out on its own, beside the whole panel's lock: a switch that cannot be turned off now. */
+  disabled?: boolean;
   /** Switches next to each other with the same layout, such as a bin's four open sides (#455), are drawn together in it. */
   layout?: "sides";
   /** Its place in that layout, named rather than counted: the row takes the class check-property-{area}. */
@@ -484,6 +520,10 @@ type TextPropertyConfig = {
   id: string;
   label: string;
   value: string;
+  /** A line under the row, as a range row has. */
+  hint?: string;
+  /** How many characters the field takes; 24 when not given (a Gridfinity label shelf). */
+  maxLength?: number;
   onChange: (value: string) => void;
 };
 
@@ -504,10 +544,24 @@ type SelectPropertyConfig = {
   hint?: string;
   /** The words a font picker draws every font with (#930): set, the entries are fonts and the field is a picker, not a plain select. */
   fontSample?: string;
+  /** Greyed out on its own, the hint saying why. */
+  disabled?: boolean;
   onChange: (value: string) => void;
 };
 
-type ShapePropertyConfig = RangePropertyConfig | TextPropertyConfig | SelectPropertyConfig | TogglePropertyConfig;
+type ColorPropertyConfig = {
+  type: "color";
+  id: string;
+  label: string;
+  value: string;
+  /** A line under the row, as a range row has. */
+  hint?: string;
+  onChange: (value: string) => void;
+  /** Its own reset: the row goes back to the bin's colour, not to a default. */
+  onReset?: () => void;
+};
+
+type ShapePropertyConfig = RangePropertyConfig | TextPropertyConfig | SelectPropertyConfig | TogglePropertyConfig | ColorPropertyConfig;
 export type ShapeInspectorUpdateOptions = { resizeAxis?: "width" | "depth" | "height" };
 type ShapeInspectorUpdate = (patch: Partial<WorkplaneShape>, options?: ShapeInspectorUpdateOptions) => void;
 
@@ -528,8 +582,8 @@ function formatPropertyNumber(value: number, accuracy: MeasurementAccuracy, step
 const RELATIVE_SIZE_PROPERTY_IDS = new Set(["width", "height", "length", "diameter", "starOuterSize"]);
 const ROTATION_PROPERTY_IDS = new Set(["rotateX", "rotateY", "rotateZ"]);
 
-function propertyUsesLengthUnit(key: string) {
-  return ["screwBossHole", "screwBossHoleDepth", "screwBossDiameter", "screwBossGussetHeight", "screwBossGussetThickness", "screwBossReach", "snapFitThickness", "snapFitUndercut", "snapFitClearance", "snapFitFoot", "ribLength", "ribThickness", "ribFootThickness", "vase.wall", "vase.bottom", "vase.ribDepth", "vase.stripeDepth", "vase.voronoiCell", "vase.voronoiGap", "vase.voronoiDepth", "vase.waveAmplitude", "vaseFloor.drainDiameter", "vaseFloor.floorSlope", "vaseFloor.footHeight", "vaseFloor.rubberFootDiameter", "vaseFloor.rubberFootDepth", "vaseFloor.cutoutSize", "vaseFloor.cutoutWeb", "vaseFloor.lampHole", "vaseFloor.puckDiameter", "vaseFloor.lampNotch", "vaseFloor.lampNotchHeight", "vaseFloor.reinforceDepth", "vaseFloor.slitWidth", "vaseFloor.lineWidth", "vasePrint.lineWidth", "vaseParts.legHeight", "vaseParts.legDiameter", "vaseParts.saucerHeight", "vaseParts.saucerGap", "vaseParts.saucerWall", "vaseParts.insertWall", "vaseParts.insertStandoff", "vaseParts.reservoirHeight", "vaseParts.frogHole", "vaseParts.tubeDiameter", "vaseParts.lidClearance", "vaseParts.lidThickness", "vaseParts.lidDepth", "vaseParts.threadPitch", "vaseParts.fitClearance", "textLineWidth", "textEdgeSize", "letterSize", "iconWidth", "keyringDiameter", "keyringAlong", "positionX", "positionY", "positionZ", "pivotX", "pivotY", "pivotZ", "radius", "length", "width", "height", "sketchCuttingEdge", "bevel", "topRadius", "baseRadius", "thickness", "outerDiameter", "innerDiameter", "textRadius", "extrudeTopOffsetX", "extrudeTopOffsetZ", "toothSize", "toothWidth", "gearBacklash", "centerHole", "slotSmallEnd", "slotCentreDistance", "sketchLineWidth", "topLength", "topWidth", "bottomLength", "bottomWidth", "diameter", "pitch", "clearance", "axialClearance", "boltClearance", "threadDepth", "threadCoreDiameter", "threadLength", "headHeight", "headDiameter", "driveSize", "driveDepth", "chamfer", "chamferBottom", "headChamfer", "wire", "starOuterSize", "starInnerSize", "starOuterFillet", "starInnerFillet", "heartTipFillet", "crescentThickness", "crescentTipFillet", "honeycombCellSize", "honeycombWallThickness", "honeycombFrameWidth", "cornerFillet", "topBottomFillet", "bentTubeSize", "bentTubeWall", "bentTubeSegmentLength", "bentTubeBendRadius", "dovetailNeckWidth", "dovetailClearance", "hingePinDiameter", "hingeLeafThickness", "hingeClearance", "screwHoleShaft", "screwHoleHeadDepth", "knurlDepth", "knurlChamfer", "loftBottomWidth", "loftBottomDepth", "loftTopWidth", "loftTopDepth", "loftBottomCorner", "loftTopCorner", "loftOffsetX", "loftOffsetZ", "loftWall", "gridfinityLabelBackLength", "gridfinityLabelBackOffset", "gridfinityLabelBackWidth", "gridfinityLabelCornerSize", "gridfinityLabelFrontLength", "gridfinityLabelFrontOffset", "gridfinityLabelFrontWidth", "gridfinityLabelLeftLength", "gridfinityLabelLeftOffset", "gridfinityLabelLeftWidth", "gridfinityLabelRightLength", "gridfinityLabelRightOffset", "gridfinityLabelRightWidth", "gridfinityScoopRadius", "gridfinityFloorHeight", "gridfinityLipChamfer", "gridfinityWallThickness", "gridfinityDrawerWidth", "gridfinityDrawerDepth", "gridfinityPaddingBack", "gridfinityPaddingFront", "gridfinityPaddingLeft", "gridfinityPaddingRight", "gridfinityCornerRadius", "gridfinityDividerThickness", "gridfinityDividerPositionX", "gridfinityDividerPositionZ", "gridfinityCompartmentLabelWidth", "gridfinityOpeningCornerSize", "gridfinityOpeningDepthBack", "gridfinityOpeningDepthFront", "gridfinityOpeningDepthLeft", "gridfinityOpeningDepthRight", "gridfinityOpeningWidthBack", "gridfinityOpeningWidthFront", "gridfinityOpeningWidthLeft", "gridfinityOpeningWidthRight", "gridfinityOpeningDistanceBack", "gridfinityOpeningDistanceFront", "gridfinityOpeningDistanceLeft", "gridfinityOpeningDistanceRight"].includes(key);
+export function propertyUsesLengthUnit(key: string) {
+  return ["screwBossHole", "screwBossHoleDepth", "screwBossDiameter", "screwBossGussetHeight", "screwBossGussetThickness", "screwBossReach", "snapFitThickness", "snapFitUndercut", "snapFitClearance", "snapFitFoot", "ribLength", "ribThickness", "ribFootThickness", "vase.wall", "vase.bottom", "vase.ribDepth", "vase.stripeDepth", "vase.voronoiCell", "vase.voronoiGap", "vase.voronoiDepth", "vase.waveAmplitude", "vaseFloor.drainDiameter", "vaseFloor.floorSlope", "vaseFloor.footHeight", "vaseFloor.rubberFootDiameter", "vaseFloor.rubberFootDepth", "vaseFloor.cutoutSize", "vaseFloor.cutoutWeb", "vaseFloor.lampHole", "vaseFloor.puckDiameter", "vaseFloor.lampNotch", "vaseFloor.lampNotchHeight", "vaseFloor.reinforceDepth", "vaseFloor.slitWidth", "vaseFloor.lineWidth", "vasePrint.lineWidth", "vaseParts.legHeight", "vaseParts.legDiameter", "vaseParts.saucerHeight", "vaseParts.saucerGap", "vaseParts.saucerWall", "vaseParts.insertWall", "vaseParts.insertStandoff", "vaseParts.reservoirHeight", "vaseParts.frogHole", "vaseParts.tubeDiameter", "vaseParts.lidClearance", "vaseParts.lidThickness", "vaseParts.lidDepth", "vaseParts.threadPitch", "vaseParts.fitClearance", "textLineWidth", "textEdgeSize", "letterSize", "iconWidth", "keyringDiameter", "keyringAlong", "positionX", "positionY", "positionZ", "pivotX", "pivotY", "pivotZ", "radius", "length", "width", "height", "sketchCuttingEdge", "bevel", "topRadius", "baseRadius", "thickness", "outerDiameter", "innerDiameter", "textRadius", "extrudeTopOffsetX", "extrudeTopOffsetZ", "toothSize", "toothWidth", "gearBacklash", "centerHole", "slotSmallEnd", "slotCentreDistance", "sketchLineWidth", "topLength", "topWidth", "bottomLength", "bottomWidth", "diameter", "pitch", "clearance", "axialClearance", "boltClearance", "threadDepth", "threadCoreDiameter", "threadLength", "headHeight", "headDiameter", "driveSize", "driveDepth", "chamfer", "chamferBottom", "headChamfer", "wire", "starOuterSize", "starInnerSize", "starOuterFillet", "starInnerFillet", "heartTipFillet", "crescentThickness", "crescentTipFillet", "honeycombCellSize", "honeycombWallThickness", "honeycombFrameWidth", "cornerFillet", "topBottomFillet", "bentTubeSize", "bentTubeWall", "bentTubeSegmentLength", "bentTubeBendRadius", "dovetailNeckWidth", "dovetailClearance", "hingePinDiameter", "hingeLeafThickness", "hingeClearance", "screwHoleShaft", "screwHoleHeadDepth", "knurlDepth", "knurlChamfer", "loftBottomWidth", "loftBottomDepth", "loftTopWidth", "loftTopDepth", "loftBottomCorner", "loftTopCorner", "loftOffsetX", "loftOffsetZ", "loftWall", "gridfinityLabelBackLength", "gridfinityLabelBackOffset", "gridfinityLabelBackWidth", "gridfinityLabelCornerSize", "gridfinityLabelFrontLength", "gridfinityLabelFrontOffset", "gridfinityLabelFrontWidth", "gridfinityLabelLeftLength", "gridfinityLabelLeftOffset", "gridfinityLabelLeftWidth", "gridfinityLabelRightLength", "gridfinityLabelRightOffset", "gridfinityLabelRightWidth", "gridfinityScoopRadius", "gridfinityFloorHeight", "gridfinityLipChamfer", "gridfinityWallThickness", "gridfinityDrawerWidth", "gridfinityDrawerDepth", "gridfinityPaddingBack", "gridfinityPaddingFront", "gridfinityPaddingLeft", "gridfinityPaddingRight", "gridfinityCornerRadius", "gridfinityDividerThickness", "gridfinityDividerPositionX", "gridfinityDividerPositionZ", "gridfinityCompartmentLabelWidth", "gridfinityOpeningCornerSize", "gridfinityOpeningDepthBack", "gridfinityOpeningDepthFront", "gridfinityOpeningDepthLeft", "gridfinityOpeningDepthRight", "gridfinityOpeningWidthBack", "gridfinityOpeningWidthFront", "gridfinityOpeningWidthLeft", "gridfinityOpeningWidthRight", "gridfinityOpeningDistanceBack", "gridfinityOpeningDistanceFront", "gridfinityOpeningDistanceLeft", "gridfinityOpeningDistanceRight", "gridfinityLabelTextSize", "gridfinityOverhangBack", "gridfinityOverhangFront", "gridfinityOverhangLeft", "gridfinityOverhangRight", "gridfinityOverhangChamfer", "gridfinityBinCornerRadius", "gridfinitySwallowtailClearance", "gridfinityDividerHeight"].includes(key);
 }
 
 /**
@@ -1319,7 +1373,8 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
 
   if (shape.kind === "gridfinity") {
     const plan = gridfinityPlan({ ...shape, depth });
-    // The size is whole grid units; every change writes the box they make.
+    const needsLargePlate = gridfinityOutlineNeedsLargePlate({ ...shape, depth });
+    // The size is whole grid units; every change writes the box they make; a tray's and an outline plate's are free in mm.
     const apply = (next: Parameters<typeof gridfinityShapePatch>[1]) => {
       const patch = gridfinityShapePatch({ ...shape, depth }, next);
       onUpdate({ ...patch, size: resizedShapeSize(patch.width, patch.depth) });
@@ -1330,29 +1385,59 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
         id: "gridfinityType",
         label: t("prop.gridfinityType"),
         value: plan.type,
-        options: [{ value: "bin", label: t("gridfinity.bin") }, { value: "baseplate", label: t("gridfinity.baseplate") }],
-        hint: t(plan.type === "bin" ? "gridfinity.binHint" : "gridfinity.baseplateHint"),
+        options: [{ value: "bin", label: t("gridfinity.bin") }, { value: "baseplate", label: t("gridfinity.baseplate") }, { value: "tray", label: t("gridfinity.tray") }],
+        hint: t(plan.type === "bin" ? "gridfinity.binHint" : plan.type === "baseplate" ? "gridfinity.baseplateHint" : "gridfinity.trayHint"),
         onChange: (value) => apply({ type: normalizeGridfinityType(value) }),
       },
     ];
     if (plan.type === "bin") {
       properties.push({ type: "toggle", id: "gridfinityHalfGrid", label: t("prop.gridfinityHalfGrid"), value: plan.halfGrid, onChange: (value) => apply({ halfGrid: value }) });
+    } else if (plan.type === "baseplate") {
+      // An outline wider than a plate without the switch keeps it on (#1061).
+      properties.push({ type: "toggle", id: "gridfinityLargePlate", label: t("prop.gridfinityLargePlate"), value: plan.largePlate, disabled: plan.largePlate && needsLargePlate, onChange: (value) => apply({ largePlate: value }) });
+      // Swallowtail (#1061): not on a plate fitted to an outline, one piece for its drawer. The floor's 2.4 mm come with the switch.
+      if (!plan.outline) properties.push({ type: "toggle", id: "gridfinitySwallowtail", label: t("prop.gridfinitySwallowtail"), value: plan.swallowtail, onChange: (value) => apply({ swallowtail: value }) });
+      // The keys' clearance (#1061): only for the keys Add keys lays out next; the plate stays as it is.
+      if (plan.swallowtail) properties.push({ id: "gridfinitySwallowtailClearance", label: t("prop.gridfinitySwallowtailClearance"), value: gridfinitySwallowtailClearance(shape), min: 0, max: MAX_GRIDFINITY_SWALLOWTAIL_CLEARANCE, step: 0.01, hint: t("gridfinity.swallowtailClearanceHint"), onChange: (value) => onUpdate({ gridfinitySwallowtailClearance: clamp(value, 0, MAX_GRIDFINITY_SWALLOWTAIL_CLEARANCE) }) });
     }
-    const maxUnits = gridfinityMaxUnits(shape);
-    properties.push(
-      { id: "gridfinityUnitsX", label: t("prop.gridfinityUnitsX"), value: plan.count.x, min: MIN_GRIDFINITY_UNITS, max: maxUnits, step: 1, hint: plan.halfGrid ? t("gridfinity.halfGridHint") : undefined, onChange: (value) => apply({ x: Math.round(value) }) },
-      { id: "gridfinityUnitsZ", label: t("prop.gridfinityUnitsZ"), value: plan.count.z, min: MIN_GRIDFINITY_UNITS, max: maxUnits, step: 1, onChange: (value) => apply({ z: Math.round(value) }) },
-    );
-    if (plan.type === "baseplate") {
+    if (plan.outline) {
+      // A plate fitted into an outline (#1061): its box is free in mm and the outline stretches with it; switched off,
+      // it is a plate of whole units in that box again, the rest padding.
+      const limit = gridfinityOutlineLimit(shape);
+      const removeOutline = () => {
+        const patch = gridfinityOutlineRemovalPatch({ ...shape, depth });
+        onUpdate({ ...patch, size: resizedShapeSize(patch.width, patch.depth) });
+      };
+      properties.push(
+        { type: "toggle", id: "gridfinityOutline", label: t("prop.gridfinityOutline"), value: true, onChange: removeOutline },
+        { id: "length", label: t("prop.length"), value: plan.size.depth, min: MIN_GRIDFINITY_TRAY_SIZE, max: limit, onChange: setDepth },
+        { id: "width", label: t("prop.width"), value: plan.size.width, min: MIN_GRIDFINITY_TRAY_SIZE, max: limit, hint: [plan.cells.length > 0 ? t("gridfinity.outlineCells", { cells: plan.cells.length }) : t("gridfinity.outlineNoCells"), ...(needsLargePlate ? [t("gridfinity.outlineNeedsLargePlate", { size: gridfinityOutlineLimit({ ...shape, gridfinityLargePlate: false }) })] : [])].join(" "), onChange: setWidth },
+      );
+    } else if (plan.type === "tray") {
+      // A tray (#837) has no grid: its size is free in mm, as a box's.
+      properties.push(
+        { id: "length", label: t("prop.length"), value: plan.size.depth, min: MIN_GRIDFINITY_TRAY_SIZE, max: MAX_GRIDFINITY_TRAY_SIZE, onChange: setDepth },
+        { id: "width", label: t("prop.width"), value: plan.size.width, min: MIN_GRIDFINITY_TRAY_SIZE, max: MAX_GRIDFINITY_TRAY_SIZE, onChange: setWidth },
+        { id: "height", label: t("prop.height"), value: plan.size.height, min: MIN_GRIDFINITY_TRAY_HEIGHT, max: MAX_GRIDFINITY_TRAY_HEIGHT, onChange: setHeight },
+      );
+    } else {
+      const maxUnits = gridfinityMaxUnits(shape);
+      properties.push(
+        { id: "gridfinityUnitsX", label: t("prop.gridfinityUnitsX"), value: plan.count.x, min: MIN_GRIDFINITY_UNITS, max: maxUnits, step: 1, hint: plan.halfGrid ? t("gridfinity.halfGridHint") : plan.largePlate ? t("gridfinity.largePlateHint") : undefined, onChange: (value) => apply({ x: Math.round(value) }) },
+        { id: "gridfinityUnitsZ", label: t("prop.gridfinityUnitsZ"), value: plan.count.z, min: MIN_GRIDFINITY_UNITS, max: maxUnits, step: 1, onChange: (value) => apply({ z: Math.round(value) }) },
+      );
+    }
+    if (plan.type === "baseplate" && !plan.outline) {
       // The drawer it fills (#455): typing a drawer's inside size works out the units and the paddings of that axis.
       const drawer = gridfinityDrawerSize({ ...shape, depth });
+      const drawerMax = gridfinityDrawerMax(shape);
       const fit = (axis: "x" | "z", value: number) => {
         const patch = gridfinityDrawerPatch({ ...shape, depth }, axis, value);
         onUpdate({ ...patch, size: resizedShapeSize(patch.width, patch.depth) });
       };
       properties.push(
-        { id: "gridfinityDrawerWidth", label: t("prop.gridfinityDrawerWidth"), value: drawer.width, min: MIN_GRIDFINITY_DRAWER, max: MAX_GRIDFINITY_DRAWER, step: 0.1, hint: t("gridfinity.drawerHint"), onChange: (value) => fit("x", value) },
-        { id: "gridfinityDrawerDepth", label: t("prop.gridfinityDrawerDepth"), value: drawer.depth, min: MIN_GRIDFINITY_DRAWER, max: MAX_GRIDFINITY_DRAWER, step: 0.1, onChange: (value) => fit("z", value) },
+        { id: "gridfinityDrawerWidth", label: t("prop.gridfinityDrawerWidth"), value: drawer.width, min: MIN_GRIDFINITY_DRAWER, max: drawerMax, step: 0.1, hint: t("gridfinity.drawerHint", { size: drawerMax.toLocaleString(numberLocale()) }), onChange: (value) => fit("x", value) },
+        { id: "gridfinityDrawerDepth", label: t("prop.gridfinityDrawerDepth"), value: drawer.depth, min: MIN_GRIDFINITY_DRAWER, max: drawerMax, step: 0.1, hint: t("gridfinity.outlineFitHint"), onChange: (value) => fit("z", value) },
       );
       // Padding (#455): a solid border on each side, so the plate fills a drawer that is not whole units; the units stay as they are.
       const walls = [
@@ -1376,10 +1461,47 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
       properties.push(
         { id: "gridfinityUnitsY", label: t("prop.gridfinityUnitsY"), value: plan.count.y, min: MIN_GRIDFINITY_UNITS, max: MAX_GRIDFINITY_HEIGHT_UNITS, step: 1, onChange: (value) => apply({ y: Math.round(value) }) },
         { type: "toggle", id: "gridfinityLip", label: t("prop.gridfinityLip"), value: plan.lip, onChange: (value) => apply({ lip: value }) },
-        // The edge tool's chamfer on the lip's top, built in (#780).
-        ...(plan.lip ? [{ id: "gridfinityLipChamfer", label: t("prop.gridfinityLipChamfer"), value: gridfinityLipChamfer({ ...shape, depth }), min: 0, max: MAX_GRIDFINITY_LIP_CHAMFER, step: 0.05, hint: t("gridfinity.lipChamferHint"), onChange: (value: number) => onUpdate({ gridfinityLipChamfer: clamp(value, 0, MAX_GRIDFINITY_LIP_CHAMFER) }) }] : []),
+        // The edge tool's chamfer on the lip's top, built in (#780); none on a bin filled to the lip's top (#1126).
+        ...(plan.lip && !plan.filled ? [{ id: "gridfinityLipChamfer", label: t("prop.gridfinityLipChamfer"), value: gridfinityLipChamfer({ ...shape, depth }), min: 0, max: MAX_GRIDFINITY_LIP_CHAMFER, step: 0.05, hint: t("gridfinity.lipChamferHint"), onChange: (value: number) => onUpdate({ gridfinityLipChamfer: clamp(value, 0, MAX_GRIDFINITY_LIP_CHAMFER) }) }] : []),
         { type: "toggle", id: "gridfinityMagnets", label: t("prop.gridfinityMagnets"), value: plan.magnets, onChange: (value) => onUpdate({ gridfinityMagnets: value }) },
       );
+      // The outer corners above the feet (#856), down to square; no row where open sides leave every corner square.
+      if (gridfinityBinCornerFits({ ...shape, depth })) {
+        properties.push({ id: "gridfinityBinCornerRadius", label: t("prop.gridfinityCornerRadius"), value: gridfinityBinCornerRadius({ ...shape, depth }), min: 0, max: GRIDFINITY_BIN_RADIUS, step: 0.1, hint: t("gridfinity.binCornerRadiusHint"), onChange: (value) => onUpdate({ gridfinityBinCornerRadius: clamp(value, 0, GRIDFINITY_BIN_RADIUS) }) });
+      }
+      // Overhang: the body above the feet reaching out beyond the grid on a side, over a baseplate's padding to the
+      // drawer's wall. The box grows on that side and the bin moves by half of it, so its feet stay where they are.
+      const overhang = plan.overhang;
+      const overhangSides = [
+        { wall: "back", label: "prop.gridfinityOverhangBack" },
+        { wall: "front", label: "prop.gridfinityOverhangFront" },
+        { wall: "left", label: "prop.gridfinityOverhangLeft" },
+        { wall: "right", label: "prop.gridfinityOverhangRight" },
+      ] as const;
+      overhangSides.forEach(({ wall, label }, k) => {
+        const update = (value: number) => {
+          const patch = gridfinityOverhangPatch({ ...shape, depth }, { [wall]: value });
+          const move = shapeLocalOffset(shape, patch.shift.x, patch.shift.z);
+          onUpdate({ ...patch.fields, width: patch.width, depth: patch.depth, size: resizedShapeSize(patch.width, patch.depth), x: shape.x + move.x, z: shape.z + move.z });
+        };
+        // A partial opening is cut in the bin's own wall only: on a side with a solid overhang (ring) it stays closed.
+        const closedOpening = overhang?.mode === "ring" && plan.notches.some((notch) => overhang.growth[notch.side] > 0);
+        const hint = k === 0 ? [t("gridfinity.overhangHint"), ...(overhang ? [t("gridfinity.overhangOptionsHint"), ...(plan.lip ? [t("gridfinity.overhangLipOnGridHint")] : [])] : []), ...(closedOpening ? [t("gridfinity.overhangOpeningHint")] : [])].join(" ") : undefined;
+        properties.push({ id: GRIDFINITY_OVERHANG_KEYS[wall], label: t(label), value: overhang?.sides[wall] ?? 0, min: 0, max: MAX_GRIDFINITY_PADDING, step: 0.1, hint, onChange: update });
+      });
+      if (overhang) {
+        const fields = { ...shape, depth };
+        const maxChamfer = gridfinityOverhangChamferMax(fields);
+        const steep = gridfinityOverhangSupportSides(fields);
+        const sideName = { back: t("gridfinity.sideBack"), front: t("gridfinity.sideFront"), left: t("gridfinity.sideLeft"), right: t("gridfinity.sideRight") };
+        const chamferHint = [t("gridfinity.overhangChamferHint"), ...(steep.length > 0 ? [t("gridfinity.overhangSupportsHint", { sides: steep.map((wall) => sideName[wall]).join(", ") })] : [])].join(" ");
+        properties.push(
+          { id: "gridfinityOverhangChamfer", label: t("prop.gridfinityOverhangChamfer"), value: gridfinityOverhangChamfer(fields), min: 0, max: maxChamfer, step: 0.1, hint: chamferHint, onChange: (value) => onUpdate({ gridfinityOverhangChamfer: clamp(value, 0, maxChamfer) }) },
+          { type: "toggle", id: "gridfinityOverhangSolid", label: t("prop.gridfinityOverhangSolid"), value: shape.gridfinityOverhangSolid === true, disabled: plan.lip && shape.gridfinityOverhangLipOnGrid === true, onChange: (value) => onUpdate({ gridfinityOverhangSolid: value }) },
+        );
+        // Only a bin with a lip has one to keep on the grid.
+        if (plan.lip) properties.push({ type: "toggle", id: "gridfinityOverhangLipOnGrid", label: t("prop.gridfinityOverhangLipOnGrid"), value: shape.gridfinityOverhangLipOnGrid === true, onChange: (value) => onUpdate({ gridfinityOverhangLipOnGrid: value }) });
+      }
     }
     const fields = { ...shape, depth };
     if (gridfinityWallFits(fields)) {
@@ -1389,8 +1511,13 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
     }
     if (gridfinityFloorFits(fields) && !gridfinityWallSolid(fields)) {
       // The floor (#455): raised, it leaves a bin blank to cut shapes into; it decides what room the shelves and scoops have.
-      const maxFloor = gridfinityFloorMaxHeight(fields);
-      properties.push({ id: "gridfinityFloorHeight", label: t("prop.gridfinityFloorHeight"), value: gridfinityFloorHeight(fields), min: MIN_GRIDFINITY_FLOOR_HEIGHT, max: maxFloor, step: 0.05, hint: t("gridfinity.floorHeightHint"), onChange: (value) => onUpdate({ gridfinityFloorHeight: clamp(value, MIN_GRIDFINITY_FLOOR_HEIGHT, maxFloor) }) });
+      // With the lip it goes on to the lip's top, which fills the lip (#1126); between that and the highest floor a stacked
+      // bin clears, the row takes no value: going up it fills the lip, going down it stops where a bin still stacks.
+      const maxFloor = gridfinityFloorFullHeight(fields);
+      const minFloor = gridfinityFloorMinHeight(fields);
+      const stackFloor = gridfinityFloorMaxHeight(fields);
+      const hint = plan.lip ? t("gridfinity.floorHeightLipHint", { height: stackFloor.toLocaleString(numberLocale()) }) : t("gridfinity.floorHeightHint");
+      properties.push({ id: "gridfinityFloorHeight", label: t("prop.gridfinityFloorHeight"), value: gridfinityFloorHeight(fields), min: minFloor, max: maxFloor, step: 0.05, hint, gap: { from: stackFloor, to: maxFloor }, onChange: (value) => onUpdate({ gridfinityFloorHeight: clamp(value, minFloor, maxFloor) }) });
     }
     const { switched } = plan;
     if (gridfinityOpenFits(fields)) {
@@ -1466,6 +1593,8 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
         if (limits.offset > 0) {
           properties.push({ id: keys.offset, label: t("prop.gridfinityLabelOffset"), value: clamp(shape[keys.offset] ?? 0, -limits.offset, limits.offset), min: -limits.offset, max: limits.offset, step: 1, onChange: (value) => onUpdate({ [keys.offset]: value }) });
         }
+        // The letters raised on the shelf (#1308).
+        properties.push(gridfinityLabelTextProperty(fields, wall, shape[GRIDFINITY_LABEL_TEXT_KEYS[wall]], (text) => onUpdate({ [GRIDFINITY_LABEL_TEXT_KEYS[wall]]: text })));
       });
       const shelves = compartments
         ? compartments.cells.some((cell) => gridfinityCompartmentLabel(fields, cell.column, cell.row))
@@ -1482,6 +1611,25 @@ function getShapePropertiesWithAppLimits(shape: WorkplaneShape, onUpdate: ShapeI
           },
           { id: "gridfinityLabelCornerSize", label: t("prop.gridfinityLabelCornerSize"), value: gridfinityLabelCornerSize(fields), min: 0, max: gridfinityLabelMaxCornerSize(plan), step: 0.5, onChange: (value) => onUpdate({ gridfinityLabelCornerSize: value }) },
         );
+      }
+      // One font for the letters on every shelf of the bin (#1308), once a shelf that is built has a text: the text's own list.
+      const lettered = gridfinityLabelTextPlaces(fields);
+      if (lettered.length > 0) {
+        properties.push({ ...textFontProperty({ ...shape, font: gridfinityLabelFont(fields), text: lettered[0].text }, (patch) => onUpdate({ gridfinityLabelFont: patch.font })), id: "gridfinityLabelFont" });
+        // The letters in a colour of their own, for a 3MF (#1308); picking the bin's own colour clears it.
+        const letterColor = gridfinityLabelColor(shape);
+        properties.push({
+          type: "color",
+          id: "gridfinityLabelColor",
+          label: t("prop.gridfinityLabelColor"),
+          value: letterColor ?? shape.color,
+          hint: letterColor ? undefined : t("gridfinity.labelColorSameHint"),
+          onChange: (color) => onUpdate({ gridfinityLabelColor: gridfinityLabelColor({ ...shape, gridfinityLabelColor: color }) }),
+          onReset: letterColor ? () => onUpdate({ gridfinityLabelColor: undefined }) : undefined,
+        });
+        // One capital height for every shelf (#1308), so labels of different lengths match; 0 lets each shelf fill its room.
+        const maxLetterSize = Math.max(MIN_GRIDFINITY_LABEL_TEXT_SIZE, ...lettered.map((place) => place.height));
+        properties.push({ id: "gridfinityLabelTextSize", label: t("nameTag.letterSize"), value: shape.gridfinityLabelTextSize ?? 0, min: 0, max: maxLetterSize, step: 0.5, hint: t("gridfinity.labelTextSizeHint"), onChange: (value) => onUpdate({ gridfinityLabelTextSize: value > 0 ? Math.max(value, MIN_GRIDFINITY_LABEL_TEXT_SIZE) : undefined }) });
       }
     }
     if (gridfinityScoopFits(fields)) {
@@ -3250,6 +3398,17 @@ function textFontProperty(shape: WorkplaneShape, onUpdate: ShapeInspectorUpdate)
   };
 }
 
+function gridfinityLabelTextProperty(fields: GridfinityShapeFields, shelf: GridfinityLabelTextPlace["shelf"], value: string | undefined, onChange: (text: string | undefined) => void): ShapePropertyConfig {
+  return {
+    type: "text",
+    id: typeof shelf === "string" ? GRIDFINITY_LABEL_TEXT_KEYS[shelf] : "gridfinityCompartmentLabelText",
+    label: t("prop.text"),
+    value: value ?? "",
+    hint: gridfinityLabelTextLeftOut(fields, shelf) ? t("gridfinity.labelTextTooSmallHint") : undefined,
+    onChange: (text) => onChange(text.slice(0, MAX_GRIDFINITY_LABEL_TEXT_LENGTH) || undefined),
+  };
+}
+
 function getShapeProperties(shape: WorkplaneShape, onUpdate: ShapeInspectorUpdate, workspace: WorkplaneWorkspaceSettings, view: ShapePropertyView = NO_PROPERTY_VIEW): ShapePropertyConfig[] {
   const customLimit = workspace.shapeCustomizations[shape.kind]?.maxDimension;
   // A body turned by right angles names its measures by the way they run now (#230).
@@ -3307,6 +3466,8 @@ export function ShapeInspector({
   onSeparateParts,
   onWrapAroundCylinder,
   onVaseAccessories,
+  onGridfinityKeys,
+  onGridfinitySplit,
   onLayerText,
   onTextTags,
   onFixKeyringTab,
@@ -3338,6 +3499,10 @@ export function ShapeInspector({
   onWrapAroundCylinder?: (diameter: number, inward: boolean) => void;
   /** Lays this vase's accessories out beside it, ready to print. */
   onVaseAccessories?: () => void;
+  /** Lays this Swallowtail baseplate's keys out in front of it, ready to print (#1061). */
+  onGridfinityKeys?: () => void;
+  /** Splits this baseplate into plates that fit the printer, with their keys (#1388). */
+  onGridfinitySplit?: () => void;
   /** Splits a text into layers, or builds a layered text again with new words, font or layers (#215). */
   onLayerText?: (patch: TextLayerPatch) => void;
   /** One tag like this text or stack per name, laid out in rows (#215). */
@@ -3367,6 +3532,9 @@ export function ShapeInspector({
   // Picking one colour for a group means one colour for all of it, as in similar tools.
   const singleColorPatch: Partial<WorkplaneShape> = canToggleGroupColors(shape) ? { multicolor: false } : {};
   const locked = Boolean(shape.locked);
+  // A baseplate larger than the chosen printer's bed is offered the split (#1388), unless a single cell does not fit it either.
+  const splitPrinter = onGridfinitySplit ? printerPresetById(workspace.printer) : null;
+  const gridfinitySplit = splitPrinter ? gridfinityPlateSplit({ ...shape, depth: shapeDepth(shape) }, splitPrinter) : null;
   // A calculation typed into a field (#180) is noted just before the field's change and rides
   // along in that one change, so undo takes value and formula back together. A note nobody
   // picks up is dropped again right after.
@@ -3385,7 +3553,8 @@ export function ShapeInspector({
   const tiltedMeasures = orientedMeasures(shape).kind === "tilted";
   // What each value would be on a shape of this kind made new, with the saved defaults: the
   // small arrow next to a changed value takes it back there.
-  const propertyDefaults = useMemo(() => shapePropertyDefaults(shape.kind, workspace), [shape.kind, workspace]);
+  const printerPlay = usePrinterPlay();
+  const propertyDefaults = useMemo(() => shapePropertyDefaults(shape.kind, workspace, shape.kind === "gridfinity" ? normalizeGridfinityType(shape.gridfinityType) : undefined, printerPlay), [shape.kind, workspace, shape.gridfinityType, printerPlay]);
   const savedDefaults = workspace.shapeCustomizations[shape.kind];
   const defaultsToSave = shapeDefaultsFromShape(shape, workspace.shapeCustomizations);
   const sameDefaults = JSON.stringify(defaultsToSave ?? null) === JSON.stringify(savedDefaults && Object.keys(savedDefaults).length > 0 ? savedDefaults : null);
@@ -4090,6 +4259,26 @@ export function ShapeInspector({
             )}
             {tiltedMeasures && primaryProperties.some((property) => ["width", "length", "height"].includes(property.id)) ? (
               <p className="cylinder-wrap-hint">{t("prop.tiltedMeasures")}</p>
+            ) : null}
+            {shape.kind === "gridfinity" && gridfinityPlan({ ...shape, depth: shapeDepth(shape) }).swallowtail ? (
+              <>
+                <p className="cylinder-wrap-hint">{t("gridfinity.swallowtailHint")}</p>
+                {onGridfinityKeys ? (
+                  <button className="inspector-action-button" type="button" disabled={locked} onClick={onGridfinityKeys}>
+                    <Plus size={17} strokeWidth={2.5} />
+                    <span>{t("inspector.gridfinityKeys")}</span>
+                  </button>
+                ) : null}
+              </>
+            ) : null}
+            {splitPrinter && gridfinitySplit ? (
+              <>
+                <p className="cylinder-wrap-hint">{t("gridfinity.splitHint", { count: gridfinitySplit.length, printer: `${splitPrinter.vendor} ${splitPrinter.model}` })}</p>
+                <button className="inspector-action-button" type="button" disabled={locked} onClick={onGridfinitySplit}>
+                  <Grid3x3 size={17} strokeWidth={2.5} />
+                  <span>{t("inspector.gridfinitySplit")}</span>
+                </button>
+              </>
             ) : null}
             {onShapeDefaultsChange && propertyDefaults ? (
               <div className="property-defaults-actions">
@@ -5233,12 +5422,12 @@ function GridfinityCompartmentsCard({
   shape: WorkplaneShape;
   workspace: WorkplaneWorkspaceSettings;
   locked: boolean;
-  /** What the counts and the thickness are on a bin made new, for the reset arrows beside them. */
+  /** What the counts, the thickness and the height are on a bin made new, for the reset arrows beside them. */
   defaults?: PropertyDefaultValues | null;
   onUpdate: ShapeInspectorUpdate;
   onInteractionActiveChange?: (active: boolean) => void;
 }) {
-  const [open, setOpen] = useInspectorCard("gridfinityCompartments", false);
+  const [open, setOpen] = useInspectorCard("gridfinityCompartments", true);
   const [chosen, setChosen] = useState({ x: 0, z: 0, row: 0, column: 0 });
 
   useEffect(() => setChosen({ x: 0, z: 0, row: 0, column: 0 }), [shape.id]);
@@ -5248,16 +5437,22 @@ function GridfinityCompartmentsCard({
   const compartments = gridfinityCompartments(fields);
   const choose = (changes: Partial<typeof chosen>) => setChosen((current) => ({ ...current, ...changes }));
   const counts = { x: gridfinityCompartmentCount(fields, "x"), z: gridfinityCompartmentCount(fields, "z") };
+  // The reset arrow gives the divider height saved as the default, held to this bin's full height, or the full height when none is saved.
+  const fullHeight = gridfinityDividerHeight({ ...fields, gridfinityDividerHeight: undefined });
+  const savedHeight = defaults?.get("gridfinityDividerHeight");
+  const cardDefaults = defaults && new Map(defaults).set("gridfinityDividerHeight", typeof savedHeight === "number" ? gridfinityDividerHeight({ ...fields, gridfinityDividerHeight: savedHeight }) : fullHeight);
   const countRow = (axis: GridfinityAxis, id: string, label: MessageKey, hint?: string): ShapePropertyConfig => {
     const max = gridfinityCompartmentMax(fields, axis);
     return { id, label: t(label), value: counts[axis], min: 1, max, step: 1, hint, onChange: (value) => onUpdate(gridfinityCompartmentCountPatch(axis, clamp(Math.round(value), 1, max))) };
   };
   const properties: ShapePropertyConfig[] = [
     countRow("x", "gridfinityCompartmentsX", "prop.gridfinityCompartmentsX"),
-    countRow("z", "gridfinityCompartmentsZ", "prop.gridfinityCompartmentsZ", t("gridfinity.compartmentsHint")),
+    countRow("z", "gridfinityCompartmentsZ", "prop.gridfinityCompartmentsZ", t(normalizeGridfinityType(fields.gridfinityType) === "tray" ? "gridfinity.compartmentsTrayHint" : "gridfinity.compartmentsHint")),
   ];
   if (compartments) {
     properties.push({ id: "gridfinityDividerThickness", label: t("prop.gridfinityDividerThickness"), value: gridfinityDividerThickness(fields), min: MIN_GRIDFINITY_DIVIDER_THICKNESS, max: MAX_GRIDFINITY_DIVIDER_THICKNESS, step: 0.1, onChange: (value) => onUpdate({ gridfinityDividerThickness: clamp(value, MIN_GRIDFINITY_DIVIDER_THICKNESS, MAX_GRIDFINITY_DIVIDER_THICKNESS) }) });
+    // Dividers lower than their full height (#1560), from the floor; a height built at the full height is written as unset, so it follows the bin's.
+    properties.push({ id: "gridfinityDividerHeight", label: t("prop.gridfinityDividerHeight"), value: gridfinityDividerHeight(fields), min: MIN_GRIDFINITY_DIVIDER_HEIGHT, max: fullHeight, step: 0.1, hint: t("gridfinity.dividerHeightHint"), onChange: (value) => onUpdate({ gridfinityDividerHeight: gridfinityDividerHeight({ ...fields, gridfinityDividerHeight: value }) === fullHeight ? undefined : Math.max(value, MIN_GRIDFINITY_DIVIDER_HEIGHT) }) });
   }
 
   // One menu and one slider each way, whichever divider the menu picks; moving it writes that way's whole list.
@@ -5327,9 +5522,10 @@ function GridfinityCompartmentsCard({
         const maxWidth = gridfinityCompartmentLabelMaxWidth(fields, cell, built.side);
         const change = (changes: Partial<GridfinityCompartmentLabel>) => {
           const next: GridfinityCompartmentLabel = { ...stored, ...changes };
-          // 100 % and the middle are what a label has unset, so they are written as unset.
+          // 100 % and the middle are what a label has unset, so they are written as unset, and so is no text.
           if (next.length === undefined || next.length >= 100) delete next.length;
           if (next.align === "middle") delete next.align;
+          if (!next.text) delete next.text;
           writeLabel(next);
         };
         // A shelf that comes out shorter than 4 mm is left out, which the row says rather than leave it unexplained.
@@ -5347,6 +5543,7 @@ function GridfinityCompartmentsCard({
           });
         }
         properties.push({ id: "gridfinityCompartmentLabelWidth", label: t("prop.gridfinityLabelWidth"), value: built.width, min: MIN_GRIDFINITY_LABEL_WIDTH, max: Math.max(MIN_GRIDFINITY_LABEL_WIDTH, maxWidth), step: 0.5, onChange: (value) => change({ width: clamp(value, MIN_GRIDFINITY_LABEL_WIDTH, maxWidth) }) });
+        properties.push(gridfinityLabelTextProperty(fields, { column, row }, stored.text, (text) => change({ text })));
       }
     }
   }
@@ -5365,7 +5562,7 @@ function GridfinityCompartmentsCard({
       </button>
       {open ? (
         <div className="property-list" id={`gridfinity-compartments-${shape.id}`}>
-          <ShapePropertyRows properties={properties} defaults={defaults} workspace={workspace} disabled={locked} onInteractionActiveChange={onInteractionActiveChange} />
+          <ShapePropertyRows properties={properties} defaults={cardDefaults} workspace={workspace} disabled={locked} onInteractionActiveChange={onInteractionActiveChange} />
         </div>
       ) : null}
     </div>
@@ -5381,11 +5578,16 @@ type PropertyDefaultValues = ReadonlyMap<string, number | string | boolean>;
  * different things in them. Null for a shape that is not made from the toolbar: a sketch,
  * a mesh, a group.
  */
-function shapePropertyDefaults(kind: WorkplaneShape["kind"], workspace: WorkplaneWorkspaceSettings) {
+function shapePropertyDefaults(kind: WorkplaneShape["kind"], workspace: WorkplaneWorkspaceSettings, gridfinityType?: GridfinityType, printerPlay: number | null = null) {
   const asset = shapeDefaultsAsset(kind);
   if (!asset) return null;
   try {
-    const fresh = makeShapeFromAsset(asset, undefined, workspace.shapeCustomizations[kind]);
+    // A tray (#837) is held to a tray made new, its floor starting at 1.2 mm, and a bin or baseplate to its own type
+    // where the defaults make a tray.
+    const saved = workspace.shapeCustomizations[kind];
+    const tray = gridfinityType === "tray" || (gridfinityType !== undefined && normalizeGridfinityType(saved?.gridfinityType) === "tray");
+    // A clearance that follows the printer's play goes back to what the play gives, as a shape made now starts with.
+    const fresh = makeShapeFromAsset(asset, undefined, withPrinterPlay(kind, tray ? { ...saved, gridfinityType } : saved, printerPlay));
     const main = new Map<string, number | string | boolean>();
     getShapeProperties(fresh, () => undefined, workspace).forEach((property) => {
       if (property.type !== "text") main.set(property.id, property.value);
@@ -5398,11 +5600,12 @@ function shapePropertyDefaults(kind: WorkplaneShape["kind"], workspace: Workplan
       ["bottomWidth", taperSize.bottomWidth],
     ]);
     const twist = new Map<string, number | string | boolean>([["extrudeTwist", 0], ["extrudeTopOffsetX", 0], ["extrudeTopOffsetZ", 0]]);
-    // A Gridfinity bin's compartments card (#554): the counts and the dividers' thickness, not the labels of one bin.
+    // A Gridfinity bin's compartments card (#554): the counts, the dividers' thickness and a height saved as the default (#1560), not the labels of one bin.
     let compartments: Map<string, number | string | boolean> | null = null;
     if (fresh.kind === "gridfinity") {
       const fields = { ...fresh, depth: shapeOverallFootprintDimensions(fresh).depth };
       compartments = new Map<string, number | string | boolean>([["gridfinityCompartmentsX", gridfinityCompartmentCount(fields, "x")], ["gridfinityCompartmentsZ", gridfinityCompartmentCount(fields, "z")], ["gridfinityDividerThickness", gridfinityDividerThickness(fields)]]);
+      if (fresh.gridfinityDividerHeight !== undefined) compartments.set("gridfinityDividerHeight", fresh.gridfinityDividerHeight);
     }
     return { main, taper, twist, compartments };
   } catch {
@@ -5433,17 +5636,21 @@ function ShapePropertyRows({
   onInteractionActiveChange?: (active: boolean) => void;
 }) {
   const rows = properties.map((property) => {
+    if (property.type === "color") {
+      return <ColorProperty {...property} key={property.id} disabled={disabled} onReset={disabled ? undefined : property.onReset} onInteractionActiveChange={onInteractionActiveChange} />;
+    }
     if (property.type === "text") {
       return <TextProperty {...property} key={property.id} disabled={disabled} onInteractionActiveChange={onInteractionActiveChange} />;
     }
     const fallback = disabled || NO_RESET_PROPERTY_IDS.has(property.id) ? undefined : defaults?.get(property.id);
     if (property.type === "select") {
       const onReset = typeof fallback === "string" && fallback !== property.value ? () => property.onChange(fallback) : undefined;
-      return <SelectProperty {...property} key={property.id} disabled={disabled} onReset={onReset} />;
+      return <SelectProperty {...property} key={property.id} disabled={disabled || property.disabled} onReset={property.disabled ? undefined : onReset} />;
     }
     if (property.type === "toggle") {
-      const onReset = typeof fallback === "boolean" && fallback !== property.value ? () => property.onChange(fallback) : undefined;
-      return <ToggleProperty {...property} key={property.id} disabled={disabled} onReset={onReset} />;
+      // A switch greyed out on its own offers no reset either.
+      const onReset = !property.disabled && typeof fallback === "boolean" && fallback !== property.value ? () => property.onChange(fallback) : undefined;
+      return <ToggleProperty {...property} key={property.id} disabled={disabled || property.disabled} onReset={onReset} />;
     }
     const differs = typeof fallback === "number" && Math.abs(fallback - property.value) > Math.max(1e-6, (property.step ?? 0.01) / 10);
     const onReset = differs ? () => property.onChange(fallback as number) : undefined;
@@ -5653,6 +5860,7 @@ function RangeProperty({
   max,
   step = 0.01,
   hint,
+  gap,
   workspace,
   disabled,
   onChange,
@@ -5664,6 +5872,8 @@ function RangeProperty({
 }: RangePropertyConfig & { workspace: WorkplaneWorkspaceSettings; disabled?: boolean; onReset?: () => void; onDefault?: () => void; formula?: string; onFormula?: (text: string | null | undefined) => void; onInteractionActiveChange?: (active: boolean) => void }) {
   const holdInteraction = useInteractionHold(onInteractionActiveChange);
   const snapStepMm = useContext(SliderSnapContext);
+  // Where a drag of the slider started, for the side a value inside the gap goes to.
+  const sliderFromRef = useRef(0);
   const draggingSliderRef = useRef(false);
   // Firefox sends one last value after the pointer is up, so a drag ends a moment later than the pointer does.
   const sliderReleaseTimerRef = useRef<number | undefined>(undefined);
@@ -5697,6 +5907,12 @@ function RangeProperty({
   const shownFormula = formulaMatchesValue(formula, controlValue) ? formula : undefined;
   const openingDraft = () => shownFormula ?? formatShown(controlValue);
   const openedWithRef = useRef<string | null>(null);
+  // A value inside the gap goes on to its end on the side it is moving towards, seen from where it started.
+  const acrossGap = (next: number, from: number) => {
+    if (!gap) return next;
+    const [low, high] = isLength ? [millimetersToDisplay(gap.from, workspace), millimetersToDisplay(gap.to, workspace)] : [gap.from, gap.to];
+    return next <= low + 1e-9 || next >= high - 1e-9 ? next : next < from ? low : high;
+  };
   const commitDraft = () => {
     // Leaving the field untouched keeps the exact value, not its rounded reading - and its formula.
     if (draft === (openedWithRef.current ?? formatShown(controlValue))) {
@@ -5707,7 +5923,7 @@ function RangeProperty({
     const next = RELATIVE_SIZE_PROPERTY_IDS.has(id)
       ? resolveMeasurementInput(draft, controlValue)
       : parseMeasurementInput(draft);
-    const finiteNext = Number.isFinite(next) ? next : controlValue;
+    const finiteNext = Number.isFinite(next) ? acrossGap(next, controlValue) : controlValue;
     const nextModelValue = toModelValue(finiteNext);
     // The formula rides along with the value it set, in the same change; a plain number clears it.
     onFormula?.(Number.isFinite(next) ? formulaToRemember(draft) : null);
@@ -5732,7 +5948,7 @@ function RangeProperty({
     const turned = wheelNextValue(current, direction, base, modifiers, shiftStep);
     // The wheel stops at the field's lower limit, also for the figure shown: it went on below it, into negative sizes, which the body
     // then kept at the limit and the field showed again as 0.01 only when it was left (#576, prmod3d).
-    const next = freePosition ? turned : Math.max(turned, controlMin);
+    const next = freePosition ? turned : Math.max(acrossGap(turned, current), controlMin);
     const nextModelValue = toModelValue(next);
     onChange(freePosition ? clamp(nextModelValue, -POSITION_TYPED_LIMIT, POSITION_TYPED_LIMIT) : allowsAboveSliderMax ? Math.max(min, nextModelValue) : clamp(nextModelValue, min, max));
     const shown = formatShown(freePosition || allowsAboveSliderMax ? next : clamp(next, controlMin, controlMax));
@@ -5768,6 +5984,7 @@ function RangeProperty({
       const snappedMm = Math.round(toModelValue(next) / snapStepMm) * snapStepMm;
       next = clamp(millimetersToDisplay(clamp(snappedMm, min, max), workspace), controlMin, controlMax);
     }
+    next = acrossGap(next, draggingSliderRef.current ? sliderFromRef.current : controlValue);
     onChange(clamp(toModelValue(next), min, max));
     setDraft(formatShown(next));
   };
@@ -5837,6 +6054,7 @@ function RangeProperty({
           onPointerDown={(event) => {
             window.clearTimeout(sliderReleaseTimerRef.current);
             draggingSliderRef.current = true;
+            sliderFromRef.current = controlValue;
             holdInteraction(true);
             const box = bubbleRef.current?.getBoundingClientRect();
             pressRef.current = { x: event.clientX, onBubble: Boolean(box && event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top - 4 && event.clientY <= box.bottom + 4) };
@@ -5874,7 +6092,7 @@ function RangeProperty({
  * field is uncontrolled: the shape's text is written into it only while it is not being edited,
  * and a word being composed (Japanese, Chinese, Korean) is committed once, when it is done.
  */
-function TextProperty({ label, value, disabled, onChange, onInteractionActiveChange }: Omit<TextPropertyConfig, "id"> & { id?: string } & { disabled?: boolean; onInteractionActiveChange?: (active: boolean) => void }) {
+function TextProperty({ label, value, hint, disabled, maxLength = 24, onChange, onInteractionActiveChange }: Omit<TextPropertyConfig, "id"> & { id?: string } & { disabled?: boolean; maxLength?: number; onInteractionActiveChange?: (active: boolean) => void }) {
   const holdInteraction = useInteractionHold(onInteractionActiveChange);
   const field = useRef<HTMLInputElement>(null);
   const editing = useRef(false);
@@ -5882,7 +6100,7 @@ function TextProperty({ label, value, disabled, onChange, onInteractionActiveCha
   useEffect(() => {
     if (field.current && !editing.current && field.current.value !== value) field.current.value = value;
   }, [value]);
-  return (
+  const row = (
     <label className="text-property">
       <span>{label}</span>
       <input
@@ -5890,7 +6108,7 @@ function TextProperty({ label, value, disabled, onChange, onInteractionActiveCha
         type="text"
         defaultValue={value}
         disabled={disabled}
-        maxLength={24}
+        maxLength={maxLength}
         spellCheck={false}
         onFocus={() => {
           editing.current = true;
@@ -5915,6 +6133,19 @@ function TextProperty({ label, value, disabled, onChange, onInteractionActiveCha
         }}
       />
     </label>
+  );
+  return hint ? <>{row}<p className="property-hint">{hint}</p></> : row;
+}
+
+function ColorProperty({ label, value, hint, disabled, onChange, onReset, onInteractionActiveChange }: Omit<ColorPropertyConfig, "id" | "type"> & { disabled?: boolean; onInteractionActiveChange?: (active: boolean) => void }) {
+  return (
+    <div className="select-property">
+      <span>{label}{onReset ? <PropertyResetButton onClick={onReset} /> : null}</span>
+      <label className="name-tag-swatch" style={{ "--swatch": value } as CSSProperties} title={label}>
+        <CustomColorInput color={value} disabled={disabled} onCommit={onChange} onInteractionActiveChange={onInteractionActiveChange} />
+      </label>
+      {hint ? <small className="select-property-hint">{hint}</small> : null}
+    </div>
   );
 }
 
@@ -6137,6 +6368,7 @@ export function SelectionInspector({
   onSetHole,
   onSetColor,
   onUpdateShapes,
+  onFitGridfinityOutline,
   onToggleLocked,
   onToggleHidden,
   onInteractionActiveChange,
@@ -6154,6 +6386,8 @@ export function SelectionInspector({
   onSetColor: (color: string) => void;
   /** Changes to several of the selected parts in one step: "Fit module" for two gears (#645). */
   onUpdateShapes?: (changes: readonly { id: string; patch: Partial<WorkplaneShape> }[], message?: string) => void;
+  /** A baseplate and one other shape selected: fit the plate into what the other stands on (#1061). */
+  onFitGridfinityOutline?: (plateId: string, sourceId: string) => Promise<void> | void;
   onToggleLocked: () => void;
   /** Hides the selected parts, or shows them again when all of them are hidden (#491); the button of a single part's panel. */
   onToggleHidden?: () => void;
@@ -6191,6 +6425,9 @@ export function SelectionInspector({
   const gearPair = shapes.length === 2 ? involuteGearPair(shapes[0], shapes[1]) : null;
   // The module that would let them mesh where they stand (#645), unless they mesh there already.
   const fitModule = gearPair?.fitModule && (gearPair.distance === null || Math.abs(gearPair.distance - gearPair.current) > 0.005) ? gearPair.fitModule : null;
+  // A baseplate and one other shape: the plate can be fitted into what the other stands on (#1061).
+  const outlinePlates = shapes.length === 2 ? shapes.filter((shape) => shape.kind === "gridfinity" && normalizeGridfinityType(shape.gridfinityType) === "baseplate") : [];
+  const outlineSource = outlinePlates.length === 1 ? shapes.find((shape) => shape !== outlinePlates[0]) : undefined;
   const fitGearPair = () => {
     if (!fitModule || !onUpdateShapes) return;
     onUpdateShapes(gearPairFitPatches(shapes[0], shapes[1], fitModule), t("status.gearPairFitted", { module: plainNumber(fitModule) }));
@@ -6301,6 +6538,11 @@ export function SelectionInspector({
       {fitModule && onUpdateShapes ? (
         <button type="button" className="inspector-action-button selection-gear-fit" disabled={anyLocked} title={t("inspector.gearPairFitHint")} onClick={fitGearPair}>
           {t("inspector.gearPairFitApply")}
+        </button>
+      ) : null}
+      {outlineSource && onFitGridfinityOutline ? (
+        <button type="button" className="inspector-action-button" disabled={anyLocked} title={t("inspector.gridfinityOutlineFitHint")} onClick={() => void onFitGridfinityOutline(outlinePlates[0].id, outlineSource.id)}>
+          {t("inspector.gridfinityOutlineFit")}
         </button>
       ) : null}
       {onUpdateShapes ? <SelectionSizeCard shapes={shapes} units={workspace.units} disabled={allLocked} onUpdateShapes={onUpdateShapes} /> : null}
