@@ -4,6 +4,12 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 118,
+    items: [
+      "Gridfinity: a few hints in the baseplate settings now give the right sizes for the Large plate switch and the drawer limits.",
+    ],
+  },
+  {
     build: 117,
     items: [
       "Gridfinity brought up to date: trays of any size for board games, baseplates that split to fit your printer with Swallowtail keys to join them, a baseplate fitted into any drawer outline, and bins that overhang the grid.",

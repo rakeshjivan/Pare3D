@@ -6,6 +6,9 @@ import { ShapeInspector } from "@/components/workplane/ShapeInspector";
 import { makeShapeFromAsset, toolbarShapeAssets } from "@/lib/shapeCatalog";
 import { DEFAULT_SNAP_GRID, DEFAULT_WORKPLANE_WORKSPACE } from "@/lib/workplaneSettings";
 import type { WorkplaneShape } from "@/types/layerling";
+import { beforeEach as __pareOpenCards } from "vitest";
+// Pare 3D folds the settings cards up (build 21): open Properties, as a person would.
+__pareOpenCards(() => window.sessionStorage.setItem("layerling.editor.inspectorCards", JSON.stringify({ properties: true })));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -21,8 +24,6 @@ beforeAll(() => {
 
 /** The settings panel's text for a Gridfinity part with these fields, unmounted again once read. */
 function panelText(fields: Partial<WorkplaneShape>) {
-  // The settings start folded up (Pare 3D build 21): open Properties, as a person would.
-  window.sessionStorage.setItem("layerling.editor.inspectorCards", JSON.stringify({ properties: true, gridfinityCompartments: true }));
   const asset = toolbarShapeAssets.find((entry) => entry.kind === "gridfinity")!;
   const shape = { ...makeShapeFromAsset(asset, { x: 0, z: 0 }), ...fields } as WorkplaneShape;
   const container = document.createElement("div");
