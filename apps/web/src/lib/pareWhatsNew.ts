@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 116,
+    items: [
+      "Each corner of a rounded box can have its own radius: tick \"Each corner its own radius\" and every corner gets its own orange dot and its own field.",
+      "Slope Along lowers one end of a shape, and Narrow Along makes one end narrower. Both have an orange dot to drag. A sloped or narrowed shape is a mesh, so it cannot take fillets or export as STEP.",
+    ],
+  },
+  {
     build: 115,
     items: [
       "Round a box's corners by dragging: an orange dot on the top edge of a box or rounded box. Drag it along the edge, away from the corner, for rounder corners. A plain box becomes a rounded box on the first pull.",

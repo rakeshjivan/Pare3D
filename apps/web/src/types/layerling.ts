@@ -108,6 +108,8 @@ export type ShapeCustomization = {
   height?: number;
   maxDimension?: number;
   cornerFillet?: number;
+  /** Rounded box with flat top and bottom: an own radius for each upright corner (back left, back right, front right, front left), in mm; wins over cornerFillet. */
+  cornerFillets?: [number, number, number, number];
   topBottomFillet?: number;
   roundedBoxQuality?: number;
   steps?: number;
@@ -789,6 +791,16 @@ export type ParametricSource = {
   extrudeTwist?: number;
   extrudeTopOffsetX?: number;
   extrudeTopOffsetZ?: number;
+  slopeEnd?: number;
+  slopeSide?: "back" | "front" | "left" | "right";
+  slopeCurve?: number;
+  slopeFrom?: "end" | "middle" | "arch";
+  sideDrop?: number;
+  sideCurve?: number;
+  narrowEnd?: number;
+  narrowSide?: "back" | "front" | "left" | "right";
+  narrowCurve?: number;
+  narrowStart?: number;
 };
 
 export type CadPrimitiveFrame = {
@@ -898,6 +910,37 @@ export type WorkplaneShape = {
   extrudeTopOffsetX?: number;
   /** Shifts the top face along the shape's local Z axis, in mm. */
   extrudeTopOffsetZ?: number;
+  /**
+   * Slope along: the height of the top at the far end, in mm. The kept
+   * end stays at the body's height; missing or equal to the height means no slope.
+   */
+  slopeEnd?: number;
+  /** Slope along: which end goes down ("back" unless set; a round roof or a wedge slopes front or back). */
+  slopeSide?: "back" | "front" | "left" | "right";
+  /** Slope along: -1 to 1, 0 a straight top, above 0 bulging up, below 0 sagging. */
+  slopeCurve?: number;
+  /** Slope along: where the top line starts: at one end ("end", the default) or in the middle ("middle": both ends low, symmetric). */
+  slopeFrom?: "end" | "middle" | "arch";
+  /** Side drop: how many mm the two longer sides are lowered at their edges, evenly; missing or 0 means none. */
+  sideDrop?: number;
+  /** Side drop: -1 to 1, 0 a straight line from the middle to the edge, above 0 bulging up, below 0 sagging. */
+  sideCurve?: number;
+  /**
+   * Only on a tube's bore split off as a hole (splitBoreTube), never saved: the width and depth of the
+   * tube around it. Its slope and side drop are measured over the tube, so its top lies on the tube's.
+   */
+  slopeSpan?: { width: number; depth: number };
+  /**
+   * Narrow along: seen from above, the width of the narrow end in mm,
+   * both long sides running in evenly. Missing or the full width means no narrowing.
+   */
+  narrowEnd?: number;
+  /** Narrow along: which end narrows ("back" unless set; a round roof or a wedge narrows front or back). */
+  narrowSide?: "back" | "front" | "left" | "right";
+  /** Narrow along: -1 to 1, 0 straight sides, above 0 bulging out, below 0 drawn in. */
+  narrowCurve?: number;
+  /** Narrow along: 0 to 0.95, the share of the length from the wide end where the narrowing starts. */
+  narrowStart?: number;
   teeth?: number;
   toothSize?: number;
   toothWidth?: number;
@@ -1128,6 +1171,8 @@ export type WorkplaneShape = {
   /** Port opening: rounded corners, or the lower ones cut off as on an HDMI or DisplayPort socket. */
   portProfile?: PortProfile;
   cornerFillet?: number;
+  /** Rounded box with flat top and bottom: an own radius for each upright corner (back left, back right, front right, front left), in mm; wins over cornerFillet. */
+  cornerFillets?: [number, number, number, number];
   topBottomFillet?: number;
   roundedBoxQuality?: number;
   bentTubeProfile?: BentTubeProfile;

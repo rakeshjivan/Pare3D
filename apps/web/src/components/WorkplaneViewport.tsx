@@ -86,7 +86,8 @@ import { createTeardropGeometry } from "@/lib/teardropGeometry";
 import { createPortGeometry } from "@/lib/portGeometry";
 import { createScrewHoleGeometry } from "@/lib/screwHoleGeometry";
 import { createHoneycombGeometry } from "@/lib/honeycombGeometry";
-import { cornerRadiusDragPatch, createRoundedBoxGeometry, DEFAULT_ROUNDED_BOX_CORNER_FILLET } from "@/lib/roundedBoxGeometry";
+import { narrowCrossWidth, narrowEndWidth, normalizeSlopeSide, shapeHasAlongDeform, shapeSupportsNarrow, shapeSupportsSlope, SLOPE_MIN_END, slopeAlongWidth, slopeEndHeight, slopePositions } from "@/lib/slopeAlong";
+import { CORNER_SIGNS, cornerRadiusDragPatch, createRoundedBoxGeometry, DEFAULT_ROUNDED_BOX_CORNER_FILLET, normalizeCornerFillets } from "@/lib/roundedBoxGeometry";
 import { createBentTubeGeometry, createBentTubeSegmentGeometry } from "@/lib/bentTubeGeometry";
 import { createThreadGeometry } from "@/lib/threadGeometry";
 import { createSpringGeometry } from "@/lib/springGeometry";
@@ -1265,6 +1266,7 @@ export function tapeShapeTopologyKey(shape: WorkplaneShape): string {
     // A dovetail cut-out grows by its clearance, so body and socket differ.
     dovetailHole: shape.kind === "dovetail" ? Boolean(shape.hole) : undefined,
     cornerFillet: shape.cornerFillet,
+    cornerFillets: shape.cornerFillets?.join(","),
     topBottomFillet: shape.topBottomFillet,
     roundedBoxQuality: shape.roundedBoxQuality,
     bentTubeProfile: shape.bentTubeProfile,
@@ -1376,8 +1378,12 @@ export function shapeGeometrySignature(shape: WorkplaneShape): string {
   // Twist/lean reshape the mesh the same way taper does, so a change to
   // either has to bust this signature - otherwise the cached geometry from
   // before the twist stays on screen.
-  const deform = shapeHasExtrudeDeform(shape)
-    ? { twist: shape.extrudeTwist, offsetX: shape.extrudeTopOffsetX, offsetZ: shape.extrudeTopOffsetZ }
+  const deform = shapeHasExtrudeDeform(shape) || shapeHasAlongDeform(shape)
+    ? {
+        twist: shape.extrudeTwist, offsetX: shape.extrudeTopOffsetX, offsetZ: shape.extrudeTopOffsetZ,
+        slope: [shape.slopeEnd, shape.slopeSide, shape.slopeCurve, shape.slopeFrom, shape.sideDrop, shape.sideCurve, shape.slopeSpan],
+        narrow: [shape.narrowEnd, shape.narrowSide, shape.narrowCurve, shape.narrowStart],
+      }
     : null;
   if (shape.groupedShapes?.length && !shape.importedMesh) {
     return JSON.stringify({
@@ -1472,6 +1478,7 @@ export function shapeGeometrySignature(shape: WorkplaneShape): string {
     extrudeTwist: shape.extrudeTwist,
     extrudeTopOffsetX: shape.extrudeTopOffsetX,
     extrudeTopOffsetZ: shape.extrudeTopOffsetZ,
+    alongDeform: deform && shapeHasAlongDeform(shape) ? [deform.slope, deform.narrow] : undefined,
     teeth: shape.teeth,
     toothSize: shape.toothSize,
     toothWidth: shape.toothWidth,
@@ -1617,6 +1624,7 @@ export function shapeGeometrySignature(shape: WorkplaneShape): string {
     // A dovetail cut-out grows by its clearance, so body and socket differ.
     dovetailHole: shape.kind === "dovetail" ? Boolean(shape.hole) : undefined,
     cornerFillet: shape.cornerFillet,
+    cornerFillets: shape.cornerFillets?.join(","),
     topBottomFillet: shape.topBottomFillet,
     roundedBoxQuality: shape.roundedBoxQuality,
     bentTubeProfile: shape.bentTubeProfile,
@@ -4365,7 +4373,7 @@ export function WorkplaneViewport({
 
   const rememberResizeAnchor = useCallback((shapeId: string, kind: TransformHandleKind, handleKey: string) => {
     // The corner radius dot changes no size: it leaves the anchor of the last resize as it was.
-    if (handleKey === "corner-radius") return;
+    if (handleKey.startsWith("corner-radius") || handleKey === "slope-end" || handleKey === "narrow-end") return;
     if (kind === "scale") {
       const signs = resizeSignsForHandle(handleKey);
       if (signs.x || signs.z) {
@@ -6203,7 +6211,7 @@ export function WorkplaneViewport({
       const scaleSigns = kind === "scale" ? resizeSignsForHandle(resizeHandleKey) : undefined;
       const scaleAnchorPoint = kind === "scale" && scaleSigns ? resizeAnchorPointForFrame(frame, scaleSigns) : undefined;
       // Build 115: the corner radius dot runs along the top's back edge, the width's axis.
-      const liftAxis = kind === "lift" ? (moveAlong?.clone().normalize() ?? lift.axis) : handleKey === "corner-radius" ? frame.xAxis.clone().normalize() : kind === "height" ? frame.yAxis.clone().normalize() : undefined;
+      const liftAxis = kind === "lift" ? (moveAlong?.clone().normalize() ?? lift.axis) : handleKey === "narrow-end" ? (slopeAlongWidth(normalizeSlopeSide(shape.kind, shape.narrowSide)) ? frame.zAxis : frame.xAxis).clone().normalize() : handleKey.startsWith("corner-radius") ? frame.xAxis.clone().normalize() : kind === "height" ? frame.yAxis.clone().normalize() : undefined;
       const liftHandlePoint = liftAxis
         ? (moveAlong ? frame.center.clone() : kind === "lift"
             ? lift.pointAt(handlesLowerSide ? lift.low : lift.high).addScaledVector(liftAxis, liftOffset)
@@ -6506,9 +6514,29 @@ export function WorkplaneViewport({
           ? currentPoint.clone().sub(transform.liftStartPoint).dot(axis)
           : 0;
         // Build 115: the corner radius dot - pulled towards its corner the radius shrinks, away from it it grows.
-        if (transform.handleKey === "corner-radius") {
+        // Build 116: the slope's dot moves the lower end's height, between the floor's minimum and the body's height;
+        // the narrowing's dot moves the narrow end's half-width.
+        if (transform.handleKey === "narrow-end") {
           const start = transform.items[0]?.startShape;
-          if (start) onUpdateShape(start.id, cornerRadiusDragPatch(start, snapValue(rawDelta, step)));
+          if (start) {
+            const nextWidth = clamp(narrowEndWidth(start) + 2 * snapValue(rawDelta, step), 0, narrowCrossWidth(start));
+            onUpdateShape(start.id, { narrowEnd: Math.round(nextWidth * 1e4) / 1e4, narrowSide: normalizeSlopeSide(start.kind, start.narrowSide) });
+          }
+          return true;
+        }
+        if (transform.handleKey === "slope-end") {
+          const start = transform.items[0]?.startShape;
+          if (start) {
+            const nextEnd = clamp(slopeEndHeight(start) + snapValue(rawDelta, step), Math.min(SLOPE_MIN_END, start.height), start.height);
+            onUpdateShape(start.id, { slopeEnd: Math.round(nextEnd * 1e4) / 1e4, slopeSide: normalizeSlopeSide(start.kind, start.slopeSide) });
+          }
+          return true;
+        }
+        // "corner-radius" is the shared radius's dot; "corner-radius-N" the Nth own radius's (back left, back right, front right, front left).
+        if (transform.handleKey.startsWith("corner-radius")) {
+          const start = transform.items[0]?.startShape;
+          const index = transform.handleKey === "corner-radius" ? undefined : Number(transform.handleKey.slice("corner-radius-".length));
+          if (start) onUpdateShape(start.id, cornerRadiusDragPatch(start, snapValue(rawDelta, step), index));
           return true;
         }
         const resizingFromBottom = transform.handleKey === "bottom-height";
@@ -8706,7 +8734,7 @@ export function WorkplaneViewport({
         const rotationCenter = handle.kind === "rotate" ? wheel ?? projectToScreen(pivot, state) : undefined;
         const rotationStartPoint = handle.kind === "rotate" ? rayPointOnRotationPlane(state, event.clientX, event.clientY, rotationPlaneCenter, axisVector) : null;
         const rotationStartVector = rotationStartPoint ? rotationStartPoint.sub(rotationPlaneCenter) : undefined;
-        const liftAxis = handle.kind === "lift" ? lift.axis : handle.handleKey === "corner-radius" ? frame.xAxis.clone().normalize() : handle.kind === "height" ? frame.yAxis.clone().normalize() : undefined;
+        const liftAxis = handle.kind === "lift" ? lift.axis : handle.handleKey === "narrow-end" ? (slopeAlongWidth(normalizeSlopeSide(shape.kind, shape.narrowSide)) ? frame.zAxis : frame.xAxis).clone().normalize() : handle.handleKey.startsWith("corner-radius") ? frame.xAxis.clone().normalize() : handle.kind === "height" ? frame.yAxis.clone().normalize() : undefined;
         const liftHandlePoint = liftAxis
           ? (handle.kind === "lift"
               ? lift.pointAt(handlesLowerSide ? lift.low : lift.high).addScaledVector(liftAxis, liftOffset)
@@ -13970,23 +13998,58 @@ function syncTransformOverlay(
   // Build 115 (from layerling): the corner radius dot, orange, on the top's back edge where the back right corner's
   // rounding starts; dragged along the edge, the radius follows. A plain Box has it too, with no radius yet: the first
   // pull makes it a Rounded box. It keeps a little clear of the other handles on the screen.
-  const cornerPoint = (() => {
+  // Build 116 (from layerling): slope along - a dot on the top of the lower end, dragged up and down like the height;
+  // narrow along - a dot on the narrow end's side, dragged across like a width. They show once the slope or narrowing is in use.
+  const slopeShape = frame.singleShape && shapeSupportsSlope(frame.singleShape) && typeof frame.singleShape.slopeEnd === "number" ? frame.singleShape : null;
+  const slopePoint = (() => {
+    if (!slopeShape || showLowerHandles) return { x: 0, y: 0, visible: false };
+    const side = normalizeSlopeSide(slopeShape.kind, slopeShape.slopeSide);
+    const y = frame.min.y + slopeEndHeight(slopeShape);
+    const world = side === "back" ? framePoint(frame, 0, y, frame.min.z)
+      : side === "front" ? framePoint(frame, 0, y, frame.max.z)
+        : side === "left" ? framePoint(frame, frame.min.x, y, 0)
+          : framePoint(frame, frame.max.x, y, 0);
+    return project(world);
+  })();
+  const narrowShape = frame.singleShape && shapeSupportsNarrow(frame.singleShape) && typeof frame.singleShape.narrowEnd === "number" ? frame.singleShape : null;
+  const narrowPoint = (() => {
+    if (!narrowShape || showLowerHandles) return { x: 0, y: 0, visible: false };
+    const side = normalizeSlopeSide(narrowShape.kind, narrowShape.narrowSide);
+    const half = narrowEndWidth({ ...narrowShape, narrowSide: side }) / 2;
+    // On a box halfway up its end; on a round roof at the foot, where its side meets the plate.
+    const y = frame.min.y + (narrowShape.kind === "roundRoof" ? 0 : (frame.max.y - frame.min.y) / 2);
+    const world = side === "back" ? framePoint(frame, half, y, frame.min.z)
+      : side === "front" ? framePoint(frame, half, y, frame.max.z)
+        : side === "left" ? framePoint(frame, frame.min.x, y, half)
+          : framePoint(frame, frame.max.x, y, half);
+    return project(world);
+  })();
+  // Build 116: with own radii (flat top and bottom only) every corner has its dot.
+  const cornerHandles = (() => {
     const shape = frame.singleShape;
     const plainBox = shape?.kind === "box" && !shape.imagePlate && !((shape.radius ?? 0) > 0);
-    if (!shape || (!plainBox && shape.kind !== "roundedBox") || showLowerHandles) return { x: 0, y: 0, visible: false };
+    // A slope or narrowing moves the corners, so the dot would float; hide it then.
+    if (!shape || (!plainBox && shape.kind !== "roundedBox") || showLowerHandles || shapeHasAlongDeform(shape)) return [];
     const largest = Math.min(frame.max.x - frame.min.x, frame.max.z - frame.min.z) / 2;
-    const radius = plainBox ? 0 : Math.min(Math.max(0, shape.cornerFillet ?? DEFAULT_ROUNDED_BOX_CORNER_FILLET), largest);
-    const edgeX = frame.max.x - radius;
-    let point = project(framePoint(frame, edgeX, frame.max.y, frame.min.z));
-    const others = [bottom.nearLeft, bottom.nearRight, bottom.farRight, bottom.farLeft, mid.near, mid.right, mid.far, mid.left, heightPoint].filter((other) => other.visible);
+    const flat = (shape.topBottomFillet ?? 0) <= 1e-4;
+    const own = !plainBox && flat ? normalizeCornerFillets(shape.cornerFillets, largest) : undefined;
+    const corners = own
+      ? own.map((radius, index) => ({ key: `corner-radius-${index}`, radius, sx: CORNER_SIGNS[index].sx, sz: CORNER_SIGNS[index].sz }))
+      : [{ key: "corner-radius", radius: plainBox ? 0 : Math.min(Math.max(0, shape.cornerFillet ?? DEFAULT_ROUNDED_BOX_CORNER_FILLET), largest), sx: 1, sz: -1 }];
+    const others = [bottom.nearLeft, bottom.nearRight, bottom.farRight, bottom.farLeft, mid.near, mid.right, mid.far, mid.left, heightPoint, slopePoint, narrowPoint].filter((other) => other.visible);
     const crowded = (candidate: { x: number; y: number }) => others.some((other) => Math.hypot(other.x - candidate.x, other.y - candidate.y) < 16);
-    for (let step = 1; step <= 8 && point.visible && crowded(point); step += 1) {
-      // Slide along the edge into the body until it is clear.
-      const along = Math.min(1, step * 0.06);
-      const at = project(framePoint(frame, edgeX - largest * along, frame.max.y, frame.min.z));
-      point = at.visible ? at : point;
-    }
-    return point;
+    return corners.map(({ key, radius, sx, sz }) => {
+      const edgeX = sx > 0 ? frame.max.x - radius : frame.min.x + radius;
+      const edgeZ = sz > 0 ? frame.max.z : frame.min.z;
+      let point = project(framePoint(frame, edgeX, frame.max.y, edgeZ));
+      // Slide along the edge into the body until it is clear of the other handles (and the other corners' dots).
+      for (let step = 1; step <= 8 && point.visible && crowded(point); step += 1) {
+        const at = project(framePoint(frame, edgeX - sx * largest * Math.min(1, step * 0.06), frame.max.y, edgeZ));
+        point = at.visible ? at : point;
+      }
+      if (point.visible) others.push(point);
+      return { point, handle: { key, className: "height-top corner-radius", kind: "height" as const, x: point.x, y: point.y, title: t("transform.cornerRadius") } };
+    });
   })();
   const liftHandleKey = showLowerLiftHandle ? "lower-shape" : "lift-shape";
   const liftAnchor = lift.pointAt(0);
@@ -14159,7 +14222,9 @@ function syncTransformOverlay(
     { point: mid.far, handle: { key: "far-mid", className: "edge dark", kind: "scale" as const, x: mid.far.x, y: mid.far.y, title: t("transform.resize") } },
     { point: mid.left, handle: { key: "left-mid", className: "edge dark", kind: "scale" as const, x: mid.left.x, y: mid.left.y, title: t("transform.resize") } },
     { point: heightPoint, handle: { key: heightHandleKey, className: "height-top", kind: "height" as const, x: heightPoint.x, y: heightPoint.y, title: t("transform.height") } },
-    { point: cornerPoint, handle: { key: "corner-radius", className: "height-top corner-radius", kind: "height" as const, x: cornerPoint.x, y: cornerPoint.y, title: t("transform.cornerRadius") } },
+    ...cornerHandles,
+    { point: slopePoint, handle: { key: "slope-end", className: "height-top corner-radius", kind: "height" as const, x: slopePoint.x, y: slopePoint.y, title: t("transform.slope") } },
+    { point: narrowPoint, handle: { key: "narrow-end", className: "height-top corner-radius", kind: "height" as const, x: narrowPoint.x, y: narrowPoint.y, title: t("transform.narrow") } },
     { point: liftPoint, handle: { key: liftHandleKey, className: showLowerLiftHandle ? "height-lift lower" : "height-lift", kind: "lift" as const, x: liftPoint.x, y: liftPoint.y, title: t("transform.lift"), angle: liftHandleAngle } },
   ].filter(({ point }) => point.visible).map(({ handle }) => handle);
   const rotationChromeVisible = !cameraInsideSelection && centerPoint.visible;
@@ -15631,6 +15696,7 @@ function createShapeObject(
         depth,
         height,
         cornerFillet: shape.cornerFillet,
+        cornerFillets: shape.cornerFillets,
         topBottomFillet: shape.topBottomFillet,
         roundedBoxQuality: shape.roundedBoxQuality,
       })), material, shape);
@@ -15873,7 +15939,17 @@ function taperGeometryForShape(geometry: THREE.BufferGeometry, shape: WorkplaneS
     position.setXYZ(index, localX, y, localZ);
   }
   position.needsUpdate = true;
-  if (bands > 1 && !shape.imagePlate) {
+  // Build 116 (from layerling): a slope or narrowing along (slopeAlong.ts) lowers or narrows one end, after the taper and the twist.
+  const sloped = shapeHasAlongDeform(shape) && !shape.imagePlate;
+  if (sloped) {
+    const flat = tapered.index ? tapered.toNonIndexed() : tapered;
+    const next = new THREE.BufferGeometry();
+    next.setAttribute("position", new THREE.BufferAttribute(slopePositions(flat.getAttribute("position").array, shape), 3));
+    if (flat !== tapered) flat.dispose();
+    if (!tapered.userData.cached) tapered.dispose();
+    tapered = next;
+  }
+  if ((bands > 1 || sloped) && !shape.imagePlate) {
     // Smooth across the small folds between the bands, sharp at the body's own edges - judged in
     // millimetres: a unit body stretched afterwards would show its folds steeper or flatter.
     // The body stays in millimetres from here on, so its edge lines are judged there too;
@@ -16012,7 +16088,7 @@ function addShapeEdgeDecorations(group: THREE.Group, mesh: THREE.Mesh, prepared:
       // bei einem runden Koerper wird jede Facette zu einem Strich. Er zeigt
       // deshalb nur seine echten Kanten, etwa Deckel- und Bodenrand.
       // A twisted side folds a little at every band (#184): only its real edges get a line, as on a thread.
-      const twisted = Math.abs(shape.extrudeTwist ?? 0) > 1e-6;
+      const twisted = Math.abs(shape.extrudeTwist ?? 0) > 1e-6 || shapeHasAlongDeform(shape);
       const selectedThreshold = shape.importedMesh ? NORMAL_IMPORTED_SELECTION_EDGE_ANGLE : shape.kind === "thread" || twisted || (shape.transparent && !shape.hole) ? 25 : 1;
       const edgesGeometry = !selectedOutline && allEdgeLines
         ? calmEdgesGeometry(shape, prepared)

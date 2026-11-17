@@ -1,4 +1,5 @@
 
+import { shapeHasAlongDeform, slopeMesh } from "@/lib/slopeAlong";
 import { BASE_PATH } from "@/lib/basePath";
 import { createScrewBossGeometry } from "@/lib/screwBoss";
 import { createSnapFitGeometry } from "@/lib/snapFit";
@@ -175,29 +176,36 @@ export function transformMesh(mesh: MeshData, shape: WorkplaneShape): MeshData {
   const mirrorY = mirrorSign(shape.mirrorY);
   const mirrorZ = mirrorSign(shape.mirrorZ);
   const reversedWinding = mirroredAxisCount(shape) % 2 === 1;
+  const local = mesh.vertices.map(([x, y, z]) => {
+    const normalizedHeight = (y - minLocalY) / taperHeight;
+    const widthScale = tapered ? shapeTaperScaleAt(shape, normalizedHeight, "width") : 1;
+    const depthScale = tapered ? shapeTaperScaleAt(shape, normalizedHeight, "depth") : 1;
+    let localX = (x - deformCenterX) * widthScale;
+    let localZ = (z - deformCenterZ) * depthScale;
+    if (deformed) {
+      const deform = shapeExtrudeDeformAt(shape, normalizedHeight);
+      const cos = Math.cos(deform.twistRadians);
+      const sin = Math.sin(deform.twistRadians);
+      const twistedX = localX * cos - localZ * sin;
+      const twistedZ = localX * sin + localZ * cos;
+      localX = twistedX + deform.offsetX;
+      localZ = twistedZ + deform.offsetZ;
+    }
+    localX += deformCenterX;
+    localZ += deformCenterZ;
+    return [localX, y, localZ] as Vec3;
+  });
+  // Build 116 (from layerling): a slope or narrowing along (slopeAlong.ts), after the taper and the twist, as the viewport does.
+  const along = shapeHasAlongDeform(shape)
+    ? slopeMesh(local, mesh.faces as Array<[number, number, number]>, shape)
+    : { vertices: local, faces: mesh.faces as Array<[number, number, number]> };
   return {
     ...mesh,
-    vertices: mesh.vertices.map(([x, y, z]) => {
-      const normalizedHeight = (y - minLocalY) / taperHeight;
-      const widthScale = tapered ? shapeTaperScaleAt(shape, normalizedHeight, "width") : 1;
-      const depthScale = tapered ? shapeTaperScaleAt(shape, normalizedHeight, "depth") : 1;
-      let localX = (x - deformCenterX) * widthScale;
-      let localZ = (z - deformCenterZ) * depthScale;
-      if (deformed) {
-        const deform = shapeExtrudeDeformAt(shape, normalizedHeight);
-        const cos = Math.cos(deform.twistRadians);
-        const sin = Math.sin(deform.twistRadians);
-        const twistedX = localX * cos - localZ * sin;
-        const twistedZ = localX * sin + localZ * cos;
-        localX = twistedX + deform.offsetX;
-        localZ = twistedZ + deform.offsetZ;
-      }
-      localX += deformCenterX;
-      localZ += deformCenterZ;
+    vertices: along.vertices.map(([localX, y, localZ]) => {
       const vertex = new THREE.Vector3(localX * mirrorX, (y - centerY) * mirrorY, localZ * mirrorZ).applyMatrix4(matrix);
       return [vertex.x + shape.x, vertex.y + (shape.elevation ?? 0) + centerY, vertex.z + shape.z] as Vec3;
     }),
-    faces: reversedWinding ? mesh.faces.map(([a, b, c]) => [a, c, b] as [number, number, number]) : mesh.faces,
+    faces: reversedWinding ? along.faces.map(([a, b, c]) => [a, c, b] as [number, number, number]) : along.faces,
   };
 }
 
@@ -641,6 +649,7 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         depth,
         height,
         cornerFillet: shape.cornerFillet,
+        cornerFillets: shape.cornerFillets,
         topBottomFillet: shape.topBottomFillet,
         roundedBoxQuality: shape.roundedBoxQuality,
       });
