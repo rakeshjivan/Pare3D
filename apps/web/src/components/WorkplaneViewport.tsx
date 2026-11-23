@@ -1,5 +1,6 @@
 "use client";
 
+import { restoreLayerViewCamera, saveLayerViewCamera, syncLayerViewOverlay, type LayerView } from "./workplane/LayerViewOverlay";
 import { ClearanceMarkOverlay, clearanceFocusBox, syncClearanceMarkOverlay, type ClearanceMark, type ClearanceMarkOverlayState } from "./workplane/ClearanceMarkOverlay";
 import { EDITOR_WINDOW_EVENT } from "@/lib/editorShared";
 import { readViewLook, type ViewLook } from "@/lib/viewLook";
@@ -488,6 +489,13 @@ type WorkplaneViewportProps = {
    * every part); "end" the last one, where it is to be laid; "cancel" for Escape or no drag at all.
    */
   onSurfaceTextDrag?: (shapeId: string, pick: LayFlatPick | null, phase: "move" | "end" | "cancel") => void;
+  threadInsertPreview?: { origin: {x:number;y:number;z:number}; normal: {x:number;y:number;z:number}; diameter:number; allowed:boolean; partner?: { origin: {x:number;y:number;z:number}; normal: {x:number;y:number;z:number}; allowed:boolean } } | null;
+  /** The layer view of the print analysis: the bodies cut at a layer, its cross-section, the places found. */
+  layerView?: LayerView | null;
+  /** A screw or threaded rod selected: split it lengthwise for printing, with centring pins or not (lib/boltSplit.ts). */
+  onBoltSplit?: (pins: boolean, filament: boolean) => void;
+  threadInsertCenter?: {point:{x:number;y:number;z:number};normal:{x:number;y:number;z:number}} | null;
+  onThreadInsertDragPick?: (pick: LayFlatPick | null) => void;
   /**
    * Fork (build 23): push/pull by dragging. Pressing on a face of this body grabs it; dragging pulls it
    * out (positive) or pushes it in (negative) along its normal, snapped to the grid (Shift: finely).
@@ -3757,6 +3765,11 @@ export function WorkplaneViewport({
   onFacePullDrag,
   onFacePullEnd,
   onFacePullCancel,
+  threadInsertPreview = null,
+  layerView = null,
+  onBoltSplit,
+  threadInsertCenter = null,
+  onThreadInsertDragPick,
   cadFacePick = null,
   onCadFacePick,
   onNoteAdd,
@@ -3996,6 +4009,85 @@ export function WorkplaneViewport({
       viewShiftPx = 0;
     };
   }, []);
+
+  // Thread insert marker is a temporary helper, never a document shape. The magnet pocket tool shows a second ring
+  // where the part that meets the spot gets the same pocket.
+  useEffect(() => {
+    const state = threeRef.current;
+    if (!state || !threadInsertPreview || !Number.isFinite(threadInsertPreview.diameter) || threadInsertPreview.diameter <= 0) return;
+    const radius = threadInsertPreview.diameter/2;
+    const marker=(origin:{x:number;y:number;z:number},normal:{x:number;y:number;z:number},allowed:boolean)=>{
+      const n = new THREE.Vector3(normal.x,normal.y,normal.z).normalize();
+      const center = new THREE.Vector3(origin.x,origin.y,origin.z).addScaledVector(n,0.025);
+      const u = new THREE.Vector3(0,1,0);
+      if (Math.abs(n.dot(u)) > 0.95) u.set(1,0,0);
+      u.addScaledVector(n,-u.dot(n)).normalize();
+      const w = new THREE.Vector3().crossVectors(n,u).normalize();
+      const color = allowed ? 0x18d66b : 0xff3333;
+      // WebGL ignores LineBasicMaterial.linewidth on most Windows drivers.
+      // Instead use annulus meshes, with a thick white halo and colour ring.
+      const annulus=(thickness:number,ringColor:number,order:number)=>{
+        const half=Math.min(thickness/2,radius*.45);
+        const geometry=new THREE.RingGeometry(Math.max(.01,radius-half),radius+half,96);
+        const material=new THREE.MeshBasicMaterial({color:ringColor,side:THREE.DoubleSide,depthTest:false,depthWrite:false});
+        const mesh=new THREE.Mesh(geometry,material);
+        mesh.position.copy(center);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);
+        mesh.renderOrder=order;
+        return mesh;
+      };
+      const halo=annulus(0.62,0xffffff,9998);
+      const ring=annulus(0.34,color,9999);
+      const bars = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+        center.clone().addScaledVector(u,-radius*.35),center.clone().addScaledVector(u,radius*.35),
+        center.clone().addScaledVector(w,-radius*.35),center.clone().addScaledVector(w,radius*.35)
+      ]),new THREE.LineBasicMaterial({color,depthTest:false,depthWrite:false}));
+      bars.renderOrder=10000;
+      return [halo,ring,bars];
+    };
+    const { partner } = threadInsertPreview;
+    const objects=[
+      ...marker(threadInsertPreview.origin,threadInsertPreview.normal,threadInsertPreview.allowed),
+      ...(partner ? marker(partner.origin,partner.normal,partner.allowed) : []),
+    ];
+    state.scene.add(...objects);
+    state.needsRender=true;
+    return () => {
+      state.scene.remove(...objects);
+      objects.forEach((object)=>{object.geometry.dispose();(object.material as THREE.Material).dispose();});
+      state.needsRender=true;
+    };
+  },[threadInsertPreview]);
+
+  // Purple face-center crosshair: a display-only helper, never included in STL.
+  useEffect(() => {
+    const state=threeRef.current;
+    if(!state || !threadInsertCenter) return;
+    const {point,normal}=threadInsertCenter;
+    const n=new THREE.Vector3(normal.x,normal.y,normal.z).normalize();
+    if(n.lengthSq()<0.5) return;
+    const pos=new THREE.Vector3(point.x,point.y,point.z).addScaledVector(n,0.06);
+    const across=new THREE.Vector3(0,1,0);
+    if(Math.abs(n.dot(across))>.95) across.set(1,0,0);
+    across.addScaledVector(n,-across.dot(n)).normalize();
+    const up=new THREE.Vector3().crossVectors(n,across).normalize();
+    const r=0.65;
+    const material=new THREE.LineBasicMaterial({color:0xaf55ff,depthTest:false,depthWrite:false});
+    const lines=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+      pos.clone().addScaledVector(across,-r),pos.clone().addScaledVector(across,r),
+      pos.clone().addScaledVector(up,-r),pos.clone().addScaledVector(up,r)
+    ]),material);
+    lines.renderOrder=10002;
+    const dot=new THREE.Mesh(new THREE.SphereGeometry(0.13,12,8),new THREE.MeshBasicMaterial({color:0xc18aff,depthTest:false,depthWrite:false}));
+    dot.position.copy(pos);dot.renderOrder=10003;
+    state.scene.add(lines,dot);state.needsRender=true;
+    return () => {
+      state.scene.remove(lines,dot);
+      lines.geometry.dispose();material.dispose();dot.geometry.dispose();(dot.material as THREE.Material).dispose();
+      state.needsRender=true;
+    };
+  },[threadInsertCenter]);
+
   const shapesRef = useRef(shapes);
   const alignReferenceShapesRef = useRef(alignReferenceShapes);
   const mirrorReferenceShapesRef = useRef(mirrorReferenceShapes);
@@ -9166,6 +9258,10 @@ export function WorkplaneViewport({
     ],
   );
 
+  const finishDragRef = useRef<((event: ReactPointerEvent<HTMLDivElement>) => void) | null>(null);
+  const threadInsertMoveRef = useRef(onThreadInsertDragPick);
+  threadInsertMoveRef.current = onThreadInsertDragPick;
+  const threadInsertLastMoveRef = useRef(0);
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       // Gehoert die Flaeche gerade der Kamera, hat hier niemand etwas zu
@@ -9231,6 +9327,14 @@ export function WorkplaneViewport({
         return;
       }
       if (mateFacePickRef.current) {
+        // With left mouse button held, drag the temporary insert circle to a new location.
+        if ((event.buttons & 1) && threadInsertMoveRef.current && threeRef.current) {
+          const now = performance.now();
+          if (now-threadInsertLastMoveRef.current >= 90) {
+            threadInsertLastMoveRef.current=now;
+            threadInsertMoveRef.current(pickMateFace(threeRef.current,event.clientX,event.clientY));
+          }
+        }
         syncLayFlatHover(threeRef.current, mateFacePickRef.current.shapeIds, resolvedThemeRef.current, event.clientX, event.clientY, mateFacePickRef.current.marker === "point", mateFacePickRef.current.round);
         return;
       }
@@ -10258,6 +10362,34 @@ export function WorkplaneViewport({
   useEffect(() => {
     syncSectionClippingState(sectionSettings);
   }, [sectionSettings, syncSectionClippingState]);
+
+  // The layer view of the layer check: the section view's plane cuts the bodies at the layer's top while it is open, and
+  // the section view's own settings come back when it closes, as does the camera.
+  const layerViewOpen = Boolean(layerView);
+  const layerViewRef = useRef(layerView);
+  layerViewRef.current = layerView;
+  useEffect(() => {
+    const state = threeRef.current;
+    if (!state) return;
+    if (!layerView) return;
+    const plane = state.sectionPlane ?? new THREE.Plane();
+    plane.normal.set(0, -1, 0);
+    plane.constant = layerView.top + 1e-4;
+    applySectionClipping(state, plane);
+    syncLayerViewOverlay(state, layerView);
+  }, [layerView]);
+  useEffect(() => {
+    const state = threeRef.current;
+    if (!state || !layerViewOpen) return;
+    saveLayerViewCamera(state);
+    return () => {
+      syncLayerViewOverlay(state, null);
+      syncSectionClippingState(sectionSettingsRef.current);
+      restoreLayerViewCamera(state);
+      syncViewCube(state, viewCubeRef.current);
+    };
+  }, [layerViewOpen, syncSectionClippingState]);
+
 
   useEffect(() => {
     if (!sectionFineDraggingRef.current) setSectionFineAnchor(sectionSettings.offset);
@@ -11424,6 +11556,7 @@ export function WorkplaneViewport({
           onVaseAccessories={onVaseAccessories}
           onGridfinityKeys={onGridfinityKeys}
           onGridfinitySplit={onGridfinitySplit}
+          onBoltSplit={onBoltSplit}
           onLayerText={onLayerText}
           onTextTags={onTextTags}
           onFixKeyringTab={onFixKeyringTab}

@@ -3,7 +3,7 @@
 import { withBase } from "@/lib/basePath";
 import { GuideHelpLink } from "@/components/GuideHelpLink";
 import { ShapeMenuPanel } from "@/components/workplane/ShapeMenuPanel";
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, PencilLine, Blend, Check, CircleHelp, Percent, Circle as CircleIcon, Eye, EyeOff, Hexagon as HexagonIcon, ListTree, MoreHorizontal, Pencil, Pentagon as PentagonIcon, Rotate3d, Route as RouteIcon, Search, Square as SquareIcon, Star as StarIcon, Triangle as TriangleIcon, X } from "lucide-react";
+import { AlertTriangle, Layers3, Magnet, ArrowDownToLine, ArrowUpFromLine, PencilLine, Blend, Check, CircleHelp, Percent, Circle as CircleIcon, Eye, EyeOff, Hexagon as HexagonIcon, ListTree, MoreHorizontal, Pencil, Pentagon as PentagonIcon, Rotate3d, Route as RouteIcon, Search, Square as SquareIcon, Star as StarIcon, Triangle as TriangleIcon, X } from "lucide-react";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useWheelField } from "@/lib/useWheelField";
 import { wheelNextValue } from "@/lib/wheelValueStep";
@@ -45,6 +45,7 @@ import {
   ToolbarRotationPivotIcon,
   ToolbarPatternIcon,
   ToolbarHolePatternIcon,
+  ToolbarThreadInsertIcon,
   ToolbarSupportRibIcon,
   ToolbarFaceToolIcon,
   ToolbarConstructionLineIcon,
@@ -330,6 +331,12 @@ export function SecondaryToolbar({
   mateFacesActive,
   onHolePattern,
   holePatternActive,
+  onLayerCheck,
+  layerCheckActive,
+  onThreadInsert,
+  threadInsertActive,
+  onMagnetPocket,
+  magnetPocketActive,
   onSupportRib,
   supportRibActive,
   canHolePattern,
@@ -502,6 +509,12 @@ export function SecondaryToolbar({
   mateFacesActive: boolean;
   onHolePattern: () => void;
   holePatternActive: boolean;
+  onLayerCheck: () => void;
+  layerCheckActive: boolean;
+  onThreadInsert: () => void;
+  threadInsertActive: boolean;
+  onMagnetPocket: () => void;
+  magnetPocketActive: boolean;
   /** Support rib (from layerling 1.148): a thin rib under the lower face of a part printed tilted. */
   onSupportRib: () => void;
   supportRibActive: boolean;
@@ -954,6 +967,8 @@ export function SecondaryToolbar({
     { id: "pivot", label: t("editor.tool.rotationPivot"), icon: ToolbarRotationPivotIcon, action: onRotationPivot, enabled: canModifySelection, active: rotationPivotActive },
     { id: "array", label: t("editor.tool.array"), icon: ToolbarPatternIcon, action: onArray, enabled: canModifySelection, active: arrayActive },
     { id: "holePattern", label: t("holePattern.title"), icon: ToolbarHolePatternIcon, action: onHolePattern, enabled: canHolePattern, active: holePatternActive },
+    { id: "threadInsert", label: t("threadInsert.title"), icon: ToolbarThreadInsertIcon, action: onThreadInsert, enabled: canHolePattern || threadInsertActive, active: threadInsertActive },
+    { id: "magnetPocket", label: t("magnetPocket.title"), icon: Magnet, action: onMagnetPocket, enabled: canHolePattern || magnetPocketActive, active: magnetPocketActive },
     { id: "supportRib", label: t("supportRib.title"), icon: ToolbarSupportRibIcon, action: onSupportRib, enabled: canHolePattern || supportRibActive, active: supportRibActive },
     { id: "faceTool", label: t("faceTool.title"), icon: ToolbarFaceToolIcon, action: onFaceTool, enabled: canFaceTool, active: faceToolActive },
     { id: "split", label: t("editor.tool.split"), icon: ToolbarSplitIcon, action: onSplit, enabled: splitMode || canSplit, active: splitMode },
@@ -996,6 +1011,7 @@ export function SecondaryToolbar({
     // Fork: spacing parts out has its own button (it opens Align with the Space out panel).
     { id: "spaceOut", label: t("distribute.title"), icon: ForkSpaceOutIcon, action: onAlign, enabled: canAlign, active: alignMode },
     { id: "fitCheck", label: t("editor.tool.clearance"), icon: ScanSearch, action: build33.onFitCheck, enabled: true, active: build33.fitActive },
+    { id: "layerCheck", label: t("editor.tool.layerCheck"), icon: Layers3, action: onLayerCheck, enabled: true, active: layerCheckActive },
   ];
   // Fork: the makers - each opens its own panel.
   const makeTools = [

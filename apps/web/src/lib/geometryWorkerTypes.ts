@@ -3,7 +3,7 @@ import type { PreparedImportedMeshDisplay } from "@/lib/importedMeshDisplay";
 import type { WorkplaneShape } from "@/types/layerling";
 
 /** What the page asks the geometry worker (workers/geometry.worker.ts) to work out. */
-export type GeometryTask = "group" | "split" | "stl" | "obj" | "step" | "stepExport" | "estimate" | "simplify" | "threemf" | "flexi" | "lid" | "warm" | "clearance";
+export type GeometryTask = "group" | "split" | "stl" | "obj" | "step" | "stepExport" | "estimate" | "simplify" | "threemf" | "flexi" | "lid" | "warm" | "clearance" | "layerCheck" | "boltSplit";
 
 export interface GeometryWorkerRequest {
   requestId: number;
@@ -26,7 +26,9 @@ export type GeometryWorkerResponse =
     /** The view's geometry for each of resultMeshes(task, result), in that order (lib/importedMeshDisplay.ts). */
     displays: Array<PreparedImportedMeshDisplay | null>;
   }
-  | { requestId: number; ok: false; message: string; name: string };
+  | { requestId: number; ok: false; message: string; name: string }
+  /** How far a long task got (0 to 1), sent now and then before its answer; the layer check sends it. */
+  | { requestId: number; progress: number };
 
 type ImportedMesh = NonNullable<WorkplaneShape["importedMesh"]>;
 

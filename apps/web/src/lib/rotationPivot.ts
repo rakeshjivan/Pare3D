@@ -203,3 +203,46 @@ export function carryShapePivot(from: WorkplaneShape, to: WorkplaneShape): Workp
   if (!world) return to;
   return { ...to, rotationPivot: shapePivotFromWorld(to, world) };
 }
+
+/**
+ * The triangle a click landed on, among `positions` (world triangles, nine numbers each): the
+ * one nearest to `point` of those that face `normal`, either way round; -1 when none does, or
+ * when the nearest lies farther than `within`.
+ */
+export function nearestFaceTriangle(positions: ArrayLike<number>, point: PivotPoint, normal: PivotPoint, within = Infinity) {
+  const triangleCount = Math.floor(positions.length / 9);
+  const n = new THREE.Vector3(normal.x, normal.y, normal.z);
+  if (triangleCount === 0 || n.lengthSq() < 1e-12) return -1;
+  n.normalize();
+
+  const p = new THREE.Vector3(point.x, point.y, point.z);
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const triangle = new THREE.Triangle();
+  const closest = new THREE.Vector3();
+  const edgeAB = new THREE.Vector3();
+  const edgeAC = new THREE.Vector3();
+  const triangleNormal = new THREE.Vector3();
+  let hit = -1;
+  let hitDistance = Infinity;
+  for (let index = 0; index < triangleCount; index += 1) {
+    const o = index * 9;
+    a.set(positions[o], positions[o + 1], positions[o + 2]);
+    b.set(positions[o + 3], positions[o + 4], positions[o + 5]);
+    c.set(positions[o + 6], positions[o + 7], positions[o + 8]);
+    edgeAB.subVectors(b, a);
+    edgeAC.subVectors(c, a);
+    triangleNormal.crossVectors(edgeAB, edgeAC);
+    if (triangleNormal.lengthSq() < 1e-18) continue;
+    // The pick's normal and the winding of the mesh may disagree in sign; the plane is what counts.
+    if (Math.abs(triangleNormal.normalize().dot(n)) < 0.999) continue;
+    triangle.set(a, b, c);
+    const distance = triangle.closestPointToPoint(p, closest).distanceTo(p);
+    if (distance < hitDistance) {
+      hitDistance = distance;
+      hit = index;
+    }
+  }
+  return hitDistance <= within ? hit : -1;
+}

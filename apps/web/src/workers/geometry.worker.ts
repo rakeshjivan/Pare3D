@@ -5,6 +5,8 @@ import { buildMessage } from "@/lib/buildStamp";
 import { articulateShapes, type FlexiOptions } from "@/lib/flexiJoints";
 import { lidForShapes, type LidOptions } from "@/lib/lidTool";
 import { buildGroupedShapeFromSelection, exportSolidVolume, splitShapeIfCrossed } from "@/lib/editorBooleans";
+import { checkLayers, type LayerCheckOptions } from "@/lib/layerCheck";
+import { splitBoltForShape, type BoltSplitOptions } from "@/lib/boltSplit";
 import { getManifoldRuntime, setManifoldAssetBase } from "@/lib/editorMeshCore";
 import { packValue, packedTransfer, unpackValue } from "@/lib/geometryTransfer";
 import { resultMeshes, type GeometryWorkerRequest, type GeometryWorkerResponse } from "@/lib/geometryWorkerTypes";
@@ -51,6 +53,21 @@ self.onmessage = async (event: MessageEvent<GeometryWorkerRequest>) => {
     } else if (request.task === "clearance") {
       const { source, options } = args as { source: WorkplaneShape[]; options: Partial<ClearanceOptions> };
       result = await checkClearance(source, options);
+    } else if (request.task === "boltSplit") {
+      const { shape, options } = args as { shape: WorkplaneShape; options: Partial<BoltSplitOptions> };
+      result = await splitBoltForShape(shape, options);
+    } else if (request.task === "layerCheck") {
+      // Says how far it got, at most every 100 ms, so the panel's bar moves.
+      const { source, options } = args as { source: WorkplaneShape[]; options: Partial<LayerCheckOptions> };
+      let told = 0;
+      result = await checkLayers(source, options, {
+        progress: (fraction) => {
+          const now = Date.now();
+          if (now - told < 100 && fraction < 1) return;
+          told = now;
+          post({ requestId: request.requestId, progress: fraction });
+        },
+      });
     } else if (request.task === "lid") {
       const { targets, options } = args as { targets: WorkplaneShape[]; options: LidOptions };
       result = await lidForShapes(targets, options);

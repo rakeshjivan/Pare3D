@@ -132,6 +132,9 @@ export const GUIDE_SECTIONS = {
   commandSearch: { chapter: "shortcuts", en: "command-search" },
   interactiveHelp: { chapter: "shortcuts", en: "interactive-help" },
   whatsNew: { chapter: "start", en: "new-since-your-last-visit" },
+  threadInsert: { chapter: "select", en: "hole-for-a-thread-insert" },
+  magnetPocket: { chapter: "select", en: "magnet-pocket" },
+  layerCheck: { chapter: "printing", en: "print-analysis-and-layer-view" },
 } as const satisfies Record<string, { chapter: GuideChapter; en: string } & Partial<Record<Language, string>>>;
 
 export type GuideSection = keyof typeof GUIDE_SECTIONS;

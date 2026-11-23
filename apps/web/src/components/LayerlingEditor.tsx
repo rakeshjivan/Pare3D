@@ -105,7 +105,19 @@ import { blendCanBeHollow, blendFacePoint, blendKeepDiameterShortfall, blendLoft
 import { BlendPanel } from "./workplane/BlendPanel";
 import { faceToolBody } from "@/lib/faceToolBody";
 import { DEFAULT_HOLE_PATTERN, normalizeHolePattern, type HolePatternSettings } from "@/lib/holePattern";
-import { holePatternShapes, readPerforableFace, type PerforableFace } from "@/lib/holePatternShapes";
+import { ThreadInsertPanel } from "./workplane/ThreadInsertPanel";
+import { LayerCheckPanel, LAYER_VIEW_DEFAULTS, type LayerCheckSettings, type LayerCheckToolState, type LayerViewState } from "./workplane/LayerCheckPanel";
+import type { LayerView } from "./workplane/LayerViewOverlay";
+import { filterFindings, stepFinding, type Finding, type FindingKind } from "@/lib/findings";
+import { readLayerCheckSettings, writeLayerCheckSettings } from "@/lib/layerCheckSettings";
+import { checkLayersOffThread, splitBoltOffThread } from "@/lib/geometryWorker";
+import { boltSplitFits, boltSplitStatus, type BoltSplitOptions } from "@/lib/boltSplit";
+import { CUSTOM_THREAD_INSERT, THREAD_INSERT_DEFAULT, THREAD_INSERT_SIZES, threadInsertSpec, type ThreadInsertSpec } from "@/lib/threadInsert";
+import { makeThreadInsertHole, measureThreadInsert, threadInsertSurfaceCenter, type ThreadInsertFace } from "@/lib/threadInsertGeometry";
+import { MagnetPocketPanel, type MagnetPartnerState } from "./workplane/MagnetPocketPanel";
+import { MAGNET_POCKET_DEFAULTS, magnetPocketMeasures, magnetSizeName, normalizeMagnetPocketSpec, type MagnetPocketSpec } from "@/lib/magnetPocket";
+import { boxNearPoint, findMagnetPartnerSpot, magnetInsertSpec, makeMagnetPocketHole } from "@/lib/magnetPocketGeometry";
+import { holePatternCustomFootprint, holePatternShapes, isRoundWallFace, readHolePatternFace, readPerforableFace, type HolePatternFace, type HolePatternPlan, type PerforableFace } from "@/lib/holePatternShapes";
 import { honeycombReplacementParts } from "@/lib/honeycombMigration";
 import { MeshSimplifyPanel } from "./workplane/MeshSimplifyPanel";
 import { addCustomFontFile, customFontErrorMessage, FontManagerPanel } from "./workplane/FontManagerPanel";
@@ -419,6 +431,15 @@ type EdgeModifierSession = {
  * moment among them - for as long as its dependencies stay the same; a few long-lived ones (leave, export, Edit design
  * and the like) held earlier sets of models after an Update had replaced them, some 160 MB a time.
  */
+/** The shapes a hole pattern can repeat as its own shape (#1235): every other object of the scene that is a body or a hole. */
+function holePatternCustomChoices(shapes: readonly WorkplaneShape[], sourceId: string) {
+  return shapes.filter((shape) => shape.id !== sourceId && !isNonSolidShapeKind(shape.kind));
+}
+
+function holePatternCustomShape(shapes: readonly WorkplaneShape[], sourceId: string, id: string | undefined) {
+  return id ? holePatternCustomChoices(shapes, sourceId).find((shape) => shape.id === id) ?? null : null;
+}
+
 function useLatestCallback<T extends (...args: never[]) => unknown>(fn: T): T {
   const latest = useRef(fn);
   latest.current = fn;
@@ -2285,11 +2306,25 @@ export function LayerlingEditor({
   const [holePatternTool, setHolePatternTool] = useState<{
     sourceId: string;
     step: "pick" | "ready";
-    face: PerforableFace | null;
+    face: HolePatternFace | null;
     settings: HolePatternSettings;
     busy: boolean;
   } | null>(null);
   const holePatternSettingsRef = useRef<HolePatternSettings>(DEFAULT_HOLE_PATTERN);
+  const holePatternPickRunRef = useRef(0);
+  // The thread insert tool, and the magnet pocket tool that shares its spot, ring and check (magnetPocketGeometry.ts).
+  const [threadInsertTool, setThreadInsertTool] = useState<{ kind: "insert" | "magnet"; sourceId: string; face: ThreadInsertFace | null; busy: boolean; geometryFingerprint?: string } | null>(null);
+  const [magnetPocketSpec, setMagnetPocketSpec] = useState<MagnetPocketSpec>(MAGNET_POCKET_DEFAULTS);
+  const [magnetPocketBoth, setMagnetPocketBoth] = useState(true);
+  // The part that meets the picked spot, for the same pocket facing it: being looked for, found, or none.
+  const [magnetPartner, setMagnetPartner] = useState<MagnetPartnerState>({ state: "none" });
+  const magnetPartnerRunRef = useRef(0);
+  const magnetPartnerTrianglesRef = useRef(new Map<string, { fingerprint: string; triangles: ArrayLike<number> }>());
+  const [threadInsertPreset, setThreadInsertPreset] = useState(THREAD_INSERT_DEFAULT);
+  const [threadInsertDiameter, setThreadInsertDiameter] = useState("7");
+  const [threadInsertLength, setThreadInsertLength] = useState("8");
+  const threadInsertRunRef = useRef(0);
+  const threadInsertTrianglesRef = useRef<ArrayLike<number> | null>(null);
   // "Support rib" (from layerling 1.148, Discussion #1385): the lower face of a tilted part, then a thin rib under it.
   const [supportRibTool, setSupportRibTool] = useState<{
     sourceId: string;
@@ -3320,12 +3355,36 @@ export function LayerlingEditor({
       return null;
     }
   }, [blendPreview, blendTool]);
+  // An own shape (#1235): the shape from the scene a hole pattern repeats, as it stands now.
+  const holePatternCustom = useMemo(
+    () => (holePatternTool?.settings.form === "custom" ? holePatternCustomShape(shapes, holePatternTool.sourceId, holePatternTool.settings.customId) : null),
+    [holePatternTool?.settings.form, holePatternTool?.settings.customId, holePatternTool?.sourceId, shapes],
+  );
+  // The holes a hole pattern would cut, shown on the face until "Create".
   const holePatternPreview = useMemo(
     () => (holePatternTool?.face
-      ? holePatternShapes(holePatternTool.face, holePatternTool.settings, t("holePattern.holeName"), "hole-pattern-preview")
+      ? holePatternShapes(
+        holePatternTool.face,
+        holePatternCustom ? { ...holePatternTool.settings, ...holePatternCustomFootprint(holePatternCustom) } : holePatternTool.settings,
+        t("holePattern.holeName"),
+        "hole-pattern-preview",
+        holePatternCustom,
+      )
       : null),
-    [holePatternTool?.face, holePatternTool?.settings],
+    [holePatternTool?.face, holePatternTool?.settings, holePatternCustom],
   );
+  // The frame along the edge (Discussion #1771) shows in the body's own colour while the numbers change.
+  const holePatternPreviewFrame = useMemo(() => {
+    const frame = holePatternPreview?.frame;
+    if (!frame) return null;
+    const source = shapes.find((shape) => shape.id === holePatternTool?.sourceId);
+    return { ...frame, color: source?.color ?? frame.color, name: t("holePattern.frameName") };
+  }, [holePatternPreview?.frame, holePatternTool?.sourceId, shapes]);
+  // The top layer shows in its colour on the body while the numbers change, a hair above it so the two do not flicker.
+  const holePatternPreviewLayer = useMemo(() => {
+    const layer = holePatternPreview?.topLayer;
+    return layer ? { ...layer.slab, elevation: (layer.slab.elevation ?? 0) + 0.02, name: t("holePattern.topLayerName") } : null;
+  }, [holePatternPreview?.topLayer]);
   const baseViewportShapes = useMemo(
     () =>
       arrayPreview
@@ -3333,7 +3392,7 @@ export function LayerlingEditor({
         : supportRibPreview?.shape
         ? [...shapes, supportRibPreview.shape]
         : holePatternPreview?.holes.length
-        ? [...shapes, ...holePatternPreview.holes]
+        ? [...shapes, ...holePatternPreview.holes, ...(holePatternPreviewFrame ? [holePatternPreviewFrame] : []), ...(holePatternPreviewLayer ? [holePatternPreviewLayer] : [])]
         : faceToolPreview?.shape
         ? [...shapes, faceToolPreview.shape]
         : blendTool?.edit
@@ -3347,7 +3406,7 @@ export function LayerlingEditor({
         : mirrorMode && mirrorPreviewAxis
           ? mirroredShapesForSelection(shapes, selectedIds, selectedShapes, mirrorPreviewAxis).nextShapes
           : shapes,
-    [alignAxes, alignMode, alignPreview, arrayPreview, blendPreview, blendTool?.edit, edgeModifier?.preview, effectiveAlignAnchorId, faceToolPreview, holePatternPreview, mirrorMode, mirrorPreviewAxis, selectedIds, selectedShapes, shapes, supportRibPreview],
+    [alignAxes, alignMode, alignPreview, arrayPreview, blendPreview, blendTool?.edit, edgeModifier?.preview, effectiveAlignAnchorId, faceToolPreview, holePatternPreview, holePatternPreviewFrame, holePatternPreviewLayer, mirrorMode, mirrorPreviewAxis, selectedIds, selectedShapes, shapes, supportRibPreview],
   );
   // The preview of an intersection (#372): the operands see-through, and what they share as a body of its own on top.
   const [intersectPreviewIds, setIntersectPreviewIds] = useState<string[] | null>(null);
@@ -8837,6 +8896,7 @@ export function LayerlingEditor({
   // "Hole pattern" (#223): pick a flat face of the selected body, set the holes, create them as holes grouped with the body.
   const toggleHolePattern = useCallback(() => {
     if (holePatternTool) {
+      holePatternPickRunRef.current += 1;
       setHolePatternTool(null);
       setNotice(t("status.holePatternCancelled"));
       return;
@@ -8863,29 +8923,51 @@ export function LayerlingEditor({
     setMateTool(null);
     setArrayTool(null);
     setScalePercentTool(null);
+    holePatternPickRunRef.current += 1;
     setHolePatternTool({ sourceId: source.id, step: "pick", face: null, settings: holePatternSettingsRef.current, busy: false });
     setNotice(t("status.holePatternStart"));
   }, [refuseLockedSelection, deleteFaceTool, edgeModifier, holePatternTool, selectedShapes, shellTool, simplifyToolId, splitSession, stopCruise]);
 
-  const pickHolePatternFace = useCallback((pick: LayFlatPick | null) => {
+  const pickHolePatternFace = useCallback(async (pick: LayFlatPick | null) => {
     if (!holePatternTool || holePatternTool.step !== "pick") return;
     const source = shapesRef.current.find((shape) => shape.id === holePatternTool.sourceId);
+    // A group's or bundle's face is read from its parts joined, so it can take a moment; only the last click counts.
+    const run = holePatternPickRunRef.current + 1;
+    holePatternPickRunRef.current = run;
+    // A new click, even one beside the body, stops the click before it waiting; a group's read goes on, kept for the next click.
     if (!pick || !source || pick.shapeId !== source.id) {
       setNotice(t("status.holePatternMissed"));
       return;
     }
-    const read = readPerforableFace(worldTrianglePositions(source), pick.point, pick.normal);
+    const fingerprint = projectShapesFingerprint([source]);
+    const read = readHolePatternFace(worldTrianglePositions(source), pick.point, pick.normal);
+    const latest = shapesRef.current.find((shape) => shape.id === source.id);
+    if (holePatternPickRunRef.current !== run || !latest || projectShapesFingerprint([latest]) !== fingerprint) return;
     if (!read.ok) {
       setNotice(t(read.reason === "curved" ? "status.holePatternCurved" : "status.holePatternMissed"));
       return;
     }
-    setHolePatternTool({ ...holePatternTool, step: "ready", face: read.face });
-    setNotice(t("status.holePatternReady"));
+    const round = isRoundWallFace(read.face);
+    setHolePatternTool((current) => {
+      if (!current || current.sourceId !== source.id || current.step !== "pick") return current;
+      // A ring along the edge is a flat face's arrangement; round a wall the holes are spread staggered instead.
+      const settings = round && (current.settings.arrangement === "perimeter" || current.settings.arrangement === "corners") ? normalizeHolePattern({ ...current.settings, arrangement: "staggered" }) : current.settings;
+      holePatternSettingsRef.current = settings;
+      return { ...current, step: "ready", face: read.face, settings };
+    });
+    setNotice(t(round ? "status.holePatternRoundReady" : "status.holePatternReady"));
   }, [holePatternTool]);
 
   const changeHolePatternSettings = useCallback((patch: Partial<HolePatternSettings>) => {
     setHolePatternTool((current) => {
       if (!current) return current;
+      // An own shape (#1235) starts with the newest shape of the scene, and takes the room it needs on the face.
+      const form = patch.form ?? current.settings.form;
+      const custom = form === "custom"
+        ? holePatternCustomShape(shapesRef.current, current.sourceId, patch.customId ?? current.settings.customId)
+          ?? holePatternCustomChoices(shapesRef.current, current.sourceId).at(-1) ?? null
+        : null;
+      if (custom) patch = { ...patch, ...holePatternCustomFootprint(custom) };
       // A slot or a rectangle starts out longer than high, with room for it, unless it was sized by hand.
       const longForm = (patch.form === "slot" || patch.form === "rectangle")
         && current.settings.form !== "slot" && current.settings.form !== "rectangle"
@@ -8899,12 +8981,56 @@ export function LayerlingEditor({
     });
   }, []);
 
+  /**
+   * The body grouped with its holes; with a frame along the edge (Discussion #1771) that group is grouped again with the
+   * frame, so the holes stop where the frame starts and ungrouping still frees each step.
+   */
+  const holePatternGroup = useCallback(async (source: WorkplaneShape, plan: HolePatternPlan) => {
+    const limit = workspaceSettingsRef.current.booleanTriangleLimit;
+    const inner = await buildGroupedShapeOffThread([source, ...plan.holes], limit, geometryAbortRef.current?.signal);
+    if (!inner.group || (!plan.frame && !plan.topLayer)) return inner;
+    let body = canonicalizeShape({ ...inner.group, groupOperation: "group" });
+    if (plan.frame) {
+      const frame = { ...plan.frame, color: source.color, name: t("holePattern.frameName") };
+      const outer = await buildGroupedShapeOffThread([body, frame], limit, geometryAbortRef.current?.signal);
+      if (!outer.group) return outer;
+      body = canonicalizeShape({ ...outer.group, name: body.name, groupOperation: "group" });
+    }
+    if (!plan.topLayer) return { ...inner, group: body };
+    // The top layer in a second colour (Discussion #1771): what of the perforated body lies in the slab under the face is
+    // the net; the body less the net is the other colour, solid below and filling the net's holes up to the face, so the
+    // face is flat and both colours start on the first layers when it is printed face down (no bridges, no supports).
+    // The two are bundled, so they move together and reach the slicer as two bodies in their own colours.
+    const layerName = t("holePattern.topLayerName");
+    const slab = { ...plan.topLayer.slab, color: plan.topLayer.color, name: layerName };
+    const top = await buildIntersectionShapeFromSelection([body, slab], limit);
+    if (!top.group) return { ...inner, group: null, failureNotice: top.failureNotice || t("status.intersectionEmpty") };
+    const upper = canonicalizeShape({ ...top.group, name: layerName, color: plan.topLayer.color, groupOperation: "intersection" });
+    const netMesh = meshForShape(upper);
+    const netPositions = netMesh.faces.flatMap((face) => face.flatMap((index) => netMesh.vertices[index]));
+    const cut = clearanceMeshShape(createLocalId("top-layer-cut"), layerName, plan.topLayer.color, netPositions);
+    if (!cut) return { ...inner, group: null };
+    const below = await buildGroupedShapeOffThread([source, withHoleMode(cut, true)], limit, geometryAbortRef.current?.signal);
+    if (!below.group) return below;
+    const lower = canonicalizeShape({ ...below.group, name: source.name, color: source.color, groupOperation: "group" });
+    const bundle = groupedShape([lower, upper]);
+    if (!bundle) return { ...inner, group: null };
+    return { ...inner, group: canonicalizeShape({ ...bundle, name: source.name, groupOperation: "bundle" }) };
+  }, []);
+
   const applyHolePattern = useCallback(async () => {
     const tool = holePatternTool;
     if (!tool?.face || tool.busy) return;
     const source = shapesRef.current.find((shape) => shape.id === tool.sourceId);
     if (!source) return;
-    const plan = holePatternShapes(tool.face, tool.settings, t("holePattern.holeName"));
+    const custom = tool.settings.form === "custom" ? holePatternCustomShape(shapesRef.current, tool.sourceId, tool.settings.customId) : null;
+    const plan = holePatternShapes(
+      tool.face,
+      custom ? { ...tool.settings, ...holePatternCustomFootprint(custom) } : tool.settings,
+      t("holePattern.holeName"),
+      undefined,
+      custom,
+    );
     if (plan.tooMany || plan.holes.length === 0) {
       setNotice(t(plan.tooMany ? "status.holePatternTooMany" : "status.holePatternNone"));
       return;
@@ -8912,7 +9038,7 @@ export function LayerlingEditor({
     setHolePatternTool({ ...tool, busy: true });
     const sourceFingerprint = projectShapesFingerprint(shapesRef.current);
     const sourceProjectId = projectInfoRef.current.projectId;
-    const result = await buildGroupedShapeOffThread([source, ...plan.holes], workspaceSettingsRef.current.booleanTriangleLimit, geometryAbortRef.current?.signal);
+    const result = await holePatternGroup(source, plan);
     if (projectInfoRef.current.projectId !== sourceProjectId || projectShapesFingerprint(shapesRef.current) !== sourceFingerprint) {
       setHolePatternTool(null);
       setNotice(t("status.groupChanged"));
@@ -8923,14 +9049,416 @@ export function LayerlingEditor({
       setNotice(result.failureNotice);
       return;
     }
-    const editableGroup = canonicalizeShape({ ...result.group, groupOperation: "group" });
+    const editableGroup = canonicalizeShape({ ...result.group, groupOperation: result.group.groupOperation === "bundle" ? "bundle" : "group" });
     setHolePatternTool(null);
     commitShapes(
       [...shapesRef.current.filter((shape) => shape.id !== source.id), editableGroup],
       editableGroup.id,
-      t("status.holePatternCreated", { count: plan.holes.length }),
+      t(custom && !custom.hole ? "status.holePatternCreatedPieces" : "status.holePatternCreated", { count: plan.holes.length }),
     );
-  }, [commitShapes, holePatternTool]);
+  }, [commitShapes, holePatternGroup, holePatternTool]);
+
+  // The tool belongs to the body it was started for, and gives way to the tools that pick faces or open panels of their own.
+  useEffect(() => {
+    if (!holePatternTool) return;
+    if (
+      selectedIds.length !== 1
+      || selectedIds[0] !== holePatternTool.sourceId
+      || mateTool || layFlatPickMode || pivotPickMode || arrayTool || scalePercentTool
+      || shellTool || deleteFaceTool || edgeModifier || splitSession || simplifyToolId
+    ) {
+      holePatternPickRunRef.current += 1;
+      setHolePatternTool(null);
+    }
+  }, [arrayTool, deleteFaceTool, edgeModifier, holePatternTool, layFlatPickMode, mateTool, pivotPickMode, scalePercentTool, selectedIds, shellTool, simplifyToolId, splitSession]);
+
+
+  // Pare reads a body's triangles on the page (layerling reads them ahead in the geometry worker).
+  const faceReadForClick = useCallback(async (source: WorkplaneShape, _fingerprint: string, _signal: AbortSignal): Promise<ArrayLike<number>> => worldTrianglePositions(source), []);
+
+  // The thread insert tool (PR #1828): a hole for a heat-set insert, with a check of the wall and the depth.
+  const magnetTool = threadInsertTool?.kind === "magnet";
+  const threadInsertSizeSpec = useMemo(
+    () => (magnetTool ? magnetInsertSpec(magnetPocketSpec) : threadInsertSpec(threadInsertPreset, threadInsertDiameter, threadInsertLength)),
+    [magnetTool, magnetPocketSpec, threadInsertPreset, threadInsertDiameter, threadInsertLength],
+  );
+  // A result is only good for the body as it was measured: never reuse one from an older mesh.
+  const threadInsertCurrentSource = selectedShape?.id === threadInsertTool?.sourceId ? selectedShape : null;
+  const threadInsertCurrentFingerprint = threadInsertCurrentSource ? projectShapesFingerprint([threadInsertCurrentSource]) : null;
+  const threadInsertFaceCurrent = Boolean(
+    threadInsertTool?.face && threadInsertCurrentFingerprint && threadInsertTool.geometryFingerprint === threadInsertCurrentFingerprint,
+  );
+  const threadInsertResult = useMemo(
+    () => (threadInsertFaceCurrent && threadInsertTool?.face && threadInsertSizeSpec ? measureThreadInsert(threadInsertTool.face, threadInsertSizeSpec) : null),
+    [threadInsertFaceCurrent, threadInsertTool?.face, threadInsertSizeSpec],
+  );
+
+  // Millimetres from the lower left corner of the picked flat face's extent; the frame turns with the face.
+  const threadInsertCoordinates = useMemo(() => {
+    const face = threadInsertTool?.face;
+    if (!face || isRoundWallFace(face)) return null;
+    const points = face.outline.loops.flat();
+    if (!points.length) return null;
+    return { x: -Math.min(...points.map((p) => p.u)), y: -Math.min(...points.map((p) => p.v)) };
+  }, [threadInsertTool?.face]);
+
+  const moveThreadInsertByCoordinates = useCallback((x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    setThreadInsertTool((current) => {
+      if (!current?.face || current.busy || isRoundWallFace(current.face)) return current;
+      const face = current.face;
+      const w = face.workplane;
+      const points = face.outline.loops.flat();
+      if (!points.length) return current;
+      const du = x + Math.min(...points.map((p) => p.u));
+      const dv = y + Math.min(...points.map((p) => p.v));
+      if (Math.hypot(du, dv) < 0.000001) return current;
+      return {
+        ...current,
+        face: {
+          ...face,
+          workplane: {
+            ...w,
+            origin: {
+              x: w.origin.x + w.xAxis.x * du + w.zAxis.x * dv,
+              y: w.origin.y + w.xAxis.y * du + w.zAxis.y * dv,
+              z: w.origin.z + w.xAxis.z * du + w.zAxis.z * dv,
+            },
+          },
+          outline: { ...face.outline, loops: face.outline.loops.map((loop) => loop.map((p) => ({ ...p, u: p.u - du, v: p.v - dv }))) },
+        },
+      };
+    });
+  }, []);
+
+  const closeThreadInsert = useCallback(() => {
+    threadInsertRunRef.current += 1;
+    setThreadInsertTool(null);
+  }, []);
+
+  /**
+   * A screw or threaded rod split lengthwise for printing: the two halves lie on their cut faces where it stood, with
+   * centring pins in both if asked for (lib/boltSplit.ts), in its place and selected. One undo step. The same code
+   * the MCP's split_bolt uses.
+   */
+  const splitBoltForPrint = useCallback(async (shapeId: string, given?: Partial<BoltSplitOptions>) => {
+    const fail = (message: string) => {
+      setNotice(message, true);
+      return { ok: false as const, message };
+    };
+    const bolt = shapesRef.current.find((shape) => shape.id === shapeId);
+    if (!bolt || !boltSplitFits(bolt)) return fail(t("boltSplit.error.notBolt"));
+    if (bolt.locked) return fail(t("status.objectLocked"));
+    const options = { pins: true, pinPlay: Math.min(0.5, getPrinterPlay() ?? 0.15), ...given };
+    const sourceFingerprint = projectShapesFingerprint(shapesRef.current);
+    const sourceProjectId = projectInfoRef.current.projectId;
+    const result = await splitBoltOffThread({ ...bolt, name: displayShapeName(bolt) }, options);
+    if (!result.parts) return fail(result.error);
+    if (projectInfoRef.current.projectId !== sourceProjectId || projectShapesFingerprint(shapesRef.current) !== sourceFingerprint) return fail(t("status.gridfinityKeysChanged"));
+    if (historyViewStateRef.current) return fail(t("status.historyViewBlocksEdits"));
+    const name = displayShapeName(bolt);
+    const message = boltSplitStatus(name, result, options.pins);
+    const at = shapesRef.current.findIndex((shape) => shape.id === bolt.id);
+    const next = [...shapesRef.current.slice(0, at), ...result.parts, ...shapesRef.current.slice(at + 1)];
+    commitShapes(next, result.parts.map((part) => part.id), message);
+    return { ok: true as const, parts: result.parts, pins: result.pins, pinDiameter: result.pinDiameter, pinLength: result.pinLength, placed: result.placed, filament: result.filament };
+  }, [commitShapes]);
+
+  const toggleThreadInsert = useCallback((kind: "insert" | "magnet" = "insert") => {
+    if (threadInsertTool) {
+      // The other of the two tools takes over the spot already picked.
+      if (threadInsertTool.kind !== kind && !threadInsertTool.busy) {
+        setThreadInsertTool({ ...threadInsertTool, kind });
+        if (!threadInsertTool.face) setNotice(t(kind === "magnet" ? "magnetPocket.status.pick" : "threadInsert.status.pick"));
+        return;
+      }
+      closeThreadInsert();
+      return;
+    }
+    if (refuseLockedSelection()) return;
+    const source = selectedShapes.length === 1 ? selectedShapes[0] : null;
+    if (!source || source.hole || isNonSolidShape(source)) {
+      setNotice(t(kind === "magnet" ? "magnetPocket.status.selectOne" : "threadInsert.status.selectOne"));
+      return;
+    }
+    if (edgeModifier || holePatternTool || faceTool || shellTool || deleteFaceTool || splitSession || simplifyToolId) {
+      setNotice(t("threadInsert.status.otherTool"));
+      return;
+    }
+    stopCruise();
+    setLayFlatPickMode(false);
+    setMateTool(null);
+    threadInsertRunRef.current += 1;
+    threadInsertTrianglesRef.current = null;
+    setThreadInsertTool({ kind, sourceId: source.id, face: null, busy: false });
+    setNotice(t(kind === "magnet" ? "magnetPocket.status.pick" : "threadInsert.status.pick"));
+  }, [threadInsertTool, closeThreadInsert, refuseLockedSelection, selectedShapes, edgeModifier, holePatternTool, faceTool, shellTool, deleteFaceTool, splitSession, simplifyToolId, stopCruise]);
+
+  // The purple mark: the middle of the picked face, a place to start from.
+  const threadInsertCenter = useMemo(() => (threadInsertTool?.face ? threadInsertSurfaceCenter(threadInsertTool.face) : null), [threadInsertTool?.face]);
+
+  // The mark follows the pointer over the part without closing the tool. The part's mesh was read once, on the first
+  // click; a flat face is moved on in its own frame, any other face is read again from that mesh.
+  const moveThreadInsertFace = useCallback((pick: LayFlatPick | null) => {
+    const triangles = threadInsertTrianglesRef.current;
+    if (!pick || !triangles) return;
+    setThreadInsertTool((current) => {
+      if (!current?.face || current.busy || pick.shapeId !== current.sourceId) return current;
+      const face = current.face;
+      if (!isRoundWallFace(face)) {
+        const w = face.workplane;
+        const sameFace = pick.normal.x * w.normal.x + pick.normal.y * w.normal.y + pick.normal.z * w.normal.z >= 0.995;
+        if (sameFace) {
+          const dx = pick.point.x - w.origin.x;
+          const dy = pick.point.y - w.origin.y;
+          const dz = pick.point.z - w.origin.z;
+          const u = dx * w.xAxis.x + dy * w.xAxis.y + dz * w.xAxis.z;
+          const v = dx * w.zAxis.x + dy * w.zAxis.y + dz * w.zAxis.z;
+          if (Math.hypot(u, v) < 0.001) return current;
+          return {
+            ...current,
+            face: {
+              ...face,
+              workplane: { ...w, origin: { ...pick.point } },
+              outline: { ...face.outline, loops: face.outline.loops.map((loop) => loop.map((p) => ({ ...p, u: p.u - u, v: p.v - v }))) },
+            },
+          };
+        }
+      }
+      const read = readHolePatternFace(triangles, pick.point, pick.normal);
+      return read.ok ? { ...current, face: read.face } : { ...current, face: null };
+    });
+  }, []);
+
+  const centerThreadInsertFace = useCallback(() => {
+    if (!threadInsertTool?.face || !threadInsertCenter || threadInsertTool.busy) return;
+    moveThreadInsertFace({ shapeId: threadInsertTool.sourceId, point: threadInsertCenter.point, normal: threadInsertCenter.normal } as LayFlatPick);
+  }, [threadInsertTool, threadInsertCenter, moveThreadInsertFace]);
+
+  const pickThreadInsertFace = useCallback(async (pick: LayFlatPick | null) => {
+    if (!threadInsertTool || threadInsertTool.busy) return;
+    if (threadInsertTool.face && pick && pick.shapeId === threadInsertTool.sourceId && threadInsertTrianglesRef.current) {
+      moveThreadInsertFace(pick);
+      return;
+    }
+    const run = ++threadInsertRunRef.current;
+    const source = shapesRef.current.find((shape) => shape.id === threadInsertTool.sourceId);
+    if (!source || !pick || pick.shapeId !== source.id) {
+      setNotice(t("threadInsert.status.pickFace"));
+      return;
+    }
+    const fingerprint = projectShapesFingerprint([source]);
+    let triangles: ArrayLike<number>;
+    try {
+      triangles = await faceReadForClick(source, fingerprint, new AbortController().signal);
+    } catch (error) {
+      if (run === threadInsertRunRef.current) setNotice(String(error), true);
+      return;
+    }
+    const read = readHolePatternFace(triangles, pick.point, pick.normal);
+    const current = shapesRef.current.find((shape) => shape.id === source.id);
+    if (run !== threadInsertRunRef.current || !current || projectShapesFingerprint([current]) !== fingerprint) return;
+    threadInsertTrianglesRef.current = triangles;
+    if (!read.ok) {
+      setThreadInsertTool((tool) => (tool ? { ...tool, face: null } : tool));
+      setNotice(t("threadInsert.status.notReadable"));
+      return;
+    }
+    setThreadInsertTool((tool) => (tool && tool.sourceId === source.id ? { ...tool, face: read.face, geometryFingerprint: fingerprint } : tool));
+  }, [threadInsertTool, faceReadForClick, moveThreadInsertFace]);
+
+  /*
+   * The magnet pocket's partner: the part that meets the picked spot, standing where it fits (the other half of a joint).
+   * Looked for a moment after the spot stops moving, among the parts whose box comes near it; each part's triangles are
+   * read once and kept while it stays as it is. Its face there is read as the tool reads a face, for the same check.
+   */
+  const magnetPartnerKey = magnetTool && magnetPocketBoth && threadInsertFaceCurrent && threadInsertTool?.face
+    ? JSON.stringify([threadInsertTool.sourceId, threadInsertTool.face.workplane.origin, threadInsertTool.face.workplane.normal])
+    : "";
+  useEffect(() => {
+    const run = ++magnetPartnerRunRef.current;
+    const face = threadInsertTool?.face;
+    if (!magnetPartnerKey || !face || !threadInsertTool) {
+      setMagnetPartner({ state: "none" });
+      return;
+    }
+    const sourceId = threadInsertTool.sourceId;
+    const { origin: point, normal } = face.workplane;
+    const controller = new AbortController();
+    setMagnetPartner({ state: "looking" });
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        // A hidden part counts: the face where two parts meet is covered by the other one, which is hidden to reach it.
+        const candidates = shapesRef.current.filter((shape) => shape.id !== sourceId && !shape.hole && !isNonSolidShape(shape) && boxNearPoint(meshAabb(shape), point));
+        let best: { shape: WorkplaneShape; spot: NonNullable<ReturnType<typeof findMagnetPartnerSpot>>; triangles: ArrayLike<number>; fingerprint: string } | null = null;
+        for (const shape of candidates) {
+          const fingerprint = projectShapesFingerprint([shape]);
+          let kept = magnetPartnerTrianglesRef.current.get(shape.id);
+          if (!kept || kept.fingerprint !== fingerprint) {
+            kept = { fingerprint, triangles: worldTrianglePositions(shape) };
+            magnetPartnerTrianglesRef.current.set(shape.id, kept);
+          }
+          if (controller.signal.aborted || run !== magnetPartnerRunRef.current) return;
+          const spot = findMagnetPartnerSpot(kept.triangles, point, normal);
+          if (spot && (!best || spot.distance < best.spot.distance)) best = { shape, spot, triangles: kept.triangles, fingerprint };
+        }
+        if (controller.signal.aborted || run !== magnetPartnerRunRef.current) return;
+        if (!best) {
+          setMagnetPartner({ state: "missing" });
+          return;
+        }
+        const read = readHolePatternFace(best.triangles, best.spot.point, best.spot.normal);
+        setMagnetPartner(read.ok
+          ? { state: "found", shapeId: best.shape.id, name: displayShapeName(best.shape), face: read.face, fingerprint: best.fingerprint }
+          : { state: "unreadable", name: displayShapeName(best.shape) });
+      })().catch(() => {
+        if (!controller.signal.aborted && run === magnetPartnerRunRef.current) setMagnetPartner({ state: "missing" });
+      });
+    }, 200);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [magnetPartnerKey, shapes]); // eslint-disable-line react-hooks/exhaustive-deps -- the key and the scene name everything it reads
+  const magnetPartnerResult = useMemo(
+    () => (magnetPartner.state === "found" && threadInsertSizeSpec ? measureThreadInsert(magnetPartner.face, threadInsertSizeSpec) : null),
+    [magnetPartner, threadInsertSizeSpec],
+  );
+
+  /**
+   * The magnet pocket in the part, and - asked for, found and with room - the same pocket facing it in the part that meets
+   * it there, each grouped with its part. One step for undo.
+   */
+  const applyMagnetPocket = useCallback(async (tool: NonNullable<typeof threadInsertTool> & { face: ThreadInsertFace }, live: WorkplaneShape) => {
+    const spec = magnetPocketSpec;
+    const insert = magnetInsertSpec(spec);
+    const partnerState = magnetPocketBoth && magnetPartner.state === "found" ? magnetPartner : null;
+    const partnerLive = partnerState ? shapesRef.current.find((shape) => shape.id === partnerState.shapeId) ?? null : null;
+    const partner = partnerState && partnerLive && projectShapesFingerprint([partnerLive]) === partnerState.fingerprint && !partnerLive.locked
+      && measureThreadInsert(partnerState.face, insert).allowed ? { state: partnerState, live: partnerLive } : null;
+    const projectId = projectInfoRef.current.projectId;
+    const fingerprint = projectShapesFingerprint(shapesRef.current);
+    setThreadInsertTool({ ...tool, busy: true });
+    try {
+      const built = await buildGroupedShapeOffThread([live, makeMagnetPocketHole(tool.face, spec)], workspaceSettingsRef.current.booleanTriangleLimit, geometryAbortRef.current?.signal);
+      const builtPartner = partner && built.group
+        ? await buildGroupedShapeOffThread([partner.live, makeMagnetPocketHole(partner.state.face, spec)], workspaceSettingsRef.current.booleanTriangleLimit, geometryAbortRef.current?.signal)
+        : null;
+      if (projectInfoRef.current.projectId !== projectId || fingerprint !== projectShapesFingerprint(shapesRef.current)) {
+        setThreadInsertTool(null);
+        setNotice(t("threadInsert.status.changedWhile"));
+        return;
+      }
+      const failed = !built.group ? built : builtPartner && !builtPartner.group ? builtPartner : null;
+      if (failed) {
+        setThreadInsertTool((current) => (current ? { ...current, busy: false } : current));
+        setNotice(failed.failureNotice);
+        return;
+      }
+      const group = canonicalizeShape({ ...built.group!, groupOperation: "group" });
+      const partnerGroup = builtPartner?.group ? canonicalizeShape({ ...builtPartner.group, groupOperation: "group" }) : null;
+      const replaced = new Map<string, WorkplaneShape>([[live.id, group], ...(partner && partnerGroup ? [[partner.live.id, partnerGroup] as [string, WorkplaneShape]] : [])]);
+      const size = magnetSizeName(spec);
+      const asked = magnetPocketBoth && (magnetPartner.state === "found" || magnetPartner.state === "unreadable");
+      closeThreadInsert();
+      commitShapes(
+        shapesRef.current.map((shape) => replaced.get(shape.id) ?? shape),
+        group.id,
+        partnerGroup
+          ? t("magnetPocket.status.createdBoth", { size, partner: displayShapeName(partner!.live) })
+          : asked
+            ? t("magnetPocket.status.createdPartnerSkipped", { size })
+            : t("magnetPocket.status.created", { size }),
+      );
+    } catch (error) {
+      setThreadInsertTool((current) => (current ? { ...current, busy: false } : current));
+      setNotice(String(error), true);
+    }
+  }, [magnetPocketSpec, magnetPocketBoth, magnetPartner, closeThreadInsert, commitShapes]);
+
+  const applyThreadInsert = useCallback(async () => {
+    const tool = threadInsertTool;
+    const spec = threadInsertSizeSpec;
+    if (!tool?.face || !spec || tool.busy) return;
+    const live = shapesRef.current.find((shape) => shape.id === tool.sourceId);
+    if (!live || tool.geometryFingerprint !== projectShapesFingerprint([live])) {
+      setNotice(t("threadInsert.status.changed"), true);
+      return;
+    }
+    // Measured once more on the face as it stands: the numbers on the panel are only a preview.
+    if (!measureThreadInsert(tool.face, spec).allowed) {
+      setNotice(t(tool.kind === "magnet" ? "magnetPocket.status.blocked" : "threadInsert.status.blocked"), true);
+      return;
+    }
+    if (Boolean(live.locked)) return;
+    if (tool.kind === "magnet") {
+      await applyMagnetPocket({ ...tool, face: tool.face }, live);
+      return;
+    }
+    const projectId = projectInfoRef.current.projectId;
+    const fingerprint = projectShapesFingerprint(shapesRef.current);
+    setThreadInsertTool({ ...tool, busy: true });
+    try {
+      const hole = makeThreadInsertHole(tool.face, spec);
+      const built = await buildGroupedShapeOffThread([live, hole], workspaceSettingsRef.current.booleanTriangleLimit, geometryAbortRef.current?.signal);
+      if (projectInfoRef.current.projectId !== projectId || fingerprint !== projectShapesFingerprint(shapesRef.current)) {
+        setThreadInsertTool(null);
+        setNotice(t("threadInsert.status.changedWhile"));
+        return;
+      }
+      if (!built.group) {
+        setThreadInsertTool((current) => (current ? { ...current, busy: false } : current));
+        setNotice(built.failureNotice);
+        return;
+      }
+      const group = canonicalizeShape({ ...built.group, groupOperation: "group" });
+      closeThreadInsert();
+      commitShapes(
+        [...shapesRef.current.filter((shape) => shape.id !== live.id), group],
+        group.id,
+        t("threadInsert.status.created", { size: spec.name === CUSTOM_THREAD_INSERT ? `Ø${spec.d3}` : spec.name, diameter: spec.d3, depth: spec.L }),
+      );
+    } catch (error) {
+      setThreadInsertTool((current) => (current ? { ...current, busy: false } : current));
+      setNotice(String(error), true);
+    }
+  }, [threadInsertTool, threadInsertSizeSpec, closeThreadInsert, commitShapes, applyMagnetPocket]);
+
+  // The body was changed while the tool stood open (resized, say): read its new mesh and put the spot back on it; if the
+  // old spot cannot be found on the new body the tool waits for a new pick.
+  useEffect(() => {
+    if (!threadInsertTool?.face || !threadInsertCurrentSource || !threadInsertCurrentFingerprint || threadInsertTool.geometryFingerprint === threadInsertCurrentFingerprint) return;
+    const source = threadInsertCurrentSource;
+    const fingerprint = threadInsertCurrentFingerprint;
+    const anchor = { ...threadInsertTool.face.workplane.origin };
+    const normal = { ...threadInsertTool.face.workplane.normal };
+    const run = ++threadInsertRunRef.current;
+    const controller = new AbortController();
+    threadInsertTrianglesRef.current = null;
+    setThreadInsertTool((current) => (current?.sourceId === source.id ? { ...current, face: null, geometryFingerprint: undefined } : current));
+    void (async () => {
+      try {
+        const triangles = await faceReadForClick(source, fingerprint, controller.signal);
+        const latest = shapesRef.current.find((shape) => shape.id === source.id);
+        if (controller.signal.aborted || run !== threadInsertRunRef.current || !latest || projectShapesFingerprint([latest]) !== fingerprint) return;
+        const read = readHolePatternFace(triangles, anchor, normal);
+        if (!read.ok) {
+          setNotice(t("threadInsert.status.pickAgain"), true);
+          return;
+        }
+        threadInsertTrianglesRef.current = triangles;
+        setThreadInsertTool((current) => (current?.sourceId === source.id && !current.face ? { ...current, face: read.face, geometryFingerprint: fingerprint } : current));
+      } catch {
+        if (!controller.signal.aborted && run === threadInsertRunRef.current) setNotice(t("threadInsert.status.readFailed"), true);
+      }
+    })();
+    return () => controller.abort();
+  }, [threadInsertCurrentFingerprint, threadInsertTool?.sourceId]);
+
+  // The tool belongs to the body it was started for.
+  useEffect(() => {
+    if (threadInsertTool && (selectedIds.length !== 1 || selectedIds[0] !== threadInsertTool.sourceId)) closeThreadInsert();
+  }, [selectedIds, threadInsertTool, closeThreadInsert]);
 
   // "Support rib" (layerling 1.148, Discussion #1385): a thin rib under the lower face of a part printed tilted.
   const toggleSupportRib = useCallback(() => {
@@ -11451,6 +11979,175 @@ export function LayerlingEditor({
     setClearanceTool({ settings, result: null, running: true, error: null, checked: null, scopeIds: null, activeRow: null, request: 0 });
     void runClearanceCheck(settings);
   }, [clearanceTool, closeClearanceCheck, otherToolPanelOpen, runClearanceCheck, selectedShapes, shapes]);
+
+  /** The top-level object that is, or holds, the part with this id. */
+  const topLevelIdHolding = (list: readonly WorkplaneShape[], id: string) => {
+    const holds = (shape: WorkplaneShape): boolean => shape.id === id || Boolean(shape.groupedShapes?.some(holds));
+    return list.find(holds)?.id ?? null;
+  };
+  // The layer check (Druckanalyse): every layer compared with the one below in one go, off the page, with a bar and a
+  // stop. It only reads the design; its layer view cuts the bodies at a layer and puts the camera back when it closes.
+  const [layerCheckTool, setLayerCheckTool] = useState<LayerCheckToolState | null>(null);
+  const layerCheckAbortRef = useRef<AbortController | null>(null);
+  const layerCheckStale = useMemo(() => {
+    const checked = layerCheckTool?.checked;
+    if (!checked) return false;
+    const scope = layerCheckTool.scopeIds;
+    const current = scope ? shapes.filter((shape) => scope.includes(shape.id)) : shapes;
+    return current.length !== checked.size || current.some((shape) => checked.get(shape.id) !== shape);
+  }, [layerCheckTool?.checked, layerCheckTool?.scopeIds, shapes]);
+  const runLayerCheck = useCallback(async (settings: LayerCheckSettings, scopeIds: readonly string[] | null) => {
+    const source = scopeIds ? shapesRef.current.filter((shape) => scopeIds.includes(shape.id)) : shapesRef.current;
+    layerCheckAbortRef.current?.abort();
+    const controller = new AbortController();
+    layerCheckAbortRef.current = controller;
+    const printer = printerPresetById(workspaceSettingsRef.current.printer);
+    const buildVolume: [number, number, number] | null = printer ? [printer.width, printer.depth, printer.height] : null;
+    setLayerCheckTool((current) => current ? { ...current, settings, running: true, progress: 0, stopped: false, error: null } : current);
+    try {
+      const result = await checkLayersOffThread(source, { ...settings, buildVolume }, controller.signal, (progress) => {
+        if (layerCheckAbortRef.current === controller) setLayerCheckTool((current) => current ? { ...current, progress } : current);
+      });
+      if (layerCheckAbortRef.current !== controller) return;
+      setLayerCheckTool((current) => current ? {
+        ...current, result, running: false, progress: 1, error: null, checked: new Map(source.map((shape) => [shape.id, shape])), activeId: null,
+        view: { ...current.view, layer: Math.min(Math.max(1, current.view.layer), Math.max(1, result.layers.length)), playing: false },
+      } : current);
+    } catch (error) {
+      if (layerCheckAbortRef.current !== controller) return;
+      const message = error instanceof Error ? localizedError(error.message) : String(error);
+      setLayerCheckTool((current) => current ? { ...current, running: false, error: t("layerCheck.failed", { message }) } : current);
+    }
+  }, []);
+  /** Stops the check at once: the worker is let go, the last result (if any) stays, marked as stopped. */
+  const stopLayerCheck = useCallback(() => {
+    layerCheckAbortRef.current?.abort();
+    layerCheckAbortRef.current = null;
+    setLayerCheckTool((current) => current ? { ...current, running: false, stopped: true } : current);
+  }, []);
+  const closeLayerCheck = useCallback(() => {
+    layerCheckAbortRef.current?.abort();
+    layerCheckAbortRef.current = null;
+    setLayerCheckTool(null);
+  }, []);
+  const toggleLayerCheck = useCallback(() => {
+    if (layerCheckTool) {
+      closeLayerCheck();
+      return;
+    }
+    if (otherToolPanelOpen) {
+      setNotice(t("layerCheck.otherTool"));
+      return;
+    }
+    const scope = selectedShapes.length ? selectedShapes : shapes;
+    if (!clearanceSourceShapes(scope).length) {
+      setNotice(t("layerCheck.nothing"));
+      return;
+    }
+    closeClearanceCheck();
+    const settings = readLayerCheckSettings(0.4);
+    const scopeIds = selectedIds.length ? [...selectedIds] : null;
+    setLayerCheckTool({
+      settings, result: null, running: true, progress: 0, stopped: false, error: null, checked: null, scopeIds, activeId: null, request: 0, filterKind: "", filterPart: "",
+      view: { ...LAYER_VIEW_DEFAULTS },
+    });
+    void runLayerCheck(settings, scopeIds);
+  }, [closeClearanceCheck, closeLayerCheck, layerCheckTool, otherToolPanelOpen, runLayerCheck, selectedIds, selectedShapes, shapes]);
+  const changeLayerCheckSettings = useCallback((patch: Partial<LayerCheckSettings>) => {
+    if (!layerCheckTool) return;
+    const settings = { ...layerCheckTool.settings, ...patch };
+    writeLayerCheckSettings(settings);
+    void runLayerCheck(settings, layerCheckTool.scopeIds);
+  }, [layerCheckTool, runLayerCheck]);
+  /** A finding clicked: the layer view opens on its first layer, the camera goes to the place, the place is painted. */
+  const showLayerFinding = useCallback((finding: Finding) => {
+    setLayerCheckTool((current) => {
+      if (!current) return current;
+      const hasLayers = finding.layerFrom !== undefined;
+      return {
+        ...current,
+        activeId: finding.id,
+        request: current.request + 1,
+        view: hasLayers ? { ...current.view, open: true, playing: false, layer: finding.layerFrom ?? current.view.layer } : current.view,
+      };
+    });
+    const ids = [...new Set(finding.partIds.map((id) => topLevelIdHolding(shapesRef.current, id)).filter((id): id is string => Boolean(id)))];
+    if (ids.length && finding.layerFrom === undefined) setSelectedIds(ids);
+  }, []);
+  const layerCheckShown = useMemo(() => (layerCheckTool?.result
+    ? filterFindings(layerCheckTool.result.findings, { kinds: layerCheckTool.filterKind ? [layerCheckTool.filterKind] : null, partId: layerCheckTool.filterPart || null })
+    : []), [layerCheckTool?.filterKind, layerCheckTool?.filterPart, layerCheckTool?.result]);
+  const stepLayerFinding = useCallback((step: 1 | -1) => {
+    const next = stepFinding(layerCheckShown, layerCheckTool?.activeId ?? null, step);
+    if (next) showLayerFinding(next);
+  }, [layerCheckShown, layerCheckTool?.activeId, showLayerFinding]);
+  // A finding's tool: its parts are selected first, the tool opens once the selection is there.
+  const [pendingFindingAction, setPendingFindingAction] = useState<Finding["action"] | null>(null);
+  const runLayerFindingAction = useCallback((finding: Finding) => {
+    const ids = [...new Set(finding.partIds.map((id) => topLevelIdHolding(shapesRef.current, id)).filter((id): id is string => Boolean(id)))];
+    if (!ids.length || !finding.action) return;
+    setSelectedIds(ids);
+    setPendingFindingAction(finding.action);
+  }, []);
+  useEffect(() => {
+    if (!pendingFindingAction) return;
+    const action = pendingFindingAction;
+    setPendingFindingAction(null);
+    if (action === "dropToPlate") dropSelectedToWorkplane();
+    else if (action === "layFlat") {
+      closeLayerCheck();
+      toggleLayFlat();
+    } else if (action === "supportRib") {
+      closeLayerCheck();
+      toggleSupportRib();
+    }
+  }, [closeLayerCheck, dropSelectedToWorkplane, pendingFindingAction, toggleLayFlat, toggleSupportRib]);
+  const changeLayerView = useCallback((patch: Partial<LayerViewState>) => {
+    setLayerCheckTool((current) => current ? { ...current, view: { ...current.view, ...patch } } : current);
+  }, []);
+  /** What the 3D view draws for the layer view: the cut, the layer's cross-section, the places found and the shadow. */
+  const layerView = useMemo<LayerView | null>(() => {
+    const tool = layerCheckTool;
+    const result = tool?.result;
+    if (!tool || !result || layerCheckStale || !tool.view.open || !result.layers.length) return null;
+    const count = result.layers.length;
+    const layer = Math.min(count, Math.max(1, tool.view.layer));
+    const shownLayer = result.layers[layer - 1];
+    const from = Math.min(layer, Math.max(1, tool.view.from));
+    const bottom = tool.view.mode === "only" ? shownLayer.bottom : tool.view.mode === "range" ? result.layers[from - 1].bottom : null;
+    const marks: LayerView["marks"] = [];
+    for (const finding of layerCheckShown) {
+      if (!finding.regions?.length || finding.layerFrom === undefined || finding.layerTo === undefined) continue;
+      if (layer < finding.layerFrom || layer > finding.layerTo) continue;
+      // The outline kept nearest this layer (a long finding keeps every few layers' outline only).
+      const region = finding.regions.reduce((best, here) => (Math.abs(here.layer - layer) < Math.abs(best.layer - layer) ? here : best));
+      marks.push({ z: shownLayer.top + 0.004, polygons: region.polygons, level: finding.level, active: finding.id === tool.activeId });
+    }
+    marks.sort((a, b) => Number(a.active) - Number(b.active));
+    const ghost: LayerView["ghost"] = [];
+    if (tool.view.ghost) {
+      const every = Math.max(1, Math.round(count / 80));
+      for (let index = layer; index < count; index += every) ghost.push({ z: result.layers[index].top, polygons: result.outlines[index] ?? [] });
+    }
+    const active = result.findings.find((finding) => finding.id === tool.activeId);
+    return {
+      top: shownLayer.top,
+      bottom,
+      cap: { z: shownLayer.top, polygons: result.outlines[layer - 1] ?? [] },
+      marks,
+      ghost,
+      focus: active?.layerFrom !== undefined ? active.box : null,
+      request: active?.layerFrom !== undefined ? tool.request : 0,
+    };
+  }, [layerCheckShown, layerCheckStale, layerCheckTool]);
+  useEffect(() => () => layerCheckAbortRef.current?.abort(), []);
+  useEffect(() => {
+    if (otherToolPanelOpen) closeLayerCheck();
+  }, [closeLayerCheck, otherToolPanelOpen]);
+  useEffect(() => {
+    if (clearanceTool) closeLayerCheck();
+  }, [clearanceTool, closeLayerCheck]);
+
 
   /** The threshold only moves the line between too tight and fine; the switch for separate parts checks again. */
   const changeClearanceSettings = useCallback((patch: Partial<ClearanceSettings>) => {
@@ -16682,6 +17379,8 @@ export function LayerlingEditor({
       if (!single.hole && !isNonSolidShapeKind(single.kind)) {
         edges.push({ key: "faceTool", label: t("faceTool.title"), onSelect: toggleFaceTool });
         surface.push({ key: "holePattern", label: t("holePattern.title"), onSelect: toggleHolePattern });
+        surface.push({ key: "threadInsert", label: t("threadInsert.title"), onSelect: () => toggleThreadInsert() });
+        surface.push({ key: "magnetPocket", label: t("magnetPocket.title"), onSelect: () => toggleThreadInsert("magnet") });
         if (!isSupportRib(single)) surface.push({ key: "supportRib", label: t("supportRib.title"), onSelect: toggleSupportRib });
       }
     }
@@ -16860,6 +17559,12 @@ export function LayerlingEditor({
         mateFacesActive={Boolean(mateTool)}
         onHolePattern={toggleHolePattern}
         holePatternActive={Boolean(holePatternTool)}
+        onLayerCheck={toggleLayerCheck}
+        layerCheckActive={Boolean(layerCheckTool)}
+        onThreadInsert={() => toggleThreadInsert("insert")}
+        threadInsertActive={threadInsertTool?.kind === "insert"}
+        onMagnetPocket={() => toggleThreadInsert("magnet")}
+        magnetPocketActive={threadInsertTool?.kind === "magnet"}
         onSupportRib={toggleSupportRib}
         supportRibActive={Boolean(supportRibTool)}
         canHolePattern={selectedShapes.length === 1 && Boolean(selectedShape && !selectedShape.locked && !selectedShape.hole && !isNonSolidShapeKind(selectedShape.kind))}
@@ -17141,6 +17846,17 @@ export function LayerlingEditor({
           />
         ) : (
           <WorkplaneViewport
+          threadInsertPreview={threadInsertFaceCurrent && threadInsertTool?.face && threadInsertSizeSpec ? {
+            origin:threadInsertTool.face.workplane.origin,
+            normal:threadInsertTool.face.workplane.normal,
+            diameter:threadInsertSizeSpec.d3,
+            allowed:Boolean(threadInsertResult?.allowed),
+            ...(magnetTool && magnetPocketBoth && magnetPartner.state === "found" ? { partner: { origin: magnetPartner.face.workplane.origin, normal: magnetPartner.face.workplane.normal, allowed: Boolean(magnetPartnerResult?.allowed) } } : {})
+          }:null}
+          threadInsertCenter={threadInsertCenter}
+          onBoltSplit={selectedShapes.length === 1 && selectedShape && boltSplitFits(selectedShape) && !historyViewState ? (pins, filament) => void splitBoltForPrint(selectedShape.id, { pins, filament }) : undefined}
+          layerView={layerView}
+          onThreadInsertDragPick={threadInsertFaceCurrent && threadInsertTool?.face ? moveThreadInsertFace : undefined}
         onGimbalLayFlat={toggleLayFlat}
         onGimbalDrop={dropSelectedToWorkplane}
           projectName={projectName}
@@ -17243,7 +17959,9 @@ export function LayerlingEditor({
           onLayFlatPick={layFlatOnFace}
           onEditSurfaceText={toggleSurfaceText}
           onSurfaceTextDrag={onSurfaceTextDrag}
-          mateFacePick={surfaceTextTool
+          mateFacePick={threadInsertTool
+            ? { shapeIds: [threadInsertTool.sourceId] }
+            : surfaceTextTool
             ? { shapeIds: [...shapes.filter((shape) => !shape.hidden && shape.id !== surfaceTextTool.editingId && !isNonSolidShapeKind(shape.kind)).map((shape) => shape.id), SURFACE_TEXT_PREVIEW_ID], marker: "point" as const, dragId: SURFACE_TEXT_PREVIEW_ID }
             : mateTool && mateTool.step !== "ready"
             ? { shapeIds: mateTool.step === "source" ? [mateTool.sourceId] : shapes.filter((shape) => shape.id !== mateTool.sourceId && !shape.hidden).map((shape) => shape.id), round: mateTool.mode === "concentric" }
@@ -17286,7 +18004,7 @@ export function LayerlingEditor({
           onFacePullCancel={shellTool ? () => {
             shellPullFaceRef.current = null;
           } : cancelFacePull}
-          onMateFacePick={surfaceTextTool ? pickSurfaceText : mateTool ? pickMateFace : faceTool ? pickFaceToolFace : blendTool ? pickBlendFace : fillHoleTool ? pickFillHole : supportRibTool ? pickSupportRibFace : pickHolePatternFace}
+          onMateFacePick={threadInsertTool ? (pick) => void pickThreadInsertFace(pick) : surfaceTextTool ? pickSurfaceText : mateTool ? pickMateFace : faceTool ? pickFaceToolFace : blendTool ? pickBlendFace : fillHoleTool ? pickFillHole : supportRibTool ? pickSupportRibFace : pickHolePatternFace}
           cadFacePick={historyViewState ? null : cadFacePick}
           onCadFacePick={toggleDeleteFace}
           onNoteAdd={addNote}
@@ -17539,6 +18257,54 @@ export function LayerlingEditor({
           onCancel={() => setSimplifyToolId(null)}
         />
       ) : null}
+      {threadInsertTool?.kind === "magnet" && selectedShape?.id === threadInsertTool.sourceId ? (
+        <MagnetPocketPanel
+          targetName={displayShapeName(selectedShape)}
+          spec={magnetPocketSpec}
+          both={magnetPocketBoth}
+          partner={magnetPartner}
+          partnerResult={magnetPartnerResult}
+          result={threadInsertResult}
+          ready={threadInsertFaceCurrent}
+          busy={threadInsertTool.busy}
+          coordinates={threadInsertCoordinates}
+          centerAvailable={Boolean(threadInsertCenter)}
+          onSpec={setMagnetPocketSpec}
+          onBoth={setMagnetPocketBoth}
+          onCoordinates={moveThreadInsertByCoordinates}
+          onCenter={centerThreadInsertFace}
+          onRepick={() => {
+            threadInsertRunRef.current += 1;
+            setThreadInsertTool((tool) => (tool ? { ...tool, face: null } : tool));
+          }}
+          onApply={() => void applyThreadInsert()}
+          onCancel={closeThreadInsert}
+        />
+      ) : threadInsertTool && selectedShape?.id === threadInsertTool.sourceId ? (
+        <ThreadInsertPanel
+          targetName={displayShapeName(selectedShape)}
+          preset={threadInsertPreset}
+          customDiameter={threadInsertDiameter}
+          customLength={threadInsertLength}
+          spec={threadInsertSizeSpec}
+          result={threadInsertResult}
+          ready={threadInsertFaceCurrent}
+          busy={threadInsertTool.busy}
+          coordinates={threadInsertCoordinates}
+          centerAvailable={Boolean(threadInsertCenter)}
+          onPreset={setThreadInsertPreset}
+          onCustomDiameter={setThreadInsertDiameter}
+          onCustomLength={setThreadInsertLength}
+          onCoordinates={moveThreadInsertByCoordinates}
+          onCenter={centerThreadInsertFace}
+          onRepick={() => {
+            threadInsertRunRef.current += 1;
+            setThreadInsertTool((tool) => (tool ? { ...tool, face: null } : tool));
+          }}
+          onApply={() => void applyThreadInsert()}
+          onCancel={closeThreadInsert}
+        />
+      ) : null}
       {holePatternTool && selectedShape?.id === holePatternTool.sourceId ? (
         <HolePatternPanel
           targetName={displayShapeName(selectedShape)}
@@ -17548,14 +18314,24 @@ export function LayerlingEditor({
           thickness={holePatternTool.face?.thickness ?? 0}
           holeCount={holePatternPreview?.holes.length ?? 0}
           tooMany={Boolean(holePatternPreview?.tooMany)}
+          ring={holePatternPreview?.ring}
+          roundFace={Boolean(holePatternPreview?.roundFace)}
+          rack={holePatternPreview?.rack}
+          edgeCut={holePatternPreview?.edgeCut}
+          centerHole={holePatternPreview?.centerHole}
+          wall={holePatternTool.face && isRoundWallFace(holePatternTool.face) ? holePatternPreview?.wall ?? { diameter: holePatternTool.face.round.radius * 2, closed: holePatternTool.face.round.outline.closed } : undefined}
+          customChoices={holePatternCustomChoices(shapes, holePatternTool.sourceId).map((shape) => ({ id: shape.id, name: displayShapeName(shape) }))}
+          customIsHole={Boolean(holePatternCustom?.hole)}
           busy={holePatternTool.busy}
           onChange={changeHolePatternSettings}
           onRepick={() => {
+            holePatternPickRunRef.current += 1;
             setHolePatternTool({ ...holePatternTool, step: "pick", face: null });
             setNotice(t("status.holePatternStart"));
           }}
           onApply={() => void applyHolePattern()}
           onCancel={() => {
+            holePatternPickRunRef.current += 1;
             setHolePatternTool(null);
             setNotice(t("status.holePatternCancelled"));
           }}
@@ -17817,6 +18593,27 @@ export function LayerlingEditor({
           connectorsInvalid={splitConnectorPreview?.invalid.length ?? 0}
           connectorsTooSmall={Boolean(splitConnectorPreview?.tooSmall)}
           onClearConnectors={() => setSplitConnectorPoints([])}
+        />
+      ) : null}
+      {layerCheckTool ? (
+        <LayerCheckPanel
+          scope={!layerCheckTool.scopeIds
+            ? t("printCheck.scope.all")
+            : layerCheckTool.scopeIds.length === 1
+              ? shapes.find((shape) => shape.id === layerCheckTool.scopeIds?.[0])?.name ?? t("printCheck.scope.all")
+              : t("printCheck.scope.selection", { count: layerCheckTool.scopeIds.length })}
+          state={layerCheckTool}
+          workspace={workspaceSettings}
+          stale={layerCheckStale && !layerCheckTool.running}
+          onChange={changeLayerCheckSettings}
+          onCheck={() => void runLayerCheck(layerCheckTool.settings, layerCheckTool.scopeIds)}
+          onStop={stopLayerCheck}
+          onFinding={showLayerFinding}
+          onStep={stepLayerFinding}
+          onAction={runLayerFindingAction}
+          onFilter={(patch: { filterKind?: FindingKind | ""; filterPart?: string }) => setLayerCheckTool((current) => current ? { ...current, ...patch } : current)}
+          onView={changeLayerView}
+          onClose={closeLayerCheck}
         />
       ) : null}
       {clearanceTool ? (

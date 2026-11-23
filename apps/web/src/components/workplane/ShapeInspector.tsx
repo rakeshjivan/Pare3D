@@ -11,7 +11,7 @@ import { GuideHelpLink } from "@/components/GuideHelpLink";
 import { guideChapterForShape, guideSectionForShape } from "@/lib/guideLinks";
 import { useInspectorCard } from "@/lib/inspectorCards";
 import { worldBoxOfShapes } from "@/lib/scaleByPercent";
-import { ChevronDown, ChevronUp, Cylinder, Eye, EyeOff, FolderOpen, Grid3x3, Layers, Link2, Lock, Minus, Pencil, Plus, RefreshCw, RotateCcw, Shrink, Split, Tags, TrendingDown, Unlock } from "lucide-react";
+import { ChevronDown, ChevronUp, Cylinder, Eye, EyeOff, FolderOpen, Grid3x3, Layers, Link2, Lock, Minus, Pencil, Plus, RefreshCw, RotateCcw, Shrink, Split, Tags, TrendingDown, Unlock, Scissors } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
@@ -315,6 +315,7 @@ import { gridfinityLabelColor } from "@/lib/gridfinityLetterColor";
 import { MAX_HINGE_ANGLE, MAX_HINGE_CLEARANCE, MAX_HINGE_KNUCKLES, MIN_HINGE_CLEARANCE, MIN_HINGE_KNUCKLES, hingePlan, minimumHingeDepth, normalizeHingeAngle, normalizeHingeClearance, normalizeHingeKnuckles, normalizeHingeLeafThickness, normalizeHingePinDiameter } from "@/lib/hingeGeometry";
 import { useLanguage } from "@/lib/useLanguage";
 import { usePrinterPlay } from "@/lib/usePrinterPlay";
+import { boltPinDiameter, boltSplitFits } from "@/lib/boltSplit";
 import { withPrinterPlay } from "@/lib/printerPlay";
 import { useMovablePanel, type MovablePanelOptions } from "@/lib/useMovablePanel";
 import { SelectionSizeCard } from "@/components/workplane/SelectionSizeCard";
@@ -3468,6 +3469,7 @@ export function ShapeInspector({
   onVaseAccessories,
   onGridfinityKeys,
   onGridfinitySplit,
+  onBoltSplit,
   onLayerText,
   onTextTags,
   onFixKeyringTab,
@@ -3503,6 +3505,8 @@ export function ShapeInspector({
   onGridfinityKeys?: () => void;
   /** Splits this baseplate into plates that fit the printer, with their keys (#1388). */
   onGridfinitySplit?: () => void;
+  /** A screw or threaded rod: split it lengthwise for printing, with centring pins (lib/boltSplit.ts). */
+  onBoltSplit?: (pins: boolean, filament: boolean) => void;
   /** Splits a text into layers, or builds a layered text again with new words, font or layers (#215). */
   onLayerText?: (patch: TextLayerPatch) => void;
   /** One tag like this text or stack per name, laid out in rows (#215). */
@@ -3533,6 +3537,9 @@ export function ShapeInspector({
   const singleColorPatch: Partial<WorkplaneShape> = canToggleGroupColors(shape) ? { multicolor: false } : {};
   const locked = Boolean(shape.locked);
   // A baseplate larger than the chosen printer's bed is offered the split (#1388), unless a single cell does not fit it either.
+  const [boltPins, setBoltPins] = useState(true);
+  const [boltFilament, setBoltFilament] = useState(false);
+  const boltSplit = onBoltSplit && boltSplitFits(shape) ? { pinDiameter: boltPinDiameter(shape) } : null;
   const splitPrinter = onGridfinitySplit ? printerPresetById(workspace.printer) : null;
   const gridfinitySplit = splitPrinter ? gridfinityPlateSplit({ ...shape, depth: shapeDepth(shape) }, splitPrinter) : null;
   // A calculation typed into a field (#180) is noted just before the field's change and rides
@@ -4259,6 +4266,26 @@ export function ShapeInspector({
             )}
             {tiltedMeasures && primaryProperties.some((property) => ["width", "length", "height"].includes(property.id)) ? (
               <p className="cylinder-wrap-hint">{t("prop.tiltedMeasures")}</p>
+            ) : null}
+            {boltSplit && onBoltSplit ? (
+              <>
+                <p className="cylinder-wrap-hint">{t("inspector.boltSplitHint")}</p>
+                <label className="check-property bolt-split-pins">
+                  <input type="checkbox" checked={boltPins} disabled={locked} data-testid="bolt-split-pins" onChange={(event) => setBoltPins(event.currentTarget.checked)} />
+                  <span>{t("inspector.boltSplitPins")}</span>
+                </label>
+                {boltPins ? (
+                  <label className="check-property bolt-split-filament">
+                    <input type="checkbox" checked={boltFilament} disabled={locked} data-testid="bolt-split-filament" onChange={(event) => setBoltFilament(event.currentTarget.checked)} />
+                    <span>{t("inspector.boltSplitFilament")}</span>
+                  </label>
+                ) : null}
+                {boltPins ? <p className="cylinder-wrap-hint">{boltFilament ? t("inspector.boltSplitFilamentHint") : t("inspector.boltSplitPinsHint", { diameter: boltSplit.pinDiameter.toLocaleString(numberLocale()) })}</p> : null}
+                <button className="inspector-action-button" type="button" disabled={locked} data-testid="bolt-split" onClick={() => onBoltSplit(boltPins, boltPins && boltFilament)}>
+                  <Scissors size={17} strokeWidth={2.5} />
+                  <span>{t("inspector.boltSplit")}</span>
+                </button>
+              </>
             ) : null}
             {shape.kind === "gridfinity" && gridfinityPlan({ ...shape, depth: shapeDepth(shape) }).swallowtail ? (
               <>
@@ -5871,6 +5898,8 @@ function RangeProperty({
   onInteractionActiveChange,
 }: RangePropertyConfig & { workspace: WorkplaneWorkspaceSettings; disabled?: boolean; onReset?: () => void; onDefault?: () => void; formula?: string; onFormula?: (text: string | null | undefined) => void; onInteractionActiveChange?: (active: boolean) => void }) {
   const holdInteraction = useInteractionHold(onInteractionActiveChange);
+  // A turn goes round: 216 typed is the same turn as -144, and the wheel carries on past 180.
+  const fullTurn = id === "rotateX" || id === "rotateY" || id === "rotateZ";
   const snapStepMm = useContext(SliderSnapContext);
   // Where a drag of the slider started, for the side a value inside the gap goes to.
   const sliderFromRef = useRef(0);
@@ -5927,7 +5956,7 @@ function RangeProperty({
     const nextModelValue = toModelValue(finiteNext);
     // The formula rides along with the value it set, in the same change; a plain number clears it.
     onFormula?.(Number.isFinite(next) ? formulaToRemember(draft) : null);
-    onChange(freePosition ? clamp(nextModelValue, -POSITION_TYPED_LIMIT, POSITION_TYPED_LIMIT) : allowsAboveSliderMax ? Math.max(min, nextModelValue) : clamp(nextModelValue, min, max));
+    onChange(fullTurn ? signedDegrees(nextModelValue) : freePosition ? clamp(nextModelValue, -POSITION_TYPED_LIMIT, POSITION_TYPED_LIMIT) : allowsAboveSliderMax ? Math.max(min, nextModelValue) : clamp(nextModelValue, min, max));
     onFormula?.(undefined);
     setEditing(false);
     holdInteraction(false);
@@ -5948,9 +5977,9 @@ function RangeProperty({
     const turned = wheelNextValue(current, direction, base, modifiers, shiftStep);
     // The wheel stops at the field's lower limit, also for the figure shown: it went on below it, into negative sizes, which the body
     // then kept at the limit and the field showed again as 0.01 only when it was left (#576, prmod3d).
-    const next = freePosition ? turned : Math.max(acrossGap(turned, current), controlMin);
+    const next = fullTurn ? signedDegrees(turned) : freePosition ? turned : Math.max(acrossGap(turned, current), controlMin);
     const nextModelValue = toModelValue(next);
-    onChange(freePosition ? clamp(nextModelValue, -POSITION_TYPED_LIMIT, POSITION_TYPED_LIMIT) : allowsAboveSliderMax ? Math.max(min, nextModelValue) : clamp(nextModelValue, min, max));
+    onChange(fullTurn ? signedDegrees(nextModelValue) : freePosition ? clamp(nextModelValue, -POSITION_TYPED_LIMIT, POSITION_TYPED_LIMIT) : allowsAboveSliderMax ? Math.max(min, nextModelValue) : clamp(nextModelValue, min, max));
     const shown = formatShown(freePosition || allowsAboveSliderMax ? next : clamp(next, controlMin, controlMax));
     // What is shown is the new starting point, so leaving the field keeps the exact value and does not read it again.
     openedWithRef.current = shown;

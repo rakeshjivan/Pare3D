@@ -4,6 +4,16 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 119,
+    items: [
+      "Print analysis (Arrange): checks every layer of your parts in one go and lists what could fail, such as overhangs, thin walls, floating parts or parts in the bed. Click a finding to see that layer.",
+      "Thread insert and Magnet pocket (Modify): click a spot on a part for a heat-set insert hole or a magnet pocket. A ring shows green where there is enough material.",
+      "Split a screw: a screw or threaded rod's settings can split it lengthwise to print lying down, with centring pins or pieces of filament.",
+      "Hole pattern brought up to date: holes round a cylinder's wall, a Mounting holes tab (corners, pairs, 19-inch rack), a hole in the middle, turned squares and hexagons, and a top layer in a second colour.",
+      "Rotation fields go past 180°, a fillet on a large round edge no longer dents the mesh, and a 3MF coloured at almost every point comes in as one body.",
+    ],
+  },
+  {
     build: 118,
     items: [
       "Gridfinity: a few hints in the baseplate settings now give the right sizes for the Large plate switch and the drawer limits.",

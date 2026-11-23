@@ -2137,3 +2137,361 @@ html[data-theme="dark"] .clearance-row.fine { border-left-color: #5fd47c; }
 /* Build 115 (from layerling): the corner radius dot, round and orange so it is not taken for the height. */
 .transform-handle.height-top.corner-radius { border-radius: 50%; background: #e0873a; border-color: #6b3a12; }
 .transform-handle.height-top.corner-radius:hover { background: #f0a35f; border-color: #6b3a12; }
+
+/* Ported from layerling (build 119): print analysis, thread insert and magnet pocket panels. */
+.magnet-pocket-panel .edge-modifier-field input[type="text"] {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 31px;
+  margin-top: 5px;
+  padding: 0 7px;
+  color: #533d26;
+  font: inherit;
+  font-weight: 600;
+  background: white;
+  border: 1px solid #c4ad96;
+  border-radius: 6px;
+}
+.print-check-show {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  color: #9f5508;
+  background: #fffdf9;
+  border: 1px solid #e3bd8f;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.print-check-show:hover:not(:disabled),
+.print-check-show[aria-pressed="true"] {
+  background: #fff1e0;
+  border-color: #e08a2c;
+}
+.print-check-show:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+html[data-theme="dark"] .shape-menu-item,
+html[data-theme="dark"] .top-action-body button,
+html[data-theme="dark"] .top-action-body .open-lyl-project-button,
+html[data-theme="dark"] .top-action-body .import-drop-zone,
+html[data-theme="dark"] .edge-modifier-target,
+html[data-theme="dark"] .edge-modifier-quick-actions button,
+html[data-theme="dark"] .edge-modifier-footer .secondary,
+html[data-theme="dark"] .edge-modifier-field select,
+html[data-theme="dark"] .magnet-pocket-panel .edge-modifier-field input[type="text"],
+html[data-theme="dark"] .split-axis-control button,
+html[data-theme="dark"] .split-position-value input,
+html[data-theme="dark"] .split-position-pick:not(.active),
+html[data-theme="dark"] .split-panel-footer .secondary {
+  color: #ddccb9;
+  background: #35281b;
+  border-color: #5e4c3a;
+}
+html[data-theme="dark"] .print-check-show {
+  color: #ffb866;
+  background: #35281b;
+  border-color: #7a5428;
+}
+html[data-theme="dark"] .print-check-show:hover:not(:disabled),
+html[data-theme="dark"] .print-check-show[aria-pressed="true"] {
+  background: #4a3217;
+  border-color: #c7772a;
+}
+.layer-check-progress {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 8px;
+  align-items: center;
+}
+.layer-check-progress .tool-status {
+  margin: 0;
+}
+.layer-check-progress progress {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 8px;
+  accent-color: #e8851a;
+}
+.layer-check-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+.layer-check-filters label,
+.layer-view-play label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: #6d5133;
+}
+.layer-check-filters select,
+.layer-view-play select {
+  min-width: 120px;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 12px;
+  color: #3a2816;
+  background: #fffdf9;
+  border: 1px solid #dccdb8;
+  border-radius: 6px;
+}
+.layer-check-row > .print-check-show {
+  align-self: flex-end;
+}
+.layer-check-row-main {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.layer-check-row-main > svg {
+  flex: none;
+  margin-top: 1px;
+  color: #c79a00;
+}
+.layer-check-row.problem .layer-check-row-main > svg {
+  color: #e5484d;
+}
+.layer-check-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.layer-check-row-level {
+  color: #867360;
+  font-size: 11px;
+}
+.layer-check-remedy {
+  color: #8a5a1c;
+}
+.layer-check-clear {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0 0;
+  color: #2f7d4a;
+  font-size: 12px;
+}
+.layer-check-note {
+  margin: 8px 0 0;
+  color: #867360;
+  font-size: 11px;
+  font-style: italic;
+}
+.layer-view-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.layer-view-steps {
+  display: flex;
+  gap: 4px;
+}
+.layer-view-steps button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  color: #6d5133;
+  background: #fffdf9;
+  border: 1px solid #dccdb8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.layer-view-steps button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.layer-view {
+  margin-top: 10px;
+}
+.layer-view-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #6d5133;
+}
+.layer-view-readout strong {
+  color: #3a2816;
+  font-size: 13px;
+}
+.layer-view-active {
+  padding: 1px 6px;
+  color: #5c4300;
+  background: #fbe9a6;
+  border-radius: 999px;
+}
+.layer-view-active.problem {
+  color: #7a1418;
+  background: #f9d0d1;
+}
+.layer-view-slider {
+  display: grid;
+  grid-template-columns: 22px 10px 1fr;
+  gap: 6px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+.layer-view-track {
+  position: relative;
+  width: 10px;
+  margin: 0 auto;
+  background: #ede5d6;
+  border-radius: 5px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.layer-view-track:focus-visible {
+  outline: 2px solid #e8851a;
+  outline-offset: 3px;
+}
+.layer-view-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: #8fb3e0;
+  border-radius: 0 0 5px 5px;
+}
+.layer-view-range {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  background: rgba(47, 95, 158, 0.25);
+  border-radius: 3px;
+}
+.layer-view-thumb {
+  position: absolute;
+  left: -6px;
+  width: 22px;
+  height: 12px;
+  background: #fffdf9;
+  border: 2px solid #2f5f9e;
+  border-radius: 6px;
+  pointer-events: none;
+}
+.layer-view-marks {
+  position: relative;
+}
+.layer-view-mark {
+  position: absolute;
+  left: 0;
+  width: 10px;
+  padding: 0;
+  background: #f2c230;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.layer-view-mark.problem {
+  background: #e5484d;
+}
+.layer-view-mark.active {
+  box-shadow: 0 0 0 2px #2f5f9e;
+}
+.layer-view-chart {
+  width: 100%;
+  background: #fbf8f3;
+  border: 1px solid #ede5d6;
+  border-radius: 6px;
+  cursor: crosshair;
+}
+.layer-view-chart path {
+  fill: rgba(47, 95, 158, 0.28);
+  stroke: #2f5f9e;
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+.layer-view-chart line {
+  stroke: #e8851a;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.layer-view-from {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.layer-view-play {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin: 8px 0;
+}
+html[data-theme="dark"] .layer-check-row-level,
+html[data-theme="dark"] .layer-check-note,
+html[data-theme="dark"] .layer-view-readout,
+html[data-theme="dark"] .layer-check-filters label,
+html[data-theme="dark"] .layer-view-play label {
+  color: #bfa98f;
+}
+html[data-theme="dark"] .layer-check-remedy {
+  color: #f0b46c;
+}
+.tool-plain-section > strong {
+  display: block;
+  margin-bottom: 6px;
+}
+html[data-theme="dark"] .layer-view-readout strong {
+  color: #ecdcc9;
+}
+html[data-theme="dark"] .layer-check-filters select,
+html[data-theme="dark"] .layer-view-play select,
+html[data-theme="dark"] .layer-view-steps button {
+  color: #ecdcc9;
+  background: #35281b;
+  border-color: #6a5440;
+}
+html[data-theme="dark"] .layer-view-track {
+  background: #53412f;
+}
+html[data-theme="dark"] .layer-view-chart {
+  background: #2f2418;
+  border-color: #53412f;
+}
+html[data-theme="dark"] .layer-view-chart path {
+  fill: rgba(143, 179, 224, 0.3);
+  stroke: #8fb3e0;
+}
+.hole-pattern-panel .hole-pattern-modes .shell-opening-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.hole-pattern-mounting-title strong {
+  font-size: 12px;
+}
+.hole-pattern-mounting-note {
+  margin: 4px 0 8px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+.hole-pattern-layer-color input[type="color"] {
+  width: 44px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}

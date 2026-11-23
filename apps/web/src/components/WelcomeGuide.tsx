@@ -23,6 +23,7 @@ const MORE = [
   ["welcome.moreLibraryTitle", "welcome.moreLibraryBody"],
   ["welcome.morePatternTitle", "welcome.morePatternBody"],
   ["welcome.moreHolePatternTitle", "welcome.moreHolePatternBody"],
+  ["welcome.moreThreadInsertTitle", "welcome.moreThreadInsertBody"],
   ["welcome.moreBundleTitle", "welcome.moreBundleBody"],
   ["welcome.moreWorkplaneTitle", "welcome.moreWorkplaneBody"],
   ["welcome.morePlaceTitle", "welcome.morePlaceBody"],

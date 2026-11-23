@@ -3,7 +3,10 @@ import { bedOverhangs, shapeBedFootprint, shapeVerticalExtent } from "@/lib/prin
 import { overhangDownwardLimit } from "@/lib/overhangLimits";
 import { shapeBelowBed } from "@/lib/cutBelowBed";
 import { isNonSolidShapeKind, shapeDepth, shapeWidth } from "@/lib/workplaneShapes";
-import type { MeshData } from "@/lib/editorMeshCore";
+import { meshForShape, type MeshData } from "@/lib/editorMeshCore";
+import { weldOnGrid } from "@/lib/gridWeld";
+import { displayShapeName } from "@/lib/shapeCatalog";
+import type { ClearanceBox } from "@/lib/clearanceCheck";
 import type { WorkplaneShape } from "@/types/layerling";
 
 /*
@@ -124,4 +127,57 @@ export function checkForPrinting(shapes: readonly WorkplaneShape[], options: Opt
   const hidden = visible.filter((shape) => shape.hidden && !shape.hole);
   if (hidden.length) issues.push({ kind: "hidden", level: "advice", ...named(hidden) });
   return issues;
+}
+
+export type PrintCheckOpenMesh = { id: string; name: string; openEdges: number; nonManifoldEdges: number; box: ClearanceBox };
+
+const OPEN_EDGE_SHIFT = 2 ** 26;
+/** Open edges (one face only) and edges with more than two faces of an indexed mesh. */
+function meshEdgeReport(indices: Uint32Array) {
+  const count = new Map<number, number>();
+  for (let t = 0; t < indices.length; t += 3) {
+    for (let k = 0; k < 3; k += 1) {
+      const a = indices[t + k], b = indices[t + ((k + 1) % 3)];
+      const key = a < b ? a * OPEN_EDGE_SHIFT + b : b * OPEN_EDGE_SHIFT + a;
+      count.set(key, (count.get(key) ?? 0) + 1);
+    }
+  }
+  let openEdges = 0, nonManifoldEdges = 0;
+  count.forEach((c) => {
+    if (c === 1) openEdges += 1;
+    else if (c > 2) nonManifoldEdges += 1;
+  });
+  return { openEdges, nonManifoldEdges };
+}
+
+/**
+ * Edges that one triangle uses (the surface is open there) and edges that three or more share, for every checked
+ * object that is a mesh: an import, or what a cut made of one. The editor's own shapes are closed. Counted as the
+ * surface texture counts them (surfaceMeshReport), on corners joined where they lie within a ten-thousandth of a
+ * millimetre, by number (weldOnGrid): text keys took close to a second for 200,000 triangles.
+ */
+export function printCheckOpenMeshes(shapes: readonly WorkplaneShape[]): PrintCheckOpenMesh[] {
+  const found: PrintCheckOpenMesh[] = [];
+  for (const shape of shapes) {
+    if (!shape.importedMesh) continue;
+    const mesh = meshForShape(shape);
+    if (!mesh.faces.length) continue;
+    const { ids, count } = weldOnGrid(mesh.vertices, 1e-4);
+    const corners: number[] = [];
+    for (const [a, b, c] of mesh.faces) {
+      // A triangle folded onto a line has no edges of its own.
+      if (ids[a] !== ids[b] && ids[b] !== ids[c] && ids[c] !== ids[a]) corners.push(ids[a], ids[b], ids[c]);
+    }
+    const report = meshEdgeReport(Uint32Array.from(corners));
+    if (!report.openEdges && !report.nonManifoldEdges) continue;
+    const box: ClearanceBox = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+    for (const vertex of mesh.vertices) {
+      for (let axis = 0; axis < 3; axis += 1) {
+        box.min[axis] = Math.min(box.min[axis], vertex[axis]);
+        box.max[axis] = Math.max(box.max[axis], vertex[axis]);
+      }
+    }
+    found.push({ id: shape.id, name: displayShapeName(shape), openEdges: report.openEdges, nonManifoldEdges: report.nonManifoldEdges, box });
+  }
+  return found;
 }
