@@ -2609,3 +2609,56 @@ html[data-theme="dark"] .property-card:has(> .property-card-header[aria-controls
   html[data-theme="dark"] .action-icon-button.command-search-field { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); color: #c4ccd6; }
   html[data-theme="dark"] .command-search-field .command-search-keys { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.16); }
 }
+
+/* Build 124: visual clean-up. Quiet group frames and grey labels (colour kept for what is active), one icon weight,
+   tools waiting for a selection readable instead of nearly invisible, bigger buttons on the panel title row. */
+/* 1. Groups: one quiet frame and a grey label, so colour is left for what is active or selected. */
+.toolbar-section-label {
+  color: #7a8490 !important;
+  font: 600 10.5px/1.2 var(--font-ui) !important;
+  letter-spacing: 0.05em;
+}
+.toolbar-section-tools {
+  border-color: rgba(20, 30, 45, 0.1) !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+/* 2. One icon weight across the toolbar and the left camera bar. */
+.toolbar-section svg,
+.workplane-camera-controls svg,
+.view-controls svg {
+  stroke-width: 1.9px;
+}
+
+/* 3. Usable tools read dark; waiting tools stay visible as tools, clearly lighter and flat. */
+.toolbar-icon { color: #2b3139; }
+.toolbar-icon.disabled,
+.toolbar-icon:disabled {
+  opacity: 1 !important;
+  color: #5d6670 !important;
+}
+/* One fade whatever colours an icon is drawn in (Pare's own icons carry their own). */
+.toolbar-icon.disabled svg,
+.toolbar-icon:disabled svg {
+  opacity: 0.4 !important;
+  filter: grayscale(1);
+}
+.toolbar-icon:not(:disabled):not(.disabled):hover { background: rgba(20, 30, 45, 0.06); }
+.toolbar-icon.active,
+.toolbar-icon[aria-pressed="true"] {
+  background: rgba(26, 115, 232, 0.1) !important;
+  color: #1a5fc4 !important;
+  box-shadow: inset 0 0 0 1px rgba(26, 115, 232, 0.35) !important;
+}
+
+/* 4. The small buttons on the panel's title row: bigger to hit, same look. */
+.shape-inspector-header button,
+.inspector-header-actions button,
+.shape-inspector .inspector-title-actions button {
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+}
+.shape-inspector-header button:hover,
+.inspector-header-actions button:hover { background: rgba(20, 30, 45, 0.06); }

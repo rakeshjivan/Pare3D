@@ -4,6 +4,14 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 124,
+    items: [
+      "A cleaner toolbar: tools that wait for a selection are now a readable grey instead of nearly invisible, so you can see what is there and what you can use right now.",
+      "Toolbar groups have one quiet frame and a grey label instead of a colour each, so the tool that is on (shown in blue) stands out.",
+      "The small buttons on the settings panel's title row (help, lock, shield, eye) are bigger and easier to hit.",
+    ],
+  },
+  {
     build: 123,
     items: [
       "A new Print group in the toolbar holds everything for getting a design ready to print: Print check, Print analysis, Check clearance, Build plates and Cut below the bed. Arrange is now only for placing parts, and Mesh only for meshes.",
