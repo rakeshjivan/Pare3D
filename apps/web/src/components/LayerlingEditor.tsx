@@ -2899,11 +2899,10 @@ export function LayerlingEditor({
   const [topPanel, setTopPanel] = useState<TopPanel>(null);
   const themePreferenceRef = useRef(themePreference);
   themePreferenceRef.current = themePreference;
-  // The editor stays mounted behind the start page, so this follows whether it is on screen.
+  // Build 125: the editor follows the chosen theme (Light, Dark or the Mac's own) instead of always being light.
   useEffect(() => {
     if (!editorOpen) return;
-    applyAppTheme("light");
-    return () => applyAppTheme(themePreferenceRef.current);
+    applyAppTheme(themePreferenceRef.current);
   }, [editorOpen]);
   useEffect(() => {
     if (editorOpen) setViewLook("plate");

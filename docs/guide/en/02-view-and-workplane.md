@@ -123,7 +123,7 @@ The cogwheel in the ribbon ({{ui:editor.workspaceSettings}}) opens the settings.
 
 ### Appearance: theme, toolbar and view cube
 
-{{ui:workspace.theme}} sets the colour scheme of the whole program: {{ui:workspace.themeSystem}} follows your computer, the others are {{ui:workspace.themeLight}}, {{ui:workspace.themeDark}} and {{ui:workspace.themeGraphite}}. You can also change it at the top right of the editor.
+{{ui:workspace.theme}} sets the colour scheme of the whole program: {{ui:workspace.themeLight}}, {{ui:workspace.themeDark}} (charcoal panels, a graphite view and a grey grid, as in desktop CAD programs) or {{ui:workspace.themeSystem}}, which follows your computer's own light or dark setting. The start page has the same choice.
 
 {{ui:workspace.toolbarSize}} makes the buttons of the ribbon on top, its shape menu, the camera controls on the left and the properties panel on the right smaller or larger: {{ui:workspace.toolbarSizeSmall}}, {{ui:workspace.toolbarSizeMedium}} (as it always was) or {{ui:workspace.toolbarSizeLarge}}. Small leaves more room for the workplane on a laptop; large is easier to hit on a big screen or with a finger. With large buttons the groups of the ribbon go onto a second row when the window is too narrow for them. The size is kept in this browser and holds for every design.
 

@@ -27,10 +27,7 @@ export function HelpMenu({
   onShortcuts: () => void;
   onInteractiveHelp: () => void;
 }) {
-  const language = useLanguage();
   const [open, setOpen] = useState(false);
-  const [toolNames, setToolNamesState] = useState(false);
-  useEffect(() => setToolNamesState(readToolNames()), [open]);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -47,10 +44,6 @@ export function HelpMenu({
       window.removeEventListener("keydown", onKey);
     };
   }, [open]);
-  const pick = (action: () => void) => () => {
-    setOpen(false);
-    action();
-  };
   return (
     <div className="help-menu" ref={rootRef}>
       <button
@@ -68,6 +61,34 @@ export function HelpMenu({
       </button>
       {open ? (
         <div className="help-menu-list" role="menu" aria-label={t("helpMenu.title")}>
+          <HelpMenuItems onClose={() => setOpen(false)} onGuide={onGuide} onShortcuts={onShortcuts} onInteractiveHelp={onInteractiveHelp} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Build 125: Help's items, shared by the Help button and the top row's More menu. */
+export function HelpMenuItems({
+  onClose,
+  onGuide,
+  onShortcuts,
+  onInteractiveHelp,
+}: {
+  onClose: () => void;
+  onGuide: () => void;
+  onShortcuts: () => void;
+  onInteractiveHelp: () => void;
+}) {
+  const language = useLanguage();
+  const [toolNames, setToolNamesState] = useState(false);
+  useEffect(() => setToolNamesState(readToolNames()), []);
+  const pick = (action: () => void) => () => {
+    onClose();
+    action();
+  };
+  return (
+    <>
           <button type="button" role="menuitem" onClick={pick(onGuide)}>
             <BookOpen size={17} aria-hidden="true" />
             <span><strong>{t("editor.guide")}</strong><small>{t("helpMenu.guideHint")}</small></span>
@@ -100,21 +121,19 @@ export function HelpMenu({
             <MessageSquareHeart size={17} aria-hidden="true" />
             <span><strong>{t("feedback.title")}</strong><small>{t("helpMenu.feedbackHint")}</small></span>
           </button>
-          <a role="menuitem" href={guideHref(language)} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
+          <a role="menuitem" href={guideHref(language)} target="_blank" rel="noreferrer" onClick={() => onClose()}>
             <LibraryBig size={17} aria-hidden="true" />
             <span><strong>{t("dashboard.userGuide")}</strong><small>{t("helpMenu.userGuideHint")}</small></span>
           </a>
           {/* Build 108: what the footer band held (it is gone) - the source a click away, as AGPL-3.0 section 13 asks. */}
-          <a role="menuitem" href={SOURCE_CODE_URL} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
+          <a role="menuitem" href={SOURCE_CODE_URL} target="_blank" rel="noreferrer" onClick={() => onClose()}>
             <Code2 size={17} aria-hidden="true" />
             <span><strong>{t("home.openSource")}</strong><small>{t("helpMenu.openSourceHint")}</small></span>
           </a>
-          <a role="menuitem" href={guideHref(language).replace(/[^/]*$/, "licences-and-credits.html")} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
+          <a role="menuitem" href={guideHref(language).replace(/[^/]*$/, "licences-and-credits.html")} target="_blank" rel="noreferrer" onClick={() => onClose()}>
             <ScrollText size={17} aria-hidden="true" />
             <span><strong>{t("home.licences")}</strong><small>{t("helpMenu.licencesHint")}</small></span>
           </a>
-        </div>
-      ) : null}
-    </div>
+    </>
   );
 }

@@ -6,6 +6,7 @@
 html[data-look="studio"] .layerling-editor {
   --sl-page: #f3f4f6;
   --sl-bar: #ffffff;
+  --sl-card: #ffffff;
   --sl-line: #e3e6ea;
   --sl-line-soft: #eef0f3;
   --sl-text: #111827;
@@ -69,7 +70,7 @@ html[data-look="studio"] .layerling-editor .toolbar-workspace-tabs button::after
 html[data-look="studio"] .layerling-editor .toolbar-workspace-tabs button:hover { color: var(--sl-text) !important; }
 html[data-look="studio"] .layerling-editor .toolbar-workspace-tabs button.active {
   color: var(--sl-text) !important;
-  background: #ffffff !important;
+  background: var(--sl-card) !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
   font-weight: 600 !important;
 }
@@ -188,7 +189,7 @@ html[data-look="studio"] .layerling-editor .secondary-toolbar .shape-menu-trigge
 
 /* ---- The view: the cube and the camera bar as white floating cards. ---- */
 html[data-look="studio"] .layerling-editor .camera-controls {
-  background: #ffffff !important;
+  background: var(--sl-card) !important;
   border: 1px solid var(--sl-line) !important;
   border-radius: 12px !important;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
@@ -213,7 +214,7 @@ html[data-look="studio"] .layerling-editor .workplane-plane {
 /* The printer: a pill on the plate. */
 html[data-look="studio"] .layerling-editor .printer-picker {
   padding: 6px 16px 6px 12px;
-  background: #ffffff;
+  background: var(--sl-card);
   border-color: var(--sl-line);
   border-radius: 22px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
@@ -224,7 +225,7 @@ html[data-look="studio"] .layerling-editor .printer-picker:hover { border-color:
 /* ---- The shape's card: white, rounded, a soft shadow; Solid and Hole as two clear buttons. ---- */
 html[data-look="studio"] .layerling-editor .shape-inspector {
   color: var(--sl-text);
-  background: #ffffff !important;
+  background: var(--sl-card) !important;
   border: 1px solid var(--sl-line) !important;
   border-radius: 14px !important;
   box-shadow: var(--sl-shadow) !important;
@@ -243,7 +244,7 @@ html[data-look="studio"] .layerling-editor .shape-state-card {
 html[data-look="studio"] .layerling-editor .shape-state-card .solid-choice,
 html[data-look="studio"] .layerling-editor .shape-state-card .hole-choice {
   color: var(--sl-text) !important;
-  background: #ffffff !important;
+  background: var(--sl-card) !important;
   border: 1px solid var(--sl-line) !important;
   border-radius: 9px !important;
   box-shadow: none !important;
@@ -296,7 +297,7 @@ html[data-look="studio"] .layerling-editor .snap-units {
 html[data-look="studio"] .layerling-editor .snap-units button.active,
 html[data-look="studio"] .layerling-editor .snap-units button[aria-pressed="true"] {
   color: var(--sl-text) !important;
-  background: #ffffff !important;
+  background: var(--sl-card) !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
 }
 
@@ -320,7 +321,7 @@ html[data-look="studio"] .layerling-editor .shape-menu-dropdown.shape-menu-docke
   box-shadow: none !important;
 }
 html[data-look="studio"] .layerling-editor .shape-menu-dropdown.shape-menu-docked .shape-menu-item:hover {
-  background: #ffffff !important;
+  background: var(--sl-card) !important;
   border-color: color-mix(in srgb, var(--sl-accent) 45%, var(--sl-line)) !important;
 }
 html[data-look="studio"] .layerling-editor .shape-menu-dropdown.shape-menu-docked .shape-menu-item span:not(.shape-menu-thumb) {
@@ -333,3 +334,33 @@ html[data-look="studio"] .layerling-editor .shape-menu-dropdown .shape-menu-subt
   letter-spacing: 0.07em !important;
   text-transform: uppercase !important;
 }
+
+/* Build 125: the fresh look in the dark theme, in the manner of desktop CAD programs - charcoal bars, slightly lighter
+   floating cards, light grey type, the same teal accent a shade brighter so it reads on dark. */
+html[data-theme="dark"][data-look="studio"] .layerling-editor {
+  --sl-page: #1d2024;
+  --sl-bar: #23262b;
+  --sl-card: #2b2f35;
+  --sl-line: #3a4048;
+  --sl-line-soft: #30353c;
+  --sl-text: #e7eaee;
+  --sl-muted: #9aa3ad;
+  --sl-icon: #d5dae0;
+  --sl-disabled: #5d656e;
+  --sl-tile: #343941;
+  --sl-accent: #14a090;
+  --sl-accent-hover: #17b3a1;
+  --sl-accent-soft: rgba(20, 160, 144, 0.18);
+  --sl-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --icon-fill: #4a515a;
+  --icon-fill-strong: #69717b;
+}
+html[data-theme="dark"][data-look="studio"] .layerling-editor .toolbar-project-name-field,
+html[data-theme="dark"][data-look="studio"] .layerling-editor .toolbar-project-name-field input {
+  color: var(--sl-text) !important;
+  background: var(--sl-card) !important;
+  border-color: var(--sl-line) !important;
+}
+html[data-theme="dark"][data-look="studio"] .layerling-editor .printer-picker,
+html[data-theme="dark"][data-look="studio"] .layerling-editor .printer-picker * { color: var(--sl-text); }
+html[data-theme="dark"][data-look="studio"] .layerling-editor .printer-picker small { color: var(--sl-muted); }

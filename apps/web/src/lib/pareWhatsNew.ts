@@ -4,6 +4,15 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 125,
+    items: [
+      "Dark mode: Settings > Appearance > Theme offers Light, Dark or Same as my computer. Dark gives charcoal bars and panels, a graphite view with a grey grid and light type, in the manner of desktop CAD programs, and works with the Fresh look too.",
+      "A cleaner top row: the design name, Export, Import and Settings. Import is now a lighter green button beside Export.",
+      "Note, Attachments, Parameters, the search, Help and Simple mode moved into the ⋯ More button at the end of the top row. Their keys still work: N for a note, Ctrl/⌘K for the search, ? for the list of keys.",
+      "The folded toolbar groups (Mesh, Print and others) carry the same small tab with an arrow as Shapes.",
+    ],
+  },
+  {
     build: 124,
     items: [
       "A cleaner toolbar: tools that wait for a selection are now a readable grey instead of nearly invisible, so you can see what is there and what you can use right now.",

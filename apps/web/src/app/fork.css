@@ -2662,3 +2662,127 @@ html[data-theme="dark"] .property-card:has(> .property-card-header[aria-controls
 }
 .shape-inspector-header button:hover,
 .inspector-header-actions button:hover { background: rgba(20, 30, 45, 0.06); }
+
+/* Build 125: Import as a button beside Export, in a lighter green: the same shape and type, a pale green ground with
+   green text, so Export stays the main action. */
+.import-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 10px;
+  padding: 6px 14px;
+  color: color-mix(in srgb, var(--primary) 82%, #000);
+  background: color-mix(in srgb, var(--primary) 16%, #fff);
+  border: 1px solid color-mix(in srgb, var(--primary) 38%, #fff);
+  border-radius: 8px;
+  font: 600 12.5px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(20, 30, 45, 0.08);
+}
+.import-button svg { width: 16px; height: 16px; }
+.import-button:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 24%, #fff); }
+.import-button:disabled { opacity: 0.5; cursor: default; }
+/* The top row's actions sit without the group frame and label now. */
+.title-row-tools .toolbar-actions-section[data-group="manage"] > .toolbar-section-label { display: none; }
+.title-row-tools .toolbar-actions-section[data-group="manage"] .action-buttons { border: 0; background: transparent; box-shadow: none; }
+
+/* Build 125: the More menu at the end of the top row. */
+.top-more { position: relative; }
+.top-more-trigger { position: relative; }
+.top-more-trigger .attachments-indicator { position: absolute; top: 4px; right: 4px; }
+.top-more-menu { right: 0; left: auto; min-width: 300px; }
+.top-more-menu kbd.fold-menu-keys { margin-left: 6px; vertical-align: 1px; }
+.top-more-menu > button.active { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.top-more-divider {
+  margin: 6px 8px 2px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(20, 30, 45, 0.08);
+  font: 600 10.5px/1.3 var(--font-ui);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #7a8490;
+}
+.top-more-switches { padding: 4px 8px 6px; }
+
+/* Build 125: the folded groups (Mesh, Print, and any group folded on a narrow window) carry the same tab with a chevron
+   under them as Shapes does, turned up while the menu is open. */
+.toolbar-more-trigger { position: relative; }
+.toolbar-more-trigger .toolbar-fold-chevron { display: none; }
+.toolbar-more-trigger::before {
+  position: absolute;
+  z-index: 1;
+  bottom: -11px;
+  left: 50%;
+  width: 18px;
+  height: 11px;
+  content: "";
+  background-color: var(--primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 11'%3E%3Cpath d='M5.5 3.5 9 7l3.5-3.5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  border-radius: 0 0 6px 6px;
+  transform: translateX(-50%);
+  transition: transform 0.15s ease;
+}
+.toolbar-more-trigger[aria-expanded="true"]::before { transform: translateX(-50%) scaleY(-1); }
+.top-more-menu kbd.fold-menu-keys {
+  padding: 1px 5px;
+  font: 500 10.5px/1.4 var(--font-ui);
+  color: #6b7480;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+}
+.top-more-switches .simple-mode-switch { white-space: nowrap; }
+
+/* Build 125: dark mode, in the manner of desktop CAD programs - charcoal panels, a graphite view, light grey type and
+   a blue accent. Pare's own pieces (toolbar frames, Import, the menus' key caps, the More menu) follow it here. */
+html[data-theme="dark"] {
+  --pare-dark-chrome: #23262b;
+  --pare-dark-panel: #2b2f35;
+  --pare-dark-raised: #343941;
+  --pare-dark-border: #40464f;
+  --pare-dark-ink: #e3e6ea;
+  --pare-dark-muted: #99a2ac;
+}
+html[data-theme="dark"] .toolbar-section-tools {
+  background: var(--pare-dark-panel) !important;
+  border-color: var(--pare-dark-border) !important;
+}
+html[data-theme="dark"] .toolbar-section-label { color: var(--pare-dark-muted) !important; }
+html[data-theme="dark"] .toolbar-icon:not(.disabled):not(:disabled) { color: var(--pare-dark-ink); }
+html[data-theme="dark"] .toolbar-icon.disabled,
+html[data-theme="dark"] .toolbar-icon:disabled { color: #c6ccd3 !important; }
+html[data-theme="dark"] .toolbar-icon.disabled svg,
+html[data-theme="dark"] .toolbar-icon:disabled svg { opacity: 0.34 !important; }
+html[data-theme="dark"] .toolbar-icon:not(:disabled):not(.disabled):hover { background: rgba(255, 255, 255, 0.07); }
+html[data-theme="dark"] .toolbar-icon.active,
+html[data-theme="dark"] .toolbar-icon[aria-pressed="true"] {
+  background: rgba(76, 154, 255, 0.18) !important;
+  color: #8fc0ff !important;
+  box-shadow: inset 0 0 0 1px rgba(76, 154, 255, 0.5) !important;
+}
+html[data-theme="dark"] .import-button {
+  color: color-mix(in srgb, var(--primary) 45%, #fff);
+  background: color-mix(in srgb, var(--primary) 26%, var(--pare-dark-panel));
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--pare-dark-panel));
+}
+html[data-theme="dark"] .import-button:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 36%, var(--pare-dark-panel)); }
+html[data-theme="dark"] .fold-menu-keys,
+html[data-theme="dark"] .top-more-menu kbd.fold-menu-keys {
+  color: #c9d0d8;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+html[data-theme="dark"] .fold-menu-waiting,
+html[data-theme="dark"] .top-more-divider { color: var(--pare-dark-muted); border-top-color: rgba(255, 255, 255, 0.1); }
+html[data-theme="dark"] .workspace-toggle-copy { color: var(--pare-dark-ink); }
+html[data-theme="dark"] .workspace-toggle-copy small { color: var(--pare-dark-muted); }
+/* Build 125: the chosen way to make a sketch 3D (Pull up, Spin round, Follow a path) in the dark theme. */
+html[data-theme="dark"] .sketch-operation-choice .sketch-operation-button.active {
+  color: #fff !important;
+  background: color-mix(in srgb, var(--primary) 70%, #23262b) !important;
+  border-color: color-mix(in srgb, var(--primary) 80%, #fff) !important;
+}
+html[data-theme="dark"] .sketch-operation-choice .sketch-operation-button.active svg { color: #fff !important; stroke: currentColor; }

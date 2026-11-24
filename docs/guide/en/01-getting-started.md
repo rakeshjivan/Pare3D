@@ -28,7 +28,7 @@ All your designs appear on their studio's page with a preview picture. They are 
 - **In the middle** lies the workplane. This is where you place shapes, pull them into form and see the result.
 - **The settings of the selected shape** appear beside the panel: Solid or Hole, then folded sections - {{ui:inspector.properties}}, {{ui:inspector.position}}, {{ui:inspector.rotation}} and more. They start folded so the screen stays calm; click a heading to open it. One you open stays open while you work. Typing numbers is more exact than dragging.
 - **On the left** are the camera controls with the view cube above them. They move you around the scene, more in [View and workplane](chapter:view-and-workplane).
-- **At the very top** you switch between {{ui:editor.modeGeometry}} and {{ui:editor.modeSketch}}, rename the design, send it to Bambu Studio, open Help, switch Simple mode and choose the colour scheme.
+- **At the very top** you switch between {{ui:editor.modeGeometry}} and {{ui:editor.modeSketch}}, rename the design, {{ui:editor.export}} it, {{ui:editor.import}} a file and open {{ui:editor.workspaceSettings}}. The **⋯** button at the end holds the rest: a note, attachments, parameters, the search, Help and Simple mode.
 
 ## The buttons around the work area
 

@@ -196,20 +196,17 @@ export function workplaneThemePalette(
 ): WorkplaneThemePalette {
   // The background and the surface colour belong to the light theme; the dark
   // themes keep their own, so a light choice cannot spoil them.
-  if (theme === "dark" && palette === "graphite") {
+  // Pare 3D (build 125): every dark view is the neutral CAD one - a graphite background, a slightly lighter plate and a
+  // cool grey grid - not layerling's warm brown.
+  if (theme === "dark") {
     return {
-      sceneBackground: "#1e1e1e",
-      surface: { color: "#343434", opacity: 0.9 },
-      grid: workplaneGridPalette("dark", configuredGridColor, "graphite", configuredMajorColor),
+      sceneBackground: "#2a2d32",
+      surface: { color: "#383c43", opacity: 0.92 },
+      // The light theme's grid colours are chosen for a pale plate; the dark view keeps its own grey lines.
+      grid: workplaneGridPalette("dark", DEFAULT_WORKPLANE_GRID_COLOR, "graphite"),
     };
   }
-  return theme === "dark"
-    ? {
-        sceneBackground: "#141210",
-        surface: { color: "#332b16", opacity: 0.9 },
-        grid: workplaneGridPalette("dark", configuredGridColor, "default", configuredMajorColor),
-      }
-    : palette === "classic"
+  return palette === "classic"
       ? {
           sceneBackground: configuredBackground.toLowerCase() === DEFAULT_WORKPLANE_BACKGROUND ? (studioLookActive() ? STUDIO_LOOK_WORKPLANE : CLASSIC_WORKPLANE).background : configuredBackground,
           surface: {

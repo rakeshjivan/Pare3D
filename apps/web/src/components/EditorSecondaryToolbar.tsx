@@ -93,6 +93,7 @@ import { FORK_OVERFLOW_TOOLS, FORK_SHORT_LABELS_EN, FORK_TOOL_HINTS_EN, FORK_TOO
 import { Import, PaintBucket, ScanSearch, Scissors, Settings as LucideSettings, ShieldCheck, Spline, Squircle, Type, Variable } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { SimpleModeSwitch } from "@/components/SimpleModeSwitch";
+import { HelpMenuItems } from "@/components/HelpMenu";
 import { ViewLookSwitch } from "@/components/ViewLookSwitch";
 import { libraryShapeAssets, shapeAssetColor, shapeAssetLabel, shapeAssetMenuLabel } from "@/lib/shapeCatalog";
 import type { CadModifierKind } from "@/lib/cadModifierTypes";
@@ -250,6 +251,106 @@ export const SKETCH_PALETTE_ICONS = {
 const FOLD_ORDER = ["arrange", "combine", "clipboard", "history"] as const;
 /** Build 109: groups that are always one button with a drop-down - the mesh tools only work on an imported mesh. */
 const ALWAYS_FOLDED: readonly string[] = ["mesh", "print"];
+
+/**
+ * Build 125: the top row's less-used items in one menu, so the row holds the design name, Export, Import and Settings.
+ * Every item keeps its key (N for a note, Ctrl/Cmd+K for the search, ? for the key list).
+ */
+function TopMoreMenu({
+  noteMode,
+  historyViewActive,
+  attachmentCount,
+  interactiveHelpActive,
+  onNote,
+  onAttachments,
+  onParameters,
+  onSearch,
+  onGuide,
+  onShortcuts,
+  onInteractiveHelp,
+}: {
+  noteMode: boolean;
+  historyViewActive: boolean;
+  attachmentCount: number;
+  interactiveHelpActive: boolean;
+  onNote: () => void;
+  onAttachments: () => void;
+  onParameters: () => void;
+  onSearch: () => void;
+  onGuide: () => void;
+  onShortcuts: () => void;
+  onInteractiveHelp: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    const onResize = () => setOpen(false);
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
+  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const pick = (action: () => void) => () => {
+    setOpen(false);
+    action();
+  };
+  return (
+    <div className="help-menu top-more" ref={rootRef}>
+      <button
+        type="button"
+        className={`action-icon-button top-more-trigger ${open || interactiveHelpActive || noteMode ? "active" : ""}`}
+        aria-label={t("editor.moreMenu")}
+        title={t("editor.moreMenu")}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-help-exempt
+        data-layerling-tool="top-more"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <MoreHorizontal className="title-icon" aria-hidden="true" />
+        {attachmentCount > 0 ? <span className="attachments-indicator" aria-hidden="true" /> : null}
+      </button>
+      {open ? (
+        <div className="help-menu-list top-more-menu" role="menu" aria-label={t("editor.moreMenu")}>
+          <button type="button" role="menuitem" data-layerling-tool="note" className={noteMode ? "active" : ""} disabled={historyViewActive} onClick={pick(onNote)}>
+            <MessageSquareText size={17} aria-hidden="true" />
+            <span><strong>{t("editor.tool.note")} <kbd className="fold-menu-keys">{COMMAND_SHORTCUTS.note}</kbd></strong><small>{t("editor.moreNoteHint")}</small></span>
+          </button>
+          <button type="button" role="menuitem" data-layerling-tool="attachments" disabled={historyViewActive} onClick={pick(onAttachments)}>
+            <ToolbarAttachmentsIcon width={17} height={17} aria-hidden="true" />
+            <span><strong>{attachmentCount > 0 ? t("editor.attachmentsCount", { count: attachmentCount }) : t("editor.attachments")}</strong><small>{t("editor.moreAttachmentsHint")}</small></span>
+          </button>
+          <button type="button" role="menuitem" data-layerling-tool="parameters" disabled={historyViewActive} onClick={pick(onParameters)}>
+            <Variable size={17} aria-hidden="true" />
+            <span><strong>{t("parameters.title")}</strong><small>{t("editor.moreParametersHint")}</small></span>
+          </button>
+          <button type="button" role="menuitem" data-layerling-tool="command-search" onClick={pick(onSearch)}>
+            <Search size={17} aria-hidden="true" />
+            <span><strong>{t("palette.field")} <kbd className="fold-menu-keys">{mac ? "⌘K" : "Ctrl K"}</kbd></strong><small>{t("editor.moreSearchHint")}</small></span>
+          </button>
+          <div className="top-more-divider" role="presentation">{t("helpMenu.title")}</div>
+          <HelpMenuItems onClose={() => setOpen(false)} onGuide={onGuide} onShortcuts={onShortcuts} onInteractiveHelp={onInteractiveHelp} />
+          <div className="top-more-divider" role="presentation" />
+          <div className="top-more-switches">
+            <SimpleModeSwitch />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function SecondaryToolbar({
   toolbarMode,
@@ -1957,60 +2058,36 @@ export function SecondaryToolbar({
           {toolbarMode === "geometry" ? (
             <div className="title-row-tools">
               <ExportButton />
+            {/* Build 125: Import is a lighter green button beside Export; Settings keeps its place; the rest of the
+                top row (note, attachments, parameters, search, help, Simple mode) sits in one More menu. */}
+            <button className="import-button" type="button" data-layerling-tool="import" title={`${t("editor.import")} (${COMMAND_SHORTCUTS.import})`} onClick={() => onTopPanel("import")} disabled={historyViewActive}>
+              <Import aria-hidden="true" />
+              <span>{t("editor.import")}</span>
+            </button>
             <div className="toolbar-section toolbar-actions-section" data-group="manage">
-              <div className="toolbar-section-label">{t("editor.group.manage")}</div>
               <div className="action-buttons">
-                <button
-                  className={`action-icon-button ${noteMode ? "active" : ""}`}
-                  aria-label={t("editor.tool.note")}
-                  aria-pressed={noteMode}
-                  title={`${t("editor.tool.note")} (${COMMAND_SHORTCUTS.note})`}
-                  data-tip={topTip(t("editor.tool.note"), "pin a note to a spot on the design", COMMAND_SHORTCUTS.note)}
-                  onClick={onNoteTool}
-                  disabled={historyViewActive}
-                >
-                  <MessageSquareText className="title-icon" aria-hidden="true" />
-                  <span className="title-label" aria-hidden="true">{t("editor.tool.note")}</span>
-                </button>
-                <button className="action-icon-button" aria-label={t("editor.import")} title={`${t("editor.import")} (${COMMAND_SHORTCUTS.import})`} data-tip={topTip(t("editor.import"), "bring in STL, 3MF, STEP, SVG or images", COMMAND_SHORTCUTS.import)} onClick={() => onTopPanel("import")} disabled={historyViewActive}>
-                  <Import className="title-icon" aria-hidden="true" />
-                  <span className="title-label" aria-hidden="true">{t("editor.import")}</span>
-                </button>
-                {/* Layerling's attachments: files kept with the design (instructions, a README, a datasheet). */}
-                <button className={`action-icon-button ${(attachmentCount ?? 0) > 0 ? "has-attachments" : ""}`} aria-label={(attachmentCount ?? 0) > 0 ? t("editor.attachmentsCount", { count: attachmentCount ?? 0 }) : t("editor.attachments")} title={t("editor.attachments")} data-tip={topTip(t("editor.attachments"), "files kept with the design: instructions, notes, datasheets")} onClick={() => onTopPanel("attachments")} disabled={historyViewActive}>
-                  <ToolbarAttachmentsIcon className="title-icon" aria-hidden="true" />
-                  <span className="title-label" aria-hidden="true">{t("editor.attachments")}</span>
-                  {(attachmentCount ?? 0) > 0 ? <span className="attachments-indicator" aria-hidden="true" /> : null}
-                </button>
-                {/* Build 71: Export is the blue button beside these. */}
-                {/* Fork (build 37): the design's named values. */}
-                <button className="action-icon-button" aria-label={t("parameters.title")} title={t("parameters.title")} data-layerling-tool="parameters" data-tip={topTip(t("parameters.title"), "named sizes any field can use - change one, every part follows")} onClick={() => window.dispatchEvent(new Event(OPEN_PARAMETERS_EVENT))} disabled={historyViewActive}>
-                  <Variable className="title-icon" aria-hidden="true" />
-                  <span className="title-label" aria-hidden="true">{t("parameters.title")}</span>
-                </button>
                 <button className="action-icon-button" aria-label={t("editor.workspaceSettings")} title={t("editor.workspaceSettings")} data-tip={topTip(t("editor.workspaceSettings"), "units, grid, plate and appearance")} onClick={() => window.dispatchEvent(new Event("layerling:open-workspace-settings"))}>
                   <LucideSettings className="title-icon" aria-hidden="true" />
                   <span className="title-label" aria-hidden="true">{t("editor.settingsShort")}</span>
                 </button>
-              </div>
-            </div>
-            <div className="toolbar-section toolbar-actions-section" data-group="help">
-              <div className="toolbar-section-label">{t("editor.group.help")}</div>
-              <div className="action-buttons">
-                {/* Build 123: the command search as a field to click, with its key, not a bare magnifier. */}
-                <button className="action-icon-button command-search-field" aria-label={t("palette.open")} title={t("palette.open")} aria-haspopup="dialog" data-layerling-tool="command-search" onClick={openPalette}>
-                  <Search className="title-icon" aria-hidden="true" />
-                  <span className="command-search-text" aria-hidden="true">{t("palette.field")}</span>
-                  <kbd className="command-search-keys" aria-hidden="true">{typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "⌘K" : "Ctrl K"}</kbd>
-                </button>
-                {/* Fork: the quick guide, shortcuts, and Interactive Help in one menu. */}
-                <HelpMenu interactiveHelpActive={interactiveHelpActive} onGuide={onGuide} onShortcuts={onShortcuts} onInteractiveHelp={onInteractiveHelp} />
+                <TopMoreMenu
+                  noteMode={noteMode}
+                  historyViewActive={historyViewActive}
+                  attachmentCount={attachmentCount ?? 0}
+                  interactiveHelpActive={interactiveHelpActive}
+                  onNote={onNoteTool}
+                  onAttachments={() => onTopPanel("attachments")}
+                  onParameters={() => window.dispatchEvent(new Event(OPEN_PARAMETERS_EVENT))}
+                  onSearch={openPalette}
+                  onGuide={onGuide}
+                  onShortcuts={onShortcuts}
+                  onInteractiveHelp={onInteractiveHelp}
+                />
               </div>
             </div>
             </div>
           ) : null}
-          {/* Build 104: CAD Studio is always light on the plate - no look or theme switches here. */}
-          <SimpleModeSwitch />
+          {toolbarMode !== "geometry" ? <SimpleModeSwitch /> : null}
           <InstantTips />
         </div>
       </div>

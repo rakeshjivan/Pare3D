@@ -72,13 +72,18 @@ describe("workplane grid geometry", () => {
     expect(palette.major.opacity).toBeLessThan(palette.axis.opacity);
   });
 
-  it("draws the graphite canvas in neutral greys and keeps a custom grid colour", () => {
+  it("draws every dark view in the same cool CAD greys and keeps a custom grid colour", () => {
+    // Pare 3D (build 125): one dark view, the graphite of desktop CAD programs - grey with at most a slight blue cast,
+    // whichever dark palette is asked for, and never layerling's warm brown.
     const graphite = workplaneThemePalette("dark", "#f8fbfc", undefined, "graphite");
     const dark = workplaneThemePalette("dark", "#f8fbfc");
-    const neutral = (hex: string) => hex.slice(1, 3) === hex.slice(3, 5) && hex.slice(3, 5) === hex.slice(5, 7);
+    const coolGrey = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      return b >= r && Math.max(r, g, b) - Math.min(r, g, b) <= 12;
+    };
     [graphite.sceneBackground, graphite.surface.color, graphite.grid.minor.color, graphite.grid.major.color, graphite.grid.axis.color, graphite.grid.border.color]
-      .forEach((color) => expect(neutral(color)).toBe(true));
-    expect(graphite.grid.minor.color).not.toBe(dark.grid.minor.color);
+      .forEach((color) => expect(coolGrey(color)).toBe(true));
+    expect(dark).toEqual(graphite);
     expect(graphite.grid.minor.opacity).toBeLessThan(graphite.grid.major.opacity);
     expect(graphite.grid.major.opacity).toBeLessThan(graphite.grid.axis.opacity);
     expect(workplaneGridPalette("dark", "#c23b72", "graphite").minor.color).toBe("#c23b72");

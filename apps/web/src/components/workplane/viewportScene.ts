@@ -509,8 +509,10 @@ export function rebuildWorkplane(
     surface.receiveShadow = view.showShadows && !muted;
     group.add(surface);
 
-    const lineColor = muted ? plateTheme === "dark" ? "#76828a" : "#99a3aa" : darkPlate ? DEFAULT_WORKPLANE_GRID_COLOR : workspace.gridColor;
-    const majorLineColor = muted || darkPlate ? "" : workspace.gridMajorColor;
+    // The dark theme, like the dark plate, keeps its own grey grid rather than the light theme's chosen colours.
+    const ownGrid = darkPlate || theme === "dark";
+    const lineColor = muted ? plateTheme === "dark" ? "#76828a" : "#99a3aa" : ownGrid ? DEFAULT_WORKPLANE_GRID_COLOR : workspace.gridColor;
+    const majorLineColor = muted || ownGrid ? "" : workspace.gridMajorColor;
     if (outlineOnly) {
       group.add(createGridLines(
         workspace.width,

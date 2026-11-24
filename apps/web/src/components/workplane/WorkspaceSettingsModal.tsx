@@ -16,6 +16,7 @@ import { SettingsFileButtons } from "@/components/workplane/SettingsFileButtons"
 import { FileBackupSettingsSection } from "@/components/workplane/FileBackupSettingsSection";
 import { FilesSettings } from "@/components/FilesSettings";
 import { setStudioLook } from "@/lib/studioLook";
+import { getAppThemePreference, setAppTheme, subscribeToAppTheme } from "@/lib/appTheme";
 import { useStudioLook } from "@/lib/useStudioLook";
 import { createPortal } from "react-dom";
 import { HexColorInput, HexColorPicker } from "react-colorful";
@@ -598,6 +599,15 @@ export function WorkspaceSettingsModal({
     }
   };
   const studioLook = useStudioLook();
+  // Build 125: the theme, kept in step with the More menu's switch and the start page.
+  const [themeChoice, setThemeChoice] = useState<AppThemePreference>(() => {
+    const current = getAppThemePreference();
+    return current === "graphite" ? "dark" : current === "classic" ? "light" : current;
+  });
+  useEffect(() => subscribeToAppTheme(() => {
+    const current = getAppThemePreference();
+    setThemeChoice(current === "graphite" ? "dark" : current === "classic" ? "light" : current);
+  }), []);
   // A setting of this browser, not of the design: read when the window opens (#1386).
   const [startWithCornerRuler, setStartWithCornerRuler] = useState(readStartWithCornerRuler);
   const [startCornerRulerPlace, setStartCornerRulerPlace] = useState(readStartCornerRulerPlace);
@@ -914,7 +924,15 @@ export function WorkspaceSettingsModal({
                     checked={workspace.fastMode}
                     onChange={(fastMode) => patchWorkspace({ fastMode })}
                   />
-                  {/* Build 104: CAD Studio is always light - no theme here. */}
+                  {/* Build 125: Light, Dark (charcoal panels and a graphite view, as desktop CAD programs have) or the Mac's own. */}
+                  <label className="workspace-select theme-setting" data-help={t("workspace.theme")}>
+                    <span>{t("workspace.theme")}</span>
+                    <select value={themeChoice} onChange={(event) => setAppTheme(event.currentTarget.value as AppThemePreference)}>
+                      <option value="light">{t("workspace.themeLight")}</option>
+                      <option value="dark">{t("workspace.themeDark")}</option>
+                      <option value="system">{t("workspace.themeSystem")}</option>
+                    </select>
+                  </label>
                   <WorkspaceToggle
                     label={t("workspace.studioLook")}
                     description={t("workspace.studioLookHint")}
