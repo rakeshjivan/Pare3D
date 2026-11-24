@@ -4,6 +4,12 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 122,
+    items: [
+      "The toolbar's drop-down menus (Mesh, Arrange, Make, More and Visibility) use smaller text and shorter rows, so they take less room and are quicker to scan.",
+    ],
+  },
+  {
     build: 121,
     items: [
       "Smoother on Mac Retina screens: with Fast mode on (the default) the view now stays at standard resolution, as Fast mode intends. Before, it went back to full Retina sharpness after every move and while a new shape followed the mouse, four times the pixels to draw. For the sharpest picture, turn Fast mode off in Settings: the view still drops to standard resolution while anything moves.",

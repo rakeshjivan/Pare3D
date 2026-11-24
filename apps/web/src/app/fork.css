@@ -2538,3 +2538,20 @@ html[data-theme="dark"] .property-card:has(> .property-card-header[aria-controls
 html[data-theme="dark"] .property-card:has(> .property-card-header[aria-controls^="surface-texture-"]) .range-control input[type="range"]::-moz-range-track {
   background: rgba(255, 255, 255, 0.16);
 }
+
+/* Build 122: the toolbar's drop-down menus (Mesh, Arrange, Make, the More menus, Visibility) in the toolbar's own
+   small type, not the browser's 16 px button text: shorter rows and a narrower menu. */
+.visibility-dropdown .visibility-dropdown-action,
+.toolbar-fold-menu .visibility-dropdown-action,
+.mesh-dropdown .visibility-dropdown-action {
+  font: 500 13px/1.3 var(--font-ui);
+  min-height: 34px;
+  padding: 6px 10px;
+  gap: 8px;
+}
+.visibility-dropdown .visibility-dropdown-action strong { font-size: 13px; font-weight: 500; }
+.visibility-dropdown .visibility-dropdown-action svg,
+.toolbar-fold-menu .visibility-dropdown-action svg,
+.mesh-dropdown .visibility-dropdown-action svg { width: 17px; height: 17px; flex: 0 0 auto; }
+.mesh-dropdown, .toolbar-fold-menu { width: 250px; gap: 3px; }
+.visibility-dropdown-help { font-size: 11.5px; }
