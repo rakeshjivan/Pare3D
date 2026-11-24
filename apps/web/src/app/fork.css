@@ -2555,3 +2555,57 @@ html[data-theme="dark"] .property-card:has(> .property-card-header[aria-controls
 .mesh-dropdown .visibility-dropdown-action svg { width: 17px; height: 17px; flex: 0 0 auto; }
 .mesh-dropdown, .toolbar-fold-menu { width: 250px; gap: 3px; }
 .visibility-dropdown-help { font-size: 11.5px; }
+
+/* Build 123: a shortcut key beside a menu item, and the heading over the items that wait for a selection. */
+.toolbar-fold-menu .visibility-dropdown-action .fold-menu-keys {
+  margin-left: auto;
+  padding: 1px 5px;
+  font: 500 10.5px/1.4 var(--font-ui);
+  color: var(--muted-strong, #6b7480);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.toolbar-fold-menu .visibility-dropdown-action > span { flex: 1 1 auto; min-width: 0; }
+.toolbar-fold-menu .fold-menu-waiting {
+  margin: 6px 4px 1px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  font: 600 10.5px/1.3 var(--font-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #8a929c);
+}
+.toolbar-fold-menu .fold-menu-waiting:first-child { margin-top: 2px; padding-top: 2px; border-top: 0; }
+.toolbar-fold-menu .visibility-dropdown-action:disabled { opacity: 0.5; }
+.toolbar-folded-section[data-fold="print"] .toolbar-fold-menu { left: auto; right: 0; }
+
+/* Build 123: on a wide window the command search looks like a field to type in; narrower, it stays the magnifier. */
+.command-search-field .command-search-text, .command-search-field .command-search-keys { display: none; }
+@media (min-width: 1680px) {
+  .action-icon-button.command-search-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 168px;
+    padding: 4px 6px 4px 9px;
+    color: var(--muted-strong, #5b6673);
+    background: rgba(0, 0, 0, 0.035);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+  }
+  .action-icon-button.command-search-field:hover { border-color: rgba(0, 0, 0, 0.22); background: rgba(0, 0, 0, 0.05); }
+  .command-search-field .title-icon { width: 15px; height: 15px; }
+  .command-search-field .command-search-text { display: inline; flex: 1 1 auto; text-align: left; font: 500 12.5px/1.2 var(--font-ui); }
+  .command-search-field .command-search-keys {
+    display: inline;
+    padding: 1px 5px;
+    font: 500 10.5px/1.4 var(--font-ui);
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 4px;
+  }
+  html[data-theme="dark"] .action-icon-button.command-search-field { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); color: #c4ccd6; }
+  html[data-theme="dark"] .command-search-field .command-search-keys { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.16); }
+}

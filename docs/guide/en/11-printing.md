@@ -54,7 +54,7 @@ Sometimes you sink a part partly below the plate on purpose, to give a round or 
 
 ## Checking clearance
 
-Parts that should move after printing - a flexi dragon, a hinge printed in place, a box and its lid, an axle in its bore - need a gap between them. Too little, and they stick together; overlapping, they print as one piece. {{ui:editor.tool.clearance}}, at the end of {{ui:editor.group.arrange}}, checks that before you print. It takes the selected objects, or every visible object when nothing is selected (the same ones an export takes), and checks each pair:
+Parts that should move after printing - a flexi dragon, a hinge printed in place, a box and its lid, an axle in its bore - need a gap between them. Too little, and they stick together; overlapping, they print as one piece. {{ui:editor.tool.clearance}}, in the {{ui:editor.group.print}} group, checks that before you print. It takes the selected objects, or every visible object when nothing is selected (the same ones an export takes), and checks each pair:
 
 - **{{ui:clearance.kind.overlap}}** (red): the two share a volume. It shows red inside the bodies, which turn see-through, and the list says how large it is.
 - **{{ui:clearance.kind.touching}}** (red): they touch and fuse when printed.
@@ -167,7 +167,7 @@ From then on, new uses start from the play instead of the built-in value: {{ui:l
 
 ## Checking the print
 
-{{ui:editor.tool.printCheck}}, next to {{ui:editor.tool.clearance}} in {{ui:editor.group.combine}}, looks at the selected objects, or at every visible object when nothing is selected, and says in one window what would go wrong when printing. Each of its five lines is green when it found nothing, and orange with what and where when it did:
+{{ui:editor.tool.printCheck}}, in the {{ui:editor.group.print}} group with {{ui:editor.tool.clearance}}, looks at the selected objects, or at every visible object when nothing is selected, and says in one window what would go wrong when printing. Each of its five lines is green when it found nothing, and orange with what and where when it did:
 
 - **{{ui:printCheck.thin.title}}**: places thinner than two lines of the nozzle - 0.8 mm with a 0.4 mm nozzle. The slicer leaves such a wall out or prints it as one weak line. Choose your nozzle under {{ui:printCheck.nozzle}} at the top of the window (0.2 to 0.8 with one click, any other in the field). The thin places are painted red with a light grid on the bodies, and the line names the thinnest place and how much surface is too thin. Places smaller than 1 mm² and sharp edges, such as the edge of a wedge, are left out.
 - **{{ui:printCheck.floating.title}}**: a body, or a separate part of one, that touches neither the plate nor another part (within 0.05 mm). It would be printed in the air. A part resting on a part that stands is fine.

@@ -4,6 +4,15 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 123,
+    items: [
+      "A new Print group in the toolbar holds everything for getting a design ready to print: Print check, Print analysis, Check clearance, Build plates and Cut below the bed. Arrange is now only for placing parts, and Mesh only for meshes.",
+      "In the toolbar's menus the tools you can use right now come first. The ones that wait for a selection sit below a small heading instead of standing greyed out between them, and each tool shows its key.",
+      "Press ? for the list of every key. On a wide window the search in the top bar is a box you can click, with its key (Ctrl K or ⌘K).",
+      "The toolbar folds a group into a menu whenever it would otherwise run past the edge of the window.",
+    ],
+  },
+  {
     build: 122,
     items: [
       "The toolbar's drop-down menus (Mesh, Arrange, Make, More and Visibility) use smaller text and shorter rows, so they take less room and are quicker to scan.",

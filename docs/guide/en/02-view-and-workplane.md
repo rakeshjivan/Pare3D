@@ -100,7 +100,7 @@ Beside {{ui:inspector.snapGrid}} at the bottom of the properties window, the swi
 
 ## Build plates
 
-When a design holds more than one plate can print, a box with its lid and inserts for example, it can have several build plates. Click {{ui:editor.tool.buildPlates}} in the {{ui:editor.group.arrange}} group, or choose {{ui:plates.moveTo}} in the menu of a right click on a body. A bar appears at the foot of the view with one button per plate; the number on it says how many bodies stand on the plate.
+When a design holds more than one plate can print, a box with its lid and inserts for example, it can have several build plates. Click {{ui:editor.tool.buildPlates}} in the {{ui:editor.group.print}} group, or choose {{ui:plates.moveTo}} in the menu of a right click on a body. A bar appears at the foot of the view with one button per plate; the number on it says how many bodies stand on the plate.
 
 - Every plate is as large as the workplane, and the plates lie side by side to the right of the first one, 20 mm apart. A body belongs to the plate the middle of its footprint stands on, so dragging it across puts it on the other plate. A design holds up to 12 plates.
 - A click on a plate in the bar looks at it, and new shapes and imported files then land on it. {{ui:plates.showAll}} looks at all of them. A double click on a plate, or {{ui:plates.rename}}, gives it a name such as "Lid", which is written on the plate.

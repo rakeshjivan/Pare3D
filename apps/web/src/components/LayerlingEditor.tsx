@@ -23278,6 +23278,13 @@ export function LayerlingEditor({
         return;
       }
 
+      // Build 123: ? opens the list of every key, as in most design programs.
+      if (key === "?" && !shortcut && !event.altKey) {
+        event.preventDefault();
+        setShortcutsOpen((open) => !open);
+        return;
+      }
+
       if (shortcut && key === "e" && !event.shiftKey && !event.altKey) {
         event.preventDefault();
         // Build 71: Ctrl+E opens the Export window, as the blue button does.

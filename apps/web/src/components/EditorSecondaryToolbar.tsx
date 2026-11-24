@@ -249,7 +249,7 @@ export const SKETCH_PALETTE_ICONS = {
 /** Build 71: the groups folded first when the toolbar would wrap - the least used first. */
 const FOLD_ORDER = ["arrange", "combine", "clipboard", "history"] as const;
 /** Build 109: groups that are always one button with a drop-down - the mesh tools only work on an imported mesh. */
-const ALWAYS_FOLDED: readonly string[] = ["mesh"];
+const ALWAYS_FOLDED: readonly string[] = ["mesh", "print"];
 
 export function SecondaryToolbar({
   toolbarMode,
@@ -792,7 +792,10 @@ export function SecondaryToolbar({
     if (sections.length < 2) return;
     const first = sections[0].getBoundingClientRect().top;
     const wraps = sections.some((section) => section.getBoundingClientRect().top > first + 12);
-    if (!wraps) return;
+    // Build 123: a toolbar that runs past the window's edge without wrapping folds a group too.
+    const host = content.closest<HTMLElement>(".editor-secondary-toolbar") ?? content;
+    const overflows = content.scrollWidth > content.clientWidth + 2 || sections[sections.length - 1].getBoundingClientRect().right > Math.min(window.innerWidth, host.getBoundingClientRect().right) + 2;
+    if (!wraps && !overflows) return;
     const next = FOLD_ORDER.find((group) => !foldedGroups.includes(group));
     if (next) setFoldedGroups((current) => (current.includes(next) ? current : [...current, next]));
   });
@@ -1050,7 +1053,6 @@ export function SecondaryToolbar({
     { id: "fillHole", label: t("fillHole.command"), icon: PaintBucket, action: () => window.dispatchEvent(new Event(FILL_HOLE_EVENT)), enabled: canSimplify },
     { id: "simplify", label: t("editor.tool.simplify"), icon: ToolbarSimplifyIcon, action: onSimplify, enabled: canSimplify, active: simplifyActive },
     { id: "makeExact", label: t("editor.tool.makeExact"), icon: ToolbarMakeExactIcon, action: onMakeExact, enabled: canMakeExact && !makeExactBusy, active: makeExactBusy },
-    { id: "cutBelowBed", label: t("cutBelowBed.command"), icon: Scissors, action: () => window.dispatchEvent(new Event(CUT_BELOW_BED_EVENT)), enabled: true },
     { id: "roundMesh", label: t("meshRound.title"), icon: Squircle, action: build33.onRound, enabled: build33.canRound || build33.roundActive, active: build33.roundActive },
     // Build 69: brushes, a painted selection, Remesh / Offset / Thicken.
     { id: "sculpt", label: t("sculpt.title"), icon: Brush, action: build33.onSculpt, enabled: build33.canRound || build33.sculptActive, active: build33.sculptActive },
@@ -1062,12 +1064,16 @@ export function SecondaryToolbar({
     { id: "layFlat", label: t("editor.tool.layFlat"), icon: ToolbarLayFlatIcon, action: onLayFlat, enabled: canModifySelection, active: layFlatActive },
     { id: "mateFaces", label: t("editor.tool.mateFaces"), icon: ToolbarMateFacesIcon, action: onMateFaces, enabled: canModifySelection, active: mateFacesActive },
     { id: "center", label: t("editor.tool.centerOnWorkplane"), icon: ToolbarCenterOnWorkplaneIcon, action: onCenterOnWorkplane, enabled: canModifySelection },
-    ...(onBuildPlates ? [{ id: "buildPlates", label: t("editor.tool.buildPlates"), icon: ToolbarBuildPlatesIcon, action: onBuildPlates, enabled: true, active: Boolean(buildPlatesActive) }] : []),
     // Fork: spacing parts out has its own button (it opens Align with the Space out panel).
     { id: "spaceOut", label: t("distribute.title"), icon: ForkSpaceOutIcon, action: onAlign, enabled: canAlign, active: alignMode },
-    { id: "fitCheck", label: t("editor.tool.clearance"), icon: ScanSearch, action: build33.onFitCheck, enabled: true, active: build33.fitActive },
-    { id: "layerCheck", label: t("editor.tool.layerCheck"), icon: Layers3, action: onLayerCheck, enabled: true, active: layerCheckActive },
+  ];
+  // Build 123: getting a design ready to print, in one group of its own (it was split over Arrange and Mesh).
+  const printTools = [
     ...(onPrintCheck ? [{ id: "printCheck", label: t("editor.tool.printCheck"), icon: ToolbarPrintCheckIcon, action: onPrintCheck, enabled: Boolean(canPrintCheck) || Boolean(printCheckActive), active: Boolean(printCheckActive) }] : []),
+    { id: "layerCheck", label: t("editor.tool.layerCheck"), icon: Layers3, action: onLayerCheck, enabled: true, active: layerCheckActive },
+    { id: "fitCheck", label: t("editor.tool.clearance"), icon: ScanSearch, action: build33.onFitCheck, enabled: true, active: build33.fitActive },
+    ...(onBuildPlates ? [{ id: "buildPlates", label: t("editor.tool.buildPlates"), icon: ToolbarBuildPlatesIcon, action: onBuildPlates, enabled: true, active: Boolean(buildPlatesActive) }] : []),
+    { id: "cutBelowBed", label: t("cutBelowBed.command"), icon: Scissors, action: () => window.dispatchEvent(new Event(CUT_BELOW_BED_EVENT)), enabled: true },
   ];
   // Fork: the makers - each opens its own panel.
   const makeTools = [
@@ -1114,26 +1120,41 @@ export function SecondaryToolbar({
         </div>
         {openFold === group ? (
           <div className="visibility-dropdown mesh-dropdown toolbar-fold-menu" role="menu" aria-label={label}>
-            {tools.map((tool) => {
-              const Icon = (FORK_TOOL_ICONS[tool.id] ?? tool.icon) as ComponentType<{ width?: number; height?: number }>;
+            {(() => {
+              // Build 123: what can be used now comes first; the rest waits under a small heading instead of
+              // standing greyed out between them.
+              const ready = tools.filter((tool) => tool.enabled && !historyViewActive);
+              const waiting = tools.filter((tool) => !(tool.enabled && !historyViewActive));
+              const item = (tool: FoldTool, enabled: boolean) => {
+                const Icon = (FORK_TOOL_ICONS[tool.id] ?? tool.icon) as ComponentType<{ width?: number; height?: number }>;
+                const keys = COMMAND_SHORTCUTS[tool.id];
+                return (
+                  <button
+                    key={tool.id}
+                    className={`visibility-dropdown-action ${tool.active ? "active" : ""}`}
+                    type="button"
+                    role="menuitem"
+                    data-layerling-tool={tool.id}
+                    disabled={!enabled}
+                    onClick={() => {
+                      setOpenFold(null);
+                      tool.action();
+                    }}
+                  >
+                    <Icon width={18} height={18} />
+                    <span>{tool.label}</span>
+                    {keys ? <kbd className="fold-menu-keys">{keys}</kbd> : null}
+                  </button>
+                );
+              };
               return (
-                <button
-                  key={tool.id}
-                  className={`visibility-dropdown-action ${tool.active ? "active" : ""}`}
-                  type="button"
-                  role="menuitem"
-                  data-layerling-tool={tool.id}
-                  disabled={!tool.enabled}
-                  onClick={() => {
-                    setOpenFold(null);
-                    tool.action();
-                  }}
-                >
-                  <Icon width={18} height={18} />
-                  <span>{tool.label}</span>
-                </button>
+                <>
+                  {ready.map((tool) => item(tool, true))}
+                  {waiting.length ? <div className="fold-menu-waiting" role="presentation">{t(historyViewActive ? "editor.foldWaitingHistory" : "editor.foldWaiting")}</div> : null}
+                  {waiting.map((tool) => item(tool, false))}
+                </>
               );
-            })}
+            })()}
           </div>
         ) : null}
       </div>
@@ -1607,6 +1628,7 @@ export function SecondaryToolbar({
             They wait for an imported mesh to be selected. */}
         {renderGroup("mesh", t("editor.group.mesh"), meshTools, () => meshTools.map(renderToolButton), "toolbar-mesh-section")}
         {renderGroup("arrange", t("editor.group.arrange"), arrangeTools, () => arrangeTools.map(renderToolButton))}
+        {renderGroup("print", t("editor.group.print"), printTools, () => printTools.map(renderToolButton))}
         <div className="toolbar-section" data-group="make">
           <div className="toolbar-section-label">{t("editor.group.make")}</div>
           <div className="toolbar-section-tools">{makeTools.map(renderToolButton)}</div>
@@ -1975,8 +1997,11 @@ export function SecondaryToolbar({
             <div className="toolbar-section toolbar-actions-section" data-group="help">
               <div className="toolbar-section-label">{t("editor.group.help")}</div>
               <div className="action-buttons">
-                <button className="action-icon-button" aria-label={t("palette.open")} title={t("palette.open")} aria-haspopup="dialog" data-layerling-tool="command-search" onClick={openPalette}>
+                {/* Build 123: the command search as a field to click, with its key, not a bare magnifier. */}
+                <button className="action-icon-button command-search-field" aria-label={t("palette.open")} title={t("palette.open")} aria-haspopup="dialog" data-layerling-tool="command-search" onClick={openPalette}>
                   <Search className="title-icon" aria-hidden="true" />
+                  <span className="command-search-text" aria-hidden="true">{t("palette.field")}</span>
+                  <kbd className="command-search-keys" aria-hidden="true">{typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "⌘K" : "Ctrl K"}</kbd>
                 </button>
                 {/* Fork: the quick guide, shortcuts, and Interactive Help in one menu. */}
                 <HelpMenu interactiveHelpActive={interactiveHelpActive} onGuide={onGuide} onShortcuts={onShortcuts} onInteractiveHelp={onInteractiveHelp} />
