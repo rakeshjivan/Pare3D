@@ -15,7 +15,7 @@ import {
   serverCustomShapeId,
   type ServerCustomShapes,
 } from "@/lib/customShapesServer";
-import { customShapeFingerprint, packCustomShape, placeCustomShape, type PackedCustomShape } from "@/lib/customShapePackage";
+import { customShapeFingerprint, packCustomShape, placeCustomShape, placeInsertedDesign, type PackedCustomShape } from "@/lib/customShapePackage";
 import { t } from "@/lib/i18n";
 import { createLocalId } from "@/lib/localIds";
 import { importLylProject, type exportLylProject } from "@/lib/lylProject";
@@ -43,8 +43,10 @@ import { mcpShapeSummary } from "@/lib/editorMcpSummary";
 import { dedupeProjectAssets } from "@/lib/projectAssets";
 import { displayShapeName } from "@/lib/shapeCatalog";
 import { packBackup, unpackBackup } from "@/lib/projectBackup";
+import { dropBackupTarget, pickBackupTarget, writeBackupTarget } from "@/lib/lylFileAccess";
 import { CUSTOM_SHAPE_FOLDER_DEPTH, FOLDER_PATH_SEPARATOR, folderAncestry, folderPathName, joinFolderPath, parentFolderPath } from "@/lib/customShapeFolders";
 import { storeFolderNameProblem } from "@/lib/storeFolderName";
+import { localizedError } from "@/lib/userErrors";
 import { NOTE_COUNT_LIMIT } from "@/lib/workplaneNotes";
 import type { ProjectAsset, WorkplaneNote, WorkplaneShape } from "@/types/layerling";
 
@@ -61,7 +63,7 @@ const DEPTH_MESSAGE = `Folders go ${CUSTOM_SHAPE_FOLDER_DEPTH} levels deep; this
 
 export interface CustomShapesOptions {
   sharedProjectsEnabled: boolean;
-  setNotice: (message: string) => void;
+  setNotice: (message: string, busy?: boolean, action?: { label: string; run: () => void } | null) => void;
   commitShapes: (next: WorkplaneShape[], nextSelection?: string | string[] | null, message?: string) => void;
   setProjectAssets: (assets: ProjectAsset[]) => void;
   downloadBlob: (fileName: string, blob: Blob) => Promise<void>;
@@ -75,6 +77,8 @@ export interface CustomShapesOptions {
   snapGridRef: { current: LylExport["snapGrid"] };
   projectInfoRef: { current: { projectId: string | null } };
   placementWorkplaneRef: { current: PlacementWorkplane };
+  /** Where a shape put in without a spot lands: the middle of the active build plate (#1514). */
+  newShapeOrigin?: (workplane: PlacementWorkplane) => PlacementPoint;
 }
 
 /**
@@ -215,23 +219,56 @@ export function useCustomShapes(options: CustomShapesOptions) {
     return readMyShapePackage(id);
   };
 
+  /**
+   * Bodies from a package into the design, selected, with their source files and their notes
+   * after the ones already here (so numbered on from them), all in one undo step.
+   */
+  const addInsertedBodies = (assets: ProjectAsset[], placed: { shapes: WorkplaneShape[]; notes: WorkplaneNote[]; dropped: number }, message: string) => {
+    if (assets.length > 0) {
+      const nextAssets = dedupeProjectAssets([...projectAssetsRef.current, ...assets]);
+      projectAssetsRef.current = nextAssets;
+      setProjectAssets(nextAssets);
+    }
+    if (placed.notes.length > 0 && !historyViewStateRef.current) notesRef.current = [...notesRef.current, ...placed.notes];
+    commitShapes([...shapesRef.current, ...placed.shapes], placed.shapes.map((shape) => shape.id), message);
+    if (placed.dropped > 0 && !historyViewStateRef.current) setNotice(t("status.noteLimitReached", { count: NOTE_COUNT_LIMIT }));
+    return placed.shapes;
+  };
+
   const insertMyShape = useCallback(async (id: string, point?: PlacementPoint) => {
     const sourceProjectId = projectInfoRef.current.projectId;
     const name = customShapeName(id);
     const restored = await importLylProject(await readCustomShapePackage(id));
     if (projectInfoRef.current.projectId !== sourceProjectId) throw new Error(t("status.pasteCancelled"));
     if (restored.shapes.length === 0) throw new Error(t("status.insertDesignEmpty", { name }));
-    const { shapes: inserted, notes: insertedNotes, dropped } = placeCustomShape(restored, point ?? placementWorkplaneRef.current.origin, notesRef.current);
-    if (restored.assets.length > 0) {
-      const nextAssets = dedupeProjectAssets([...projectAssetsRef.current, ...restored.assets]);
-      projectAssetsRef.current = nextAssets;
-      setProjectAssets(nextAssets);
+    const placed = placeCustomShape(restored, point ?? options.newShapeOrigin?.(placementWorkplaneRef.current) ?? placementWorkplaneRef.current.origin, notesRef.current);
+    return addInsertedBodies(restored.assets, placed, t("status.myShapeInserted", { name }));
+  }, [commitShapes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * A saved design's bodies into the open one ("Insert into this design") - for parts kept as
+   * building blocks: where they were saved, with their notes. False when nothing went in.
+   */
+  const insertDesignFile = useCallback(async (file: File) => {
+    const sourceProjectId = projectInfoRef.current.projectId;
+    setNotice(t("status.validatingFile", { name: file.name }), true);
+    try {
+      const restored = await importLylProject(await file.arrayBuffer());
+      if (projectInfoRef.current.projectId !== sourceProjectId) {
+        setNotice(t("status.importCancelled", { count: 1 }));
+        return false;
+      }
+      if (restored.shapes.length === 0) {
+        setNotice(t("status.insertDesignEmpty", { name: file.name }));
+        return false;
+      }
+      const placed = placeInsertedDesign(restored, notesRef.current);
+      addInsertedBodies(restored.assets, placed, t("status.insertedDesign", { count: placed.shapes.length, name: file.name }));
+      return true;
+    } catch (error) {
+      setNotice(error instanceof Error ? localizedError(error.message) : t("status.insertDesignFailed", { name: file.name }));
+      return false;
     }
-    // Its notes go in with the bodies, in the same undo step.
-    if (insertedNotes.length > 0 && !historyViewStateRef.current) notesRef.current = [...notesRef.current, ...insertedNotes];
-    commitShapes([...shapesRef.current, ...inserted], inserted.map((shape) => shape.id), t("status.myShapeInserted", { name }));
-    if (dropped > 0 && !historyViewStateRef.current) setNotice(t("status.noteLimitReached", { count: NOTE_COUNT_LIMIT }));
-    return inserted;
   }, [commitShapes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renameMyShapeEntry = useCallback(async (id: string, name: string) => {
@@ -333,16 +370,28 @@ export function useCustomShapes(options: CustomShapesOptions) {
     setNotice(t("status.myShapeFolderDeleted", { name }));
   }, [refreshMyShapes, refreshServerShapes]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const backUpMyShapes = useCallback(async () => {
+  const backUpMyShapes = useCallback(async (asDownload = false): Promise<void> => {
+    // Where it goes is asked first, while the click still counts: in Chrome and Edge a save dialog that remembers its
+    // folder, elsewhere a download, as for the backups of the start page.
+    const target = await pickBackupTarget(myShapesBackupFileName(new Date()), asDownload);
+    if (!target) {
+      // On some PCs the dialog hands back no file for any folder: the button makes the backup a download.
+      setNotice(t("status.saveNothingChosen"), true, {
+        label: t("status.saveAsDownload"),
+        run: () => void backUpMyShapes(true).catch((error) => setNotice(error instanceof Error ? localizedError(error.message) : String(error))),
+      });
+      return;
+    }
     const entries = await customShapesBackupEntries();
     const count = entries.length - 1;
     if (count <= 0) {
+      await dropBackupTarget(target);
       setNotice(t("status.myShapesNoneToBackUp"));
       return;
     }
     const zipped = packBackup(entries);
     const buffer = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
-    await downloadBlob(myShapesBackupFileName(new Date()), new Blob([buffer], { type: "application/zip" }));
+    await writeBackupTarget(target, new Blob([buffer], { type: "application/zip" }), downloadBlob);
     setNotice(t("status.myShapesBackedUp", { count }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -492,6 +541,7 @@ export function useCustomShapes(options: CustomShapesOptions) {
     refreshServerShapes,
     saveSelectionAsMyShape,
     insertMyShape,
+    insertDesignFile,
     renameMyShapeEntry,
     deleteMyShapeEntry,
     moveMyShapeToServer,

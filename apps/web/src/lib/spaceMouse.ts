@@ -1,0 +1,193 @@
+import * as THREE from "three";
+
+/**
+ * A 3D mouse (3Dconnexion SpaceMouse and its kin, #1013) read straight from the browser over WebHID, which Chrome and Edge
+ * have and Firefox and Safari do not. The device sends its six axes as little-endian 16-bit numbers of about ±350: newer
+ * ones all six in report 1, older ones the three shifts in report 1 and the three turns in report 2. Report 3 carries the
+ * buttons, which are left alone here.
+ */
+
+/** What a 3D mouse calls itself to HID: a multi-axis controller on the generic desktop page. */
+export const SPACE_MOUSE_FILTERS = [{ usagePage: 0x01, usage: 0x08 }, { vendorId: 0x256f }, { vendorId: 0x046d, usagePage: 0x01, usage: 0x08 }];
+
+/** The six axes: shift right, shift away, shift down, tilt forward, tilt sideways, twist - device units, about ±350. */
+export type SpaceMouseAxes = { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number };
+
+export const SPACE_MOUSE_REST: SpaceMouseAxes = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+
+/** The axes after one input report, from those before it; unchanged for a report that carries no axes. */
+export function readSpaceMouseReport(axes: SpaceMouseAxes, reportId: number, data: DataView): SpaceMouseAxes {
+  const at = (offset: number) => (data.byteLength >= offset + 2 ? data.getInt16(offset, true) : 0);
+  if (reportId === 1 && data.byteLength >= 12) return { tx: at(0), ty: at(2), tz: at(4), rx: at(6), ry: at(8), rz: at(10) };
+  if (reportId === 1 && data.byteLength >= 6) return { ...axes, tx: at(0), ty: at(2), tz: at(4) };
+  if (reportId === 2 && data.byteLength >= 6) return { ...axes, rx: at(0), ry: at(2), rz: at(4) };
+  return axes;
+}
+
+/**
+ * Whether a game controller of the browser's Gamepad API is a 3D mouse (#1013): a 3Dconnexion device, by the name the
+ * browser gives it ("SpaceMouse Compact (Vendor: 256f Product: c635)", "SpaceNavigator"...). Chrome shows the page such a
+ * controller as soon as it is moved, with no question, so it is found again after every restart, which a WebHID device
+ * without a serial number is not (Discussion #1013, Jeff-Haas).
+ */
+export function isSpaceMouseGamepad(id: string) {
+  return /3dconnexion|space ?(mouse|navigator|explorer|pilot|traveler|traveller)|vendor: ?256f|vendor: ?046d product: ?c6[2-6]/i.test(id);
+}
+
+/**
+ * The six axes of a 3D mouse read as a game controller: the browser gives each as -1 to 1 over the device's own range, in
+ * the order of the HID usages (X, Y, Z, then the turns about them), the order of the report of WebHID, so they are scaled
+ * back to device units. A controller with fewer axes leaves the rest at rest.
+ */
+export function readSpaceMouseGamepad(values: readonly number[]): SpaceMouseAxes {
+  const at = (index: number) => {
+    const value = values[index];
+    return typeof value === "number" && Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) * FULL : 0;
+  };
+  return { tx: at(0), ty: at(1), tz: at(2), rx: at(3), ry: at(4), rz: at(5) };
+}
+
+/** Below this the cap is taken as at rest: a 3D mouse never quite returns to zero. */
+const DEAD_ZONE = 12;
+/** Full deflection, in device units. */
+const FULL = 350;
+
+/** An axis as -1 to 1, with the rest band cut away and a gentle start, so small pushes give fine moves. */
+export function spaceMouseAmount(value: number) {
+  const size = Math.abs(value);
+  if (size <= DEAD_ZONE) return 0;
+  const share = Math.min(1, (size - DEAD_ZONE) / (FULL - DEAD_ZONE));
+  return Math.sign(value) * share * share;
+}
+
+/**
+ * How quickly the smoothed axes follow the cap, in seconds (#1013): the time in which they cover about two thirds of a
+ * change. A cap turned freely sends several axes at once, each trembling a little round its value, and taken raw from
+ * report to report that made the view jump and stutter; short enough that the view does not feel slow.
+ */
+const SMOOTHING_SECONDS = 0.07;
+
+const AXIS_NAMES = ["tx", "ty", "tz", "rx", "ry", "rz"] as const;
+
+/** Whether the cap is held off its rest band on any axis. */
+export function spaceMouseMoving(axes: SpaceMouseAxes) {
+  return AXIS_NAMES.some((axis) => spaceMouseAmount(axes[axis]) !== 0);
+}
+
+/**
+ * The axes the view is moved by after `seconds` more of the cap held as `raw`: each follows its raw value smoothly, by
+ * the time that passed, so the trembling of several axes at once evens out instead of jerking the view (#1013). With the
+ * cap let go (every axis inside its rest band) the view stops at once rather than drifting on.
+ */
+export function smoothSpaceMouseAxes(smoothed: SpaceMouseAxes, raw: SpaceMouseAxes, seconds: number): SpaceMouseAxes {
+  if (AXIS_NAMES.every((axis) => !spaceMouseAmount(raw[axis]))) return SPACE_MOUSE_REST;
+  const share = 1 - Math.exp(-Math.max(0, seconds) / SMOOTHING_SECONDS);
+  const next = { ...smoothed };
+  for (const axis of AXIS_NAMES) next[axis] = smoothed[axis] + (raw[axis] - smoothed[axis]) * share;
+  return next;
+}
+
+/** How far the view goes in one second at full deflection: turns in radians, shifts in view heights, zoom as a factor. */
+const TURN_PER_SECOND = 2.2;
+const SHIFT_PER_SECOND = 0.9;
+const ZOOM_PER_SECOND = 3;
+
+/** The directions a person can turn round (#1013): shifting sideways, shifting up and down, zooming, tilting and twisting. */
+export type SpaceMouseInvert = { shift: boolean; lift: boolean; zoom: boolean; tilt: boolean; twist: boolean };
+
+export const SPACE_MOUSE_NO_INVERT: SpaceMouseInvert = { shift: false, lift: false, zoom: false, tilt: false, twist: false };
+
+/**
+ * The two ways a 3D mouse is read: over WebHID after Connect 3D mouse, or as a game controller, which the browser shows
+ * by itself. On some devices the two do not run the same way round (#1871), so each keeps its own reversed directions.
+ */
+export type SpaceMouseWay = "hid" | "pad";
+
+const INVERT_KEYS: Record<SpaceMouseWay, string> = { hid: "layerling.spaceMouseInvert", pad: "layerling.spaceMouseInvertPad" };
+export const SPACE_MOUSE_INVERT_EVENT = "layerling:spacemouse-invert";
+
+function storedSpaceMouseInvert(way: SpaceMouseWay): SpaceMouseInvert | null {
+  try {
+    const text = window.localStorage.getItem(INVERT_KEYS[way]);
+    if (text === null) return null;
+    const stored = JSON.parse(text) as Partial<SpaceMouseInvert> | null;
+    return {
+      shift: stored?.shift === true,
+      lift: stored?.lift === true,
+      zoom: stored?.zoom === true,
+      tilt: stored?.tilt === true,
+      twist: stored?.twist === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The reversed directions the person ticked in the settings for one way of reading the mouse; none where the browser keeps
+ * nothing. A mouse read as a game controller starts from those of WebHID until its own were ticked (#1871).
+ */
+export function readSpaceMouseInvert(way: SpaceMouseWay = "hid"): SpaceMouseInvert {
+  return storedSpaceMouseInvert(way) ?? (way === "pad" ? storedSpaceMouseInvert("hid") : null) ?? SPACE_MOUSE_NO_INVERT;
+}
+
+export function saveSpaceMouseInvert(invert: SpaceMouseInvert, way: SpaceMouseWay = "hid") {
+  try {
+    window.localStorage.setItem(INVERT_KEYS[way], JSON.stringify(invert));
+  } catch {
+    // The choice then holds until the page is closed.
+  }
+  window.dispatchEvent(new Event(SPACE_MOUSE_INVERT_EVENT));
+}
+
+/**
+ * Moves the camera for `seconds` of the cap held as `axes`, around `target`, the way a 3D mouse moves the view in CAD
+ * programs: shifting the cap left, right, up or down shifts the model that way on the screen, pushing it away zooms in,
+ * tilting it forward or back tilts the view, and twisting it turns the view about the up axis. `invert` turns single
+ * directions round. Returns whether anything moved.
+ */
+export function moveCameraBySpaceMouse(
+  camera: THREE.PerspectiveCamera | THREE.OrthographicCamera,
+  target: THREE.Vector3,
+  axes: SpaceMouseAxes,
+  seconds: number,
+  invert: SpaceMouseInvert = SPACE_MOUSE_NO_INVERT,
+): boolean {
+  const way = (turned: boolean) => (turned ? -1 : 1);
+  // First reports from a real device (Ciwa, 04.11.2026): the four shifts and turns below ran the wrong way round, zoom was right.
+  const shiftX = -spaceMouseAmount(axes.tx) * way(invert.shift);
+  const shiftUp = spaceMouseAmount(axes.tz) * way(invert.lift);
+  const push = spaceMouseAmount(axes.ty) * way(invert.zoom);
+  const tilt = -spaceMouseAmount(axes.rx) * way(invert.tilt);
+  const twist = -spaceMouseAmount(axes.rz) * way(invert.twist);
+  if (!shiftX && !shiftUp && !push && !tilt && !twist) return false;
+  const offset = camera.position.clone().sub(target);
+  const distance = offset.length();
+  // Twist about the world's up axis, tilt about the camera's own sideways axis, kept short of the poles.
+  if (twist) offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), -twist * TURN_PER_SECOND * seconds);
+  if (tilt) {
+    const side = new THREE.Vector3().crossVectors(offset, camera.up).normalize();
+    const turned = offset.clone().applyAxisAngle(side, -tilt * TURN_PER_SECOND * seconds);
+    const height = turned.clone().normalize().dot(camera.up);
+    if (Math.abs(height) < 0.995) offset.copy(turned);
+  }
+  // Shifts move camera and target together, by a share of what the view shows.
+  const viewHeight = camera instanceof THREE.OrthographicCamera
+    ? (camera.top - camera.bottom) / camera.zoom
+    : 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+  const shift = right.multiplyScalar(shiftX * viewHeight * SHIFT_PER_SECOND * seconds)
+    .add(up.multiplyScalar(shiftUp * viewHeight * SHIFT_PER_SECOND * seconds));
+  target.add(shift);
+  const factor = Math.exp(-push * ZOOM_PER_SECOND * seconds);
+  if (camera instanceof THREE.OrthographicCamera) {
+    camera.zoom = THREE.MathUtils.clamp(camera.zoom / factor, 0.01, 1000);
+    camera.updateProjectionMatrix();
+  } else {
+    offset.multiplyScalar(factor);
+  }
+  camera.position.copy(target).add(offset);
+  camera.lookAt(target);
+  return true;
+}

@@ -182,6 +182,7 @@ export function ClearancePanel({
         min={0.05}
         max={2}
         step={0.05}
+        decimals={2}
         length
         workspace={workspace}
         onChange={(value) => onChange({ threshold: value })}

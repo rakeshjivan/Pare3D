@@ -14,6 +14,7 @@ export interface LylFileHandle {
   createWritable(): Promise<{ write(data: Blob | ArrayBuffer | Uint8Array): Promise<void>; close(): Promise<void>; abort(): Promise<void> }>;
   queryPermission?(descriptor: { mode: "read" | "readwrite" }): Promise<PermissionState>;
   requestPermission?(descriptor: { mode: "read" | "readwrite" }): Promise<PermissionState>;
+  remove?(): Promise<void>;
 }
 
 interface FilePickerWindow {
@@ -103,16 +104,94 @@ export async function ensureLylFileWritable(handle: LylFileHandle): Promise<bool
   return handle.requestPermission ? (await handle.requestPermission({ mode: "readwrite" })) === "granted" : false;
 }
 
-export async function writeLylFile(handle: LylFileHandle, bytes: Uint8Array) {
-  const writable = await handle.createWritable();
+/** How long writing a file may take before it counts as stuck, in ms: this, and a second more for every megabyte. */
+export const FILE_STUCK_MS = 20_000;
+const FILE_STUCK_MS_PER_BYTE = 1000 / (1024 * 1024);
+
+export const fileStuckMs = (bytes: number) => FILE_STUCK_MS + bytes * FILE_STUCK_MS_PER_BYTE;
+
+/** Gives up on a step that never answers: a virus scanner can hold a file without an error (Discussion #1987). */
+export function withinTime<T>(step: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("The file did not answer in time")), ms);
+    step.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+}
+
+export async function writeLylFile(handle: LylFileHandle, bytes: Uint8Array | Blob) {
+  const size = bytes instanceof Blob ? bytes.size : bytes.byteLength;
+  let gaveUp = false;
+  const write = async () => {
+    const writable = await handle.createWritable();
+    try {
+      if (gaveUp) throw new Error("The file answered too late");
+      await writable.write(bytes);
+      if (gaveUp) throw new Error("The file answered too late");
+      // Closing is what puts the data into the file; until then the old content stays.
+      await writable.close();
+    } catch (error) {
+      await writable.abort().catch(() => undefined);
+      throw error;
+    }
+  };
   try {
-    await writable.write(bytes);
-    // Closing is what puts the data into the file; until then the old content stays.
-    await writable.close();
+    await withinTime(write(), fileStuckMs(size));
   } catch (error) {
-    await writable.abort().catch(() => undefined);
+    gaveUp = true;
     throw error;
   }
+  // A virus scanner or a drive can drop what was written without an error, and the file stays empty (Discussion #1987).
+  const written = await withinTime(handle.getFile(), FILE_STUCK_MS).then((file) => file.size, () => size);
+  if (written !== size) throw new Error(`Wrote ${size} bytes, the file has ${written}`);
+}
+
+/** The save dialog makes the file before anything is in it: one that stayed empty is removed again, where the browser can. */
+export async function dropEmptyFile(handle: LylFileHandle) {
+  try {
+    if ((await withinTime(handle.getFile(), 5000)).size === 0 && handle.remove) await withinTime(handle.remove(), 5000);
+  } catch {
+    // Gone already, not ours to remove, or held by something else.
+  }
+}
+
+/** Backups often go somewhere else again - onto a cloud drive, say - so their dialog remembers its own folder. */
+const BACKUP_PICKER_ID = "layerling-backups";
+
+/** Where a backup ZIP goes: its file name, and in Chrome and Edge the file picked for it. */
+export interface BackupTarget {
+  fileName: string;
+  handle?: LylFileHandle;
+}
+
+/**
+ * Asks where a backup goes. In Chrome and Edge that is a save dialog that remembers its folder, so backups can go
+ * straight into a folder of one's own, on a cloud drive say, instead of Downloads (asked in the Facebook group,
+ * 07.11.2026). Other browsers, or a dialog that will not open, keep the download. null when the dialog is closed
+ * without a choice: then there is no backup. The dialog needs the click that started it, so this comes before
+ * anything slow. `asDownload` leaves the dialog out: on some PCs it hands back no file for any folder, and the
+ * "Download instead" button of the message that follows makes the backup a download (Facebook group, 12.11.2026).
+ */
+export async function pickBackupTarget(suggestedName: string, asDownload = false): Promise<BackupTarget | null> {
+  const picker = filePickerWindow().showSaveFilePicker;
+  if (!picker || asDownload) return { fileName: suggestedName };
+  try {
+    const handle = await picker({ id: BACKUP_PICKER_ID, suggestedName, types: [{ description: "layerling backup", accept: { "application/zip": [".zip"] } }] });
+    return { fileName: handle.name, handle };
+  } catch (error) {
+    if (isPickerCancelled(error)) return null;
+    return { fileName: suggestedName };
+  }
+}
+
+/** Puts a backup where `pickBackupTarget` said: into the picked file, or as a download. */
+export async function writeBackupTarget(target: BackupTarget, zip: Blob, download: (fileName: string, zip: Blob) => unknown) {
+  if (target.handle) await writeLylFile(target.handle, zip);
+  else await download(target.fileName, zip);
+}
+
+/** A picked file that is left empty after all (nothing to back up) is removed again, where the browser can. */
+export async function dropBackupTarget(target: BackupTarget) {
+  await target.handle?.remove?.().catch(() => undefined);
 }
 
 /** The import dialog of the overview: any of the listed endings, and the handles of what was chosen. */

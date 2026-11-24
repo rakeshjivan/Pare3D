@@ -4,6 +4,16 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 120,
+    items: [
+      "Pare 3D is now built on layerling's latest version, with Pare's own look, toolbar, right-click menu and home screen kept. Your designs open as before.",
+      "Surface texture (Modify, or right-click > Surface): 21 patterns, text and your own pictures, more than one layer, and only on the faces you pick or a region you draw. It replaces the old Texture tool.",
+      "New in Modify: Mold & die, Cable channel, Stencil bridges and Paint (colour parts of a body for a multi-colour print). Right-click > Edges and faces adds Offset.",
+      "Attachments (top bar): keep files with a design, such as instructions, a datasheet or notes.",
+      "Settings has new tabs (Controls, Saving and export, Ribbon, Backups) and a search box that finds any setting.",
+    ],
+  },
+  {
     build: 119,
     items: [
       "Print analysis (Arrange): checks every layer of your parts in one go and lists what could fail, such as overhangs, thin walls, floating parts or parts in the bed. Click a finding to see that layer.",

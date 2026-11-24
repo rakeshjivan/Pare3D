@@ -29,7 +29,7 @@ import { exportLylProject, importLylProject } from "@/lib/lylProject";
 import { rememberManifoldRuntime } from "@/lib/manifoldHandle";
 import { mcpGridfinityOverhangPatch } from "@/lib/mcpShapeSettings";
 import { sceneShape } from "@/lib/shapeCatalog";
-import { shapeGeometrySignature } from "@/components/WorkplaneViewport";
+import { shapeGeometrySignature } from "@/components/workplane/viewportShapeObjects";
 import { DEFAULT_SNAP_GRID, DEFAULT_WORKPLANE_WORKSPACE, normalizeShapeCustomizations } from "@/lib/workplaneSettings";
 import type { WorkplaneShape } from "@/types/layerling";
 
@@ -349,7 +349,7 @@ describe("gridfinity bin overhang: saved, passed on and reached through the MCP"
     expect(entry).toMatchObject({ gridfinityOverhangRight: 12, gridfinityOverhangChamfer: 4, gridfinityOverhangSolid: true, gridfinityOverhangLipOnGrid: true });
   });
 
-  it.skip("writes an overhang given through the MCP as the panel does: the box, and the bin moved so its feet stay put", () => {
+  it("writes an overhang given through the MCP as the panel does: the box, and the bin moved so its feet stay put", () => {
     const target = binShape({ x: 5, z: 2 });
     expect(mcpGridfinityOverhangPatch(target, {}, { gridfinityOverhangRight: 19.75 })).toEqual({ width: 103.5, depth: 41.5, size: 103.5, x: 15, z: 2 });
     expect(mcpGridfinityOverhangPatch(target, {}, { gridfinityOverhangRight: "wide" })).toEqual({});
@@ -582,7 +582,7 @@ describe("gridfinity bin overhang: review fixes", { timeout: 120_000 }, () => {
   });
 });
 
-describe("gridfinity bin overhang: second review", { timeout: 120_000 }, () => {
+describe("gridfinity bin overhang: second review (mlugo-apx)", { timeout: 120_000 }, () => {
   let runtime: ManifoldToplevel;
   beforeAll(async () => {
     runtime = await manifoldModule();
@@ -667,7 +667,7 @@ describe("gridfinity bin overhang: second review, smaller things", { timeout: 12
   });
 });
 
-describe("gridfinity bin overhang: every edge on two faces", { timeout: 120_000 }, () => {
+describe("gridfinity bin overhang: every edge on two faces (mlugo-apx, after #1542)", { timeout: 120_000 }, () => {
   let runtime: ManifoldToplevel;
   beforeAll(async () => {
     runtime = await manifoldModule();

@@ -468,7 +468,7 @@ export function holeDepth(face: Pick<PerforableFace, "thickness">, settings: Pic
 }
 
 /** Kinds that are round seen from above, so an own shape of one takes a round room on the face (#1235). */
-const ROUND_KINDS = new Set<ShapeKind>(["cylinder", "sphere", "halfSphere", "cone", "curvedCone", "paraboloid", "tube", "ring", "torus", "counterbore", "countersink", "doubleCountersink"] as ShapeKind[]);
+const ROUND_KINDS = new Set<ShapeKind>(["cylinder", "sphere", "halfSphere", "cone", "curvedCone", "paraboloid", "tube", "ring", "torus", "counterbore", "countersink", "doubleCountersink", "finishingWasher"]);
 
 /** The footprint settings of a shape repeated over the face: its own width and depth, round for the round kinds. */
 export function holePatternCustomFootprint(shape: WorkplaneShape): Pick<HolePatternSettings, "customId" | "customWidth" | "customDepth" | "customRound"> {

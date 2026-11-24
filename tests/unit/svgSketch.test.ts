@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { importedShapeFromSvg } from "@/lib/svgImport";
-import { sketchProfileFromSvg } from "@/lib/svgSketch";
+import { MAX_SVG_SKETCH_SEGMENTS, sketchProfileFromSvg } from "@/lib/svgSketch";
 import { cadSketchRegions, orderedCadSketchPaths, silhouetteSketchProfile, type OrderedCadSketchPath } from "@/lib/sketchCadProfile";
 import type { SketchProfile } from "@/types/layerling";
 
@@ -134,6 +134,27 @@ describe("SVG as a sketch (#197)", () => {
     expect(paths[0].steps.length).toBeGreaterThanOrEqual(3);
   });
 
+  it("makes a traced outline's near-smooth joins smooth and keeps its real corners (#996)", () => {
+    // Two curves meeting at the top at a 4 degree kink, a curve running into a line at 4 degrees,
+    // and two real corners of 27 and 16 degrees, as a tracer leaves them.
+    const profile = sketchProfileFromSvg(svg(`<path d="M 20 100 C 20 60 60 40 100 40 C 140 37 183 60 180 100 L 180 140 C 170 160 40 170 20 100 Z" />`))!;
+    const [path] = orderedCadSketchPaths(profile);
+    const kinks = path.steps.map(({ segment, from, to }, index) => {
+      const next = path.steps[(index + 1) % path.steps.length];
+      const arriving = segment.kind === "line" ? from : (segment.startId === from.id ? to.handleIn : to.handleOut)!;
+      const leaving = next.segment.kind === "line" ? next.to : (next.segment.startId === next.from.id ? next.from.handleOut : next.from.handleIn)!;
+      const a = Math.atan2(to.z - arriving.z, to.x - arriving.x);
+      const b = Math.atan2(leaving.z - to.z, leaving.x - to.x);
+      return Math.abs(((b - a + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) * (180 / Math.PI);
+    });
+    const at = (x: number, z: number) => kinks[path.steps.findIndex(({ to }) => Math.abs(to.x - x) < 1e-6 && Math.abs(to.z - z) < 1e-6)];
+    // The sketch is centred on the outline's ends: the top join at (100, 40) sits at (0, -50).
+    expect(at(0, -50)).toBeLessThan(1e-9);
+    expect(at(80, 10)).toBeLessThan(1e-9);
+    expect(at(80, 50)).toBeCloseTo(26.57, 1);
+    expect(at(-80, 10)).toBeCloseTo(15.95, 1);
+  });
+
   it("leaves open strokes out and gives up on a drawing with nothing closed", () => {
     expect(sketchProfileFromSvg(svg(`<path d="M 0 0 L 50 50" stroke="black" stroke-width="2" fill="none" />`))).toBeNull();
   });
@@ -148,5 +169,22 @@ describe("SVG as a sketch (#197)", () => {
     expect(regions[0].holes).toHaveLength(0);
     expect(profileArea(silhouette)).toBeCloseTo(100 * 100, 6);
     expect(silhouette.silhouette).toBe(true);
+  });
+
+  it("takes a traced picture of thousands of tiny lines as a sketch (#1742), up to the limit", () => {
+    // A traced outline of pixel steps: a ring of n short lines, as the reporter's dog ornament came (7,282 of them).
+    const ring = (steps: number) => {
+      let d = "M 100,10";
+      for (let index = 1; index < steps; index += 1) {
+        const angle = (index / steps) * Math.PI * 2;
+        d += ` L ${(100 + 90 * Math.sin(angle)).toFixed(3)},${(100 - 90 * Math.cos(angle)).toFixed(3)}`;
+      }
+      return `<path d="${d} Z" />`;
+    };
+    expect(MAX_SVG_SKETCH_SEGMENTS).toBeGreaterThanOrEqual(7282);
+    const profile = sketchProfileFromSvg(svg(ring(7300)));
+    expect(profile).not.toBeNull();
+    expect(profile!.points).toHaveLength(7300);
+    expect(sketchProfileFromSvg(svg(ring(MAX_SVG_SKETCH_SEGMENTS + 50)))).toBeNull();
   });
 });

@@ -7,20 +7,86 @@ import { wheelBaseStep, wheelNextValue } from "@/lib/wheelValueStep";
 import { displayStepFromMillimeters, displayToMillimeters, formatMeasurementNumber, lengthDisplayUnit, millimetersToDisplay, parseMeasurementInput } from "@/lib/measurementUnits";
 import { SPLIT_AXIS_DISPLAY_ORDER, splitAxisLabel, splitRotationAxes, type SplitRotation } from "@/lib/modelSplit";
 import { GuideHelpLink } from "@/components/GuideHelpLink";
+import { EdgeModifierSlider } from "@/components/workplane/EdgeModifierPanel";
 import { MovableToolPanel } from "@/components/workplane/MovableToolPanel";
 import { t } from "@/lib/i18n";
+import { fromPrinterPlay } from "@/lib/printerPlay";
+import { CUSTOM_MAGNET_SIZE, MAGNET_POCKET_SIZES, magnetPocketSummary, magnetSizeFromId, magnetSizeId, magnetSizeName, MAX_MAGNET_POCKET_DIAMETER, MAX_MAGNET_POCKET_HEIGHT, MIN_MAGNET_POCKET_DIAMETER, MIN_MAGNET_POCKET_HEIGHT } from "@/lib/magnetPocket";
+import {
+  MAX_CONNECTOR_CLEARANCE,
+  MAX_CONNECTOR_COUNT,
+  MAX_CONNECTOR_DEPTH,
+  MAX_CONNECTOR_DIAMETER,
+  MAX_DOVETAIL_ANGLE,
+  MAX_DOVETAIL_DEPTH,
+  MAX_DOVETAIL_TURN,
+  MAX_DOVETAIL_WIDTH,
+  MIN_CONNECTOR_DEPTH,
+  MIN_CONNECTOR_DIAMETER,
+  MIN_DOVETAIL_ANGLE,
+  MIN_DOVETAIL_DEPTH,
+  MIN_DOVETAIL_WIDTH,
+  SPLIT_CONNECTOR_KINDS,
+  splitMagnetPocket,
+  type SplitConnectorKind,
+  type SplitConnectorOptions,
+  type SplitConnectorTally,
+  type SplitTongueOutline,
+} from "@/lib/splitConnectors";
 import { useLanguage } from "@/lib/useLanguage";
+import { usePrinterPlay } from "@/lib/usePrinterPlay";
 import { selectWholeValue } from "@/lib/numberField";
 import type { AlignAxis, WorkplaneWorkspaceSettings } from "@/types/layerling";
-import { CUT_CONNECTOR_LIMITS, type CutConnectorOptions, type CutConnectorType } from "@/lib/cutConnectors";
 
 export type SplitWorkplaneDirection = "parallel" | "acrossX" | "acrossY";
+
+/** Cut in two, or make the selection longer or shorter at the plane (Discussions #506, #1569). */
+export type SplitMode = "split" | "stretch";
+
+const SPLIT_MODES = [
+  { mode: "split", label: "split.modeSplit", hint: "split.modeSplitHint" },
+  { mode: "stretch", label: "split.modeStretch", hint: "split.modeStretchHint" },
+] as const satisfies ReadonlyArray<{ mode: SplitMode; label: string; hint: string }>;
+
+/** How far the Stretch slider reaches either way, in mm; the field takes the same. */
+const STRETCH_SLIDER_LIMIT = 200;
 
 const SPLIT_WORKPLANE_DIRECTIONS = [
   { direction: "parallel", label: "split.workplaneParallel", hint: "split.workplaneParallelHint" },
   { direction: "acrossX", label: "split.workplaneAcrossX", hint: "split.workplaneAcrossXHint" },
   { direction: "acrossY", label: "split.workplaneAcrossY", hint: "split.workplaneAcrossYHint" },
 ] as const satisfies ReadonlyArray<{ direction: SplitWorkplaneDirection; label: string; hint: string }>;
+
+/**
+ * Where the connectors would go, as the editor last worked it out for the plane and settings shown (Discussion #832):
+ * nothing yet, being worked out, or what fits, with the middles the view marks on the plane - or a dovetail's tongues.
+ */
+export type SplitConnectorPreviewState =
+  | { state: "idle" }
+  | { state: "working" }
+  | { state: "done"; tally: SplitConnectorTally; holes: number; points: Array<[number, number, number]>; tongues?: SplitTongueOutline[] };
+
+/**
+ * What the panel says under the connectors' settings: how many fit and on how many cut faces, and why some got none - in
+ * a dovetail's own words where the dowels' would not fit it.
+ */
+export function splitConnectorSummary(preview: SplitConnectorPreviewState, kind: SplitConnectorKind = "dowels"): string[] {
+  if (preview.state === "working") return [t("split.connectorsFinding")];
+  if (preview.state !== "done") return [];
+  const { tally, holes } = preview;
+  const dovetail = kind === "dovetail";
+  const lines: string[] = [];
+  if (tally.faces > 0 && tally.placed === 0) {
+    lines.push(t(dovetail ? "split.dovetailNoRoom" : "split.connectorsNoRoom"));
+  } else if (tally.placed > 0) {
+    lines.push(tally.faces === 1 ? t("split.connectorsFitOne", { count: tally.placed }) : t("split.connectorsFitMany", { count: tally.placed, faces: tally.faces }));
+    if (tally.tooSmall === 1) lines.push(t(dovetail ? "split.dovetailTooSmallOne" : "split.connectorsTooSmallOne"));
+    else if (tally.tooSmall > 1) lines.push(t(dovetail ? "split.dovetailTooSmallMany" : "split.connectorsTooSmallMany", { count: tally.tooSmall }));
+  }
+  if (tally.tooThin > 0) lines.push(t("split.connectorsTooThin", { count: tally.tooThin }));
+  if (holes > 0) lines.push(t("split.connectorsHoles"));
+  return lines;
+}
 
 export function SplitPanel({
   axis,
@@ -33,19 +99,20 @@ export function SplitPanel({
   busy,
   error,
   picking,
+  connectors,
+  connectorPreview,
+  mode = "split",
+  stretch = 10,
+  onModeChange = () => undefined,
+  onStretchChange = () => undefined,
   onPickToggle,
   onAxisChange,
   onAlignToWorkplane,
   onRotationChange,
   onPositionChange,
+  onConnectorsChange,
   onApply,
   onCancel,
-  connectors,
-  onConnectorsChange,
-  connectorCount,
-  connectorsInvalid,
-  connectorsTooSmall,
-  onClearConnectors,
 }: {
   axis: AlignAxis;
   rotation: SplitRotation;
@@ -58,24 +125,27 @@ export function SplitPanel({
   error: string | null;
   /** The next click on a face moves the plane there. */
   picking: boolean;
+  /** Dowels, plugs or a dovetail that line the halves up again, or none (Discussion #832). */
+  connectors: SplitConnectorOptions;
+  connectorPreview: SplitConnectorPreviewState;
+  mode?: SplitMode;
+  /** How much longer the bodies get at the plane in Stretch, in mm; minus makes them shorter. */
+  stretch?: number;
+  onModeChange?: (mode: SplitMode) => void;
+  onStretchChange?: (stretch: number) => void;
   onPickToggle: () => void;
   onAxisChange: (axis: AlignAxis) => void;
   /** Lays the plane on the workplane, or square to it along its X or Y (#644). */
   onAlignToWorkplane: (direction: SplitWorkplaneDirection) => void;
   onRotationChange: (index: 0 | 1, rotation: number) => void;
   onPositionChange: (position: number) => void;
+  onConnectorsChange: (patch: Partial<SplitConnectorOptions>) => void;
   onApply: () => void;
   onCancel: () => void;
-  /** Fork: plugs or dowels on the cut face. */
-  connectors?: CutConnectorOptions;
-  onConnectorsChange?: (next: CutConnectorOptions) => void;
-  connectorCount?: number | null;
-  /** Placed by hand: points with no room, or too close to another (red on the plane). */
-  connectorsInvalid?: number;
-  connectorsTooSmall?: boolean;
-  onClearConnectors?: () => void;
 }) {
   useLanguage();
+  // The clearance says when it is still what the printer's play gave it (printerPlay.ts).
+  const printerPlay = usePrinterPlay();
   // A cut across Y counts towards the back like the position fields (#182); inside it runs along z.
   const sign = axis === "z" ? -1 : 1;
   const displayPosition = millimetersToDisplay(sign * position, workspace) || 0;
@@ -123,7 +193,7 @@ export function SplitPanel({
       <div className="split-panel-header movable" title={t("panel.moveHint")} {...handleProps}>
         <div>
           <strong id="split-panel-title">{t("split.title")}</strong>
-          <span>{t("split.subtitle")}</span>
+          <span>{t(mode === "stretch" ? "split.stretchSubtitle" : "split.subtitle")}</span>
         </div>
         <div className="panel-header-actions">
           <GuideHelpLink section="splitting" />
@@ -133,8 +203,26 @@ export function SplitPanel({
 
       <div className="split-panel-target">
         <strong>{targetCount === 1 ? t("split.targetOne") : t("split.targetMany", { count: targetCount })}</strong>
-        <span>{t("split.targetHint")}</span>
+        <span>{t(mode === "stretch" ? "split.stretchTargetHint" : "split.targetHint")}</span>
       </div>
+
+      <fieldset className="split-axis-control split-mode-control" disabled={busy}>
+        <legend>{t("split.mode")}</legend>
+        <div>
+          {SPLIT_MODES.map((entry) => (
+            <button
+              type="button"
+              className={mode === entry.mode ? "active" : ""}
+              aria-pressed={mode === entry.mode}
+              key={entry.mode}
+              title={t(entry.hint)}
+              onClick={() => onModeChange(entry.mode)}
+            >
+              {t(entry.label)}
+            </button>
+          ))}
+        </div>
+      </fieldset>
 
       <fieldset className="split-axis-control" disabled={busy}>
         <legend>{t("split.orientation")}</legend>
@@ -238,26 +326,196 @@ export function SplitPanel({
         />
       ))}
 
-      {connectors && onConnectorsChange ? (
-        <CutConnectorControls
-          value={connectors}
-          busy={busy}
-          count={connectorCount ?? null}
-          invalid={connectorsInvalid ?? 0}
-          tooSmall={Boolean(connectorsTooSmall)}
-          onChange={onConnectorsChange}
-          onClear={onClearConnectors}
+      {mode === "stretch" ? (<>
+        <EdgeModifierSlider
+          label={t("split.stretchLength")}
+          value={stretch}
+          min={-STRETCH_SLIDER_LIMIT}
+          max={STRETCH_SLIDER_LIMIT}
+          step={0.5}
+          decimals={2}
+          workspace={workspace}
+          length
+          disabled={busy}
+          onChange={onStretchChange}
         />
-      ) : null}
+        <p className="split-panel-help">{t("split.stretchHelp")}</p>
+      </>) : (<>
+      <fieldset className="split-axis-control split-connector-control" disabled={busy}>
+        <legend>{t("split.connectors")}</legend>
+        <div>
+          {SPLIT_CONNECTOR_KINDS.map((kind) => (
+            <button
+              type="button"
+              className={connectors.kind === kind ? "active" : ""}
+              aria-pressed={connectors.kind === kind}
+              key={kind}
+              title={t(`split.connectors.${kind}Hint`)}
+              onClick={() => onConnectorsChange({ kind })}
+            >
+              {t(`split.connectors.${kind}`)}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      {connectors.kind === "none" ? null : (<>
+        <p className="split-panel-help">{t(`split.connectors.${connectors.kind}Hint`)}</p>
+        <EdgeModifierSlider
+          label={t("split.connectorCount")}
+          value={connectors.count}
+          min={0}
+          max={MAX_CONNECTOR_COUNT}
+          step={1}
+          decimals={0}
+          workspace={workspace}
+          disabled={busy}
+          onChange={(value) => onConnectorsChange({ count: value })}
+        />
+        {connectors.kind === "dovetail" ? (<>
+          <EdgeModifierSlider
+            label={t("split.dovetailWidth")}
+            value={connectors.dovetailWidth}
+            min={MIN_DOVETAIL_WIDTH}
+            max={MAX_DOVETAIL_WIDTH}
+            step={0.5}
+            workspace={workspace}
+            length
+            disabled={busy}
+            onChange={(value) => onConnectorsChange({ dovetailWidth: value })}
+          />
+          <EdgeModifierSlider
+            label={t("split.dovetailDepth")}
+            value={connectors.dovetailDepth}
+            min={MIN_DOVETAIL_DEPTH}
+            max={MAX_DOVETAIL_DEPTH}
+            step={0.5}
+            workspace={workspace}
+            length
+            disabled={busy}
+            onChange={(value) => onConnectorsChange({ dovetailDepth: value })}
+          />
+          <EdgeModifierSlider
+            label={t("split.dovetailAngle")}
+            value={connectors.dovetailAngle}
+            min={MIN_DOVETAIL_ANGLE}
+            max={MAX_DOVETAIL_ANGLE}
+            step={1}
+            unit="°"
+            workspace={workspace}
+            disabled={busy}
+            onChange={(value) => onConnectorsChange({ dovetailAngle: value })}
+          />
+          <EdgeModifierSlider
+            label={t("split.dovetailTurn")}
+            value={connectors.dovetailTurn}
+            min={-MAX_DOVETAIL_TURN}
+            max={MAX_DOVETAIL_TURN}
+            step={1}
+            unit="°"
+            workspace={workspace}
+            disabled={busy}
+            onChange={(value) => onConnectorsChange({ dovetailTurn: value })}
+          />
+        </>) : connectors.kind === "magnets" ? (<>
+          <label className="edge-modifier-field">
+            <span>{t("magnetPocket.size")}</span>
+            <select
+              aria-label={t("magnetPocket.size")}
+              value={magnetSizeId({ diameter: connectors.magnetDiameter, height: connectors.magnetHeight })}
+              disabled={busy}
+              onChange={(event) => {
+                const size = magnetSizeFromId(event.currentTarget.value);
+                if (size) onConnectorsChange({ magnetDiameter: size.diameter, magnetHeight: size.height });
+              }}
+            >
+              {MAGNET_POCKET_SIZES.map((size) => <option key={`${size.diameter}x${size.height}`} value={`${size.diameter}x${size.height}`}>{t("magnetPocket.sizeOption", { size: magnetSizeName(size) })}</option>)}
+              <option value={CUSTOM_MAGNET_SIZE}>{t("magnetPocket.custom")}</option>
+            </select>
+          </label>
+          <EdgeModifierSlider
+            label={t("magnetPocket.diameter")}
+            value={connectors.magnetDiameter}
+            min={MIN_MAGNET_POCKET_DIAMETER}
+            max={MAX_MAGNET_POCKET_DIAMETER}
+            step={0.5}
+            workspace={workspace}
+            length
+            disabled={busy}
+            onChange={(value) => onConnectorsChange({ magnetDiameter: value })}
+          />
+          <EdgeModifierSlider
+            label={t("magnetPocket.height")}
+            value={connectors.magnetHeight}
+            min={MIN_MAGNET_POCKET_HEIGHT}
+            max={MAX_MAGNET_POCKET_HEIGHT}
+            step={0.5}
+            workspace={workspace}
+            length
+            disabled={busy}
+            onChange={(value) => onConnectorsChange({ magnetHeight: value })}
+          />
+          <label className="edge-modifier-check" title={t("magnetPocket.wellHint")}>
+            <input type="checkbox" checked={connectors.magnetWell} disabled={busy} onChange={(event) => onConnectorsChange({ magnetWell: event.currentTarget.checked })} />
+            <span>{t("magnetPocket.well")}</span>
+          </label>
+          <span className="shell-openings-summary">{magnetPocketSummary(splitMagnetPocket(connectors))}</span>
+        </>) : (<>
+          <EdgeModifierSlider
+            label={t("split.connectorDiameter")}
+            value={connectors.diameter}
+            min={MIN_CONNECTOR_DIAMETER}
+            max={MAX_CONNECTOR_DIAMETER}
+            step={0.5}
+            workspace={workspace}
+            length
+            disabled={busy}
+            onChange={(value) => onConnectorsChange({ diameter: value })}
+          />
+          <EdgeModifierSlider
+            label={t("split.connectorDepth")}
+            value={connectors.depth}
+            min={MIN_CONNECTOR_DEPTH}
+            max={MAX_CONNECTOR_DEPTH}
+            step={0.5}
+            workspace={workspace}
+            length
+            disabled={busy}
+            onChange={(value) => onConnectorsChange({ depth: value })}
+          />
+          {connectors.kind === "dowels" ? (
+            // For a printer whose bed moves, where the standing dowels wobble loose (breakawayBase.ts).
+            <label className="edge-modifier-check" title={t("split.dowelBaseHint")}>
+              <input type="checkbox" checked={connectors.dowelBase} disabled={busy} onChange={(event) => onConnectorsChange({ dowelBase: event.currentTarget.checked })} />
+              <span>{t("split.dowelBase")}</span>
+            </label>
+          ) : null}
+        </>)}
+        <EdgeModifierSlider
+          label={t("split.connectorClearance")}
+          value={connectors.clearance}
+          min={0}
+          max={MAX_CONNECTOR_CLEARANCE}
+          step={0.05}
+          workspace={workspace}
+          length
+          disabled={busy}
+          onChange={(value) => onConnectorsChange({ clearance: value })}
+        />
+        {fromPrinterPlay("split.connectorClearance", connectors.clearance, printerPlay) ? <span className="shell-openings-summary">{t("printerPlay.fromFitTest")}</span> : null}
+        <div className="split-connector-summary" role="status">
+          {splitConnectorSummary(connectorPreview, connectors.kind).map((line) => <span key={line}>{line}</span>)}
+        </div>
+      </>)}
+      </>)}
 
       <p className="split-panel-help">{t("split.help")}</p>
       {error ? <div className="split-panel-error" role="alert">{error}</div> : null}
 
       <div className="split-panel-footer">
         <button type="button" className="secondary" disabled={busy} onClick={onCancel}>{t("common.cancel")}</button>
-        <button type="button" className="primary" disabled={busy || max - min <= 0.0001} onClick={onApply}>
+        <button type="button" className="primary" disabled={busy || max - min <= 0.0001 || (mode === "stretch" && Math.abs(stretch) < 0.001)} onClick={onApply}>
           {busy ? <LoaderCircle className="split-panel-spinner" size={17} /> : <Check size={17} />}
-          {busy ? t("split.applying") : t("split.apply")}
+          {mode === "stretch" ? (busy ? t("split.stretchApplying") : t("split.stretchApply")) : busy ? t("split.applying") : t("split.apply")}
         </button>
       </div>
       </>)}
@@ -358,205 +616,5 @@ function SplitRotationControl({
         onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
       />
     </div>
-  );
-}
-
-const CONNECTOR_TYPES = [
-  { type: "none", label: "connectors.none", hint: "connectors.noneHint" },
-  { type: "plug", label: "connectors.plug", hint: "connectors.plugHint" },
-  { type: "dowel", label: "connectors.dowel", hint: "connectors.dowelHint" },
-  // Build 71: holds without glue - the halves slide together from the side.
-  { type: "dovetail", label: "connectors.dovetail", hint: "connectors.dovetailHint" },
-] as const satisfies ReadonlyArray<{ type: CutConnectorType; label: string; hint: string }>;
-
-const CONNECTOR_FITS = [
-  { clearance: 0.1, label: "printFit.press", hint: "printFit.pressHint" },
-  { clearance: 0.2, label: "printFit.snug", hint: "printFit.snugHint" },
-  { clearance: 0.4, label: "printFit.loose", hint: "printFit.looseHint" },
-] as const;
-
-/** Fork: the cut's connectors, as Bambu Studio and OrcaSlicer offer them. */
-function CutConnectorControls({
-  value,
-  busy,
-  count,
-  invalid,
-  tooSmall,
-  onChange,
-  onClear,
-}: {
-  value: CutConnectorOptions;
-  busy: boolean;
-  count: number | null;
-  invalid: number;
-  tooSmall: boolean;
-  onChange: (next: CutConnectorOptions) => void;
-  onClear?: () => void;
-}) {
-  const manual = value.placement === "manual";
-  const set = (patch: Partial<CutConnectorOptions>) => onChange({ ...value, ...patch });
-  return (
-    <fieldset className="split-connectors" disabled={busy}>
-      <legend>{t("connectors.title")}</legend>
-      <div className="split-connector-choice" role="group" aria-label={t("connectors.type")}>
-        {CONNECTOR_TYPES.map((entry) => (
-          <button
-            type="button"
-            key={entry.type}
-            className={value.type === entry.type ? "active" : ""}
-            aria-pressed={value.type === entry.type}
-            title={t(entry.hint)}
-            onClick={() => set({ type: entry.type })}
-          >
-            {t(entry.label)}
-          </button>
-        ))}
-      </div>
-      {value.type !== "none" ? (
-        <>
-          <p className="split-connector-hint">{t(value.type === "plug" ? "connectors.plugHint" : value.type === "dovetail" ? "connectors.dovetailHint" : "connectors.dowelHint")}</p>
-          <div className="split-connector-fields">
-            <ConnectorNumber
-              label={t(value.type === "dovetail" ? "connectors.keyWidth" : "connectors.size")}
-              value={value.diameter}
-              min={CUT_CONNECTOR_LIMITS.minDiameter}
-              max={CUT_CONNECTOR_LIMITS.maxDiameter}
-              onChange={(diameter) => set({ diameter })}
-            />
-            <ConnectorNumber
-              label={t(value.type === "plug" ? "connectors.pegLength" : value.type === "dovetail" ? "connectors.keyDepth" : "connectors.socketDepth")}
-              value={value.depth}
-              min={CUT_CONNECTOR_LIMITS.minDepth}
-              max={CUT_CONNECTOR_LIMITS.maxDepth}
-              onChange={(depth) => set({ depth })}
-            />
-          </div>
-          <div className="split-connector-row">
-            <span>{t("printFit.title")}</span>
-            <div className="split-connector-choice" role="group" aria-label={t("printFit.title")}>
-              {CONNECTOR_FITS.map((fit) => (
-                <button
-                  type="button"
-                  key={fit.clearance}
-                  className={Math.abs(value.clearance - fit.clearance) < 1e-6 ? "active" : ""}
-                  aria-pressed={Math.abs(value.clearance - fit.clearance) < 1e-6}
-                  title={t(fit.hint)}
-                  onClick={() => set({ clearance: fit.clearance })}
-                >
-                  {t(fit.label)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="split-connector-row">
-            <span>{t("connectors.placement")}</span>
-            <div className="split-connector-choice" role="group" aria-label={t("connectors.placement")}>
-              {(["auto", "manual"] as const).map((placement) => (
-                <button
-                  type="button"
-                  key={placement}
-                  className={value.placement === placement ? "active" : ""}
-                  aria-pressed={value.placement === placement}
-                  title={t(placement === "auto" ? "connectors.autoHint" : "connectors.manualHint")}
-                  onClick={() => set({ placement })}
-                >
-                  {t(placement === "auto" ? "connectors.auto" : "connectors.manual")}
-                </button>
-              ))}
-            </div>
-          </div>
-          {manual ? (
-            <div className="split-connector-manual">
-              <p>{t("connectors.manualHint")}</p>
-              {onClear ? <button type="button" className="split-connector-clear" onClick={onClear}>{t("connectors.clear")}</button> : null}
-            </div>
-          ) : null}
-          {!manual ? (
-          <div className="split-connector-row">
-            <span>{t("connectors.perPiece")}</span>
-            <div className="split-connector-choice" role="group" aria-label={t("connectors.perPiece")}>
-              {([1, 2] as const).map((perPiece) => (
-                <button
-                  type="button"
-                  key={perPiece}
-                  className={value.perPiece === perPiece ? "active" : ""}
-                  aria-pressed={value.perPiece === perPiece}
-                  onClick={() => set({ perPiece })}
-                >
-                  {perPiece}
-                </button>
-              ))}
-            </div>
-          </div>
-          ) : null}
-          {value.type === "plug" || value.type === "dovetail" ? (
-            <label className="split-connector-flip">
-              <input type="checkbox" checked={value.flip} onChange={(event) => set({ flip: event.currentTarget.checked })} />
-              {t(value.type === "dovetail" ? "connectors.flipKey" : "connectors.flip")}
-            </label>
-          ) : null}
-          <p className={`split-connector-status ${(tooSmall && !count) || invalid ? "warning" : ""}`} role="status">
-            {manual
-              ? invalid
-                ? t("connectors.manualInvalid", { count: count ?? 0, invalid })
-                : count
-                  ? t("connectors.manualCount", { count })
-                  : t("connectors.manualEmpty")
-              : tooSmall && !count
-                ? t("connectors.tooSmallPreview")
-                : count
-                  ? t(value.type === "plug" ? "connectors.previewPlugs" : value.type === "dovetail" ? "connectors.previewDovetails" : "connectors.previewDowels", { count })
-                  : t("connectors.working")}
-          </p>
-        </>
-      ) : null}
-    </fieldset>
-  );
-}
-
-function ConnectorNumber({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
-  const shown = String(Number(value.toFixed(2)));
-  const [draft, setDraft] = useState(shown);
-  const [editing, setEditing] = useState(false);
-  useEffect(() => {
-    if (!editing) setDraft(shown);
-  }, [shown, editing]);
-  const commit = () => {
-    const parsed = parseMeasurementInput(draft);
-    if (Number.isFinite(parsed)) onChange(Math.min(max, Math.max(min, parsed)));
-    setEditing(false);
-  };
-  return (
-    <label className="split-connector-number">
-      <span>{label}</span>
-      <span className="split-position-value">
-        <input
-          type="text"
-          inputMode="decimal"
-          value={editing ? draft : shown}
-          aria-label={label}
-          onFocus={(event) => {
-            setDraft(shown);
-            setEditing(true);
-            selectWholeValue(event.currentTarget);
-          }}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              event.stopPropagation();
-              event.currentTarget.blur();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              event.stopPropagation();
-              setDraft(shown);
-              setEditing(false);
-            }
-          }}
-        />
-        <small>mm</small>
-      </span>
-    </label>
   );
 }

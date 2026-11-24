@@ -28,7 +28,9 @@ describe("view face shortcuts", () => {
     expect(viewFaceForKey("5", "Digit5", false)).toBe("top");
     expect(viewFaceForKey("%", "Digit5", true)).toBe("top");
     expect(viewFaceForKey("!", "Digit1", true)).toBe("front");
-    expect(viewFaceForKey("!", "Digit1", false)).toBeUndefined();
+    // A French keyboard: the digit needs Shift, its key alone means it too; the minus on 6 stays the zoom.
+    expect(viewFaceForKey("&", "Digit1", false)).toBe("front");
+    expect(viewFaceForKey("-", "Digit6", false)).toBeUndefined();
     expect(viewFaceForKey("&", "Digit7", true)).toBeUndefined();
     expect(viewFaceForKey("constructor", "KeyC", false)).toBeUndefined();
   });
@@ -59,13 +61,14 @@ describe("view face shortcut wiring in the viewport", () => {
   });
 
   it("leaves a click on the view cube as a plain view jump", () => {
-    const cube = source.slice(source.indexOf('className={`view-cube '), source.indexOf('<div className={`camera-controls'));
+    const cube = readFileSync(fileURLToPath(new URL("../../apps/web/src/components/workplane/ViewCube.tsx", import.meta.url)), "utf8");
+    expect(cube).toContain("setCameraToViewFace(rig, face)");
     expect(cube).not.toContain("focusSelection");
   });
 
   it("keeps focusSelection a no-op without a selection", () => {
     const focus = source.slice(source.indexOf("const focusSelection = useCallback"), source.indexOf("const resetView = useCallback"));
     // It says so (false), so F can show the whole scene instead (#465).
-    expect(focus).toContain("if (bounds.isEmpty()) return false;");
+    expect(focus).toContain("if (!bounds) return false;");
   });
 });

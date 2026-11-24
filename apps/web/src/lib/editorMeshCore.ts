@@ -1,9 +1,5 @@
 
-import { shapeHasAlongDeform, slopeMesh } from "@/lib/slopeAlong";
 import { BASE_PATH } from "@/lib/basePath";
-import { createScrewBossGeometry } from "@/lib/screwBoss";
-import { createSnapFitGeometry } from "@/lib/snapFit";
-import { createRibGeometry } from "@/lib/rib";
 import type manifoldModule from "manifold-3d";
 import type { ManifoldToplevel } from "manifold-3d";
 import * as THREE from "three";
@@ -11,28 +7,40 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { numberLocale } from "@/lib/i18n";
 import { sphereTessellation } from "@/lib/sphereTessellation";
 import { torusTessellation } from "@/lib/torusTessellation";
+import { torusRadii, torusTubeRatio } from "@/lib/torusShape";
 import { createGearGeometry } from "@/lib/gearGeometry";
 import { createHirthGeometry } from "@/lib/hirthGeometry";
+import { createPulleyGeometry } from "@/lib/pulleyGeometry";
+import { createFinishingWasherGeometry } from "@/lib/finishingWasherGeometry";
 import { createStarGeometry } from "@/lib/starGeometry";
 import { createHeartGeometry } from "@/lib/heartGeometry";
 import { createCrescentGeometry } from "@/lib/crescentGeometry";
+import { createSectorGeometry } from "@/lib/sectorGeometry";
 import { createSlotGeometry } from "@/lib/slotGeometry";
 import { createDovetailGeometry } from "@/lib/dovetailGeometry";
 import { createLoftGeometry } from "@/lib/loftGeometry";
 import { createHingeGeometry } from "@/lib/hingeGeometry";
 import { createGridfinityGeometry, gridfinityLabelTextGiven } from "@/lib/gridfinityGeometry";
-import { customFontRevision, textFontsLoaded } from "@/lib/textFonts";
 import { gridfinityLabelLetters } from "@/lib/gridfinityLabelText";
+import { customFontRevision, textFontsLoaded } from "@/lib/textFonts";
 import { createKnurlGeometry } from "@/lib/knurlGeometry";
 import { fittedVaseMesh } from "@/lib/vaseShape";
 import { createTeardropGeometry } from "@/lib/teardropGeometry";
 import { createPortGeometry } from "@/lib/portGeometry";
 import { createScrewHoleGeometry } from "@/lib/screwHoleGeometry";
+import { shapeDrillPointAngle, shapeDrillPointLength } from "@/lib/drillPoint";
 import { createHoneycombGeometry } from "@/lib/honeycombGeometry";
 import { createRoundedBoxGeometry } from "@/lib/roundedBoxGeometry";
 import { createBentTubeGeometry } from "@/lib/bentTubeGeometry";
 import { createPrismGeometry } from "@/lib/prismGeometry";
+import { polygonFlatAngle } from "@/lib/regularPolygonFootprint";
+import { createRoundedPolygonGeometry } from "@/lib/roundedPolygonGeometry";
+import { shapeHasAlongDeform, slopeMesh } from "@/lib/slopeAlong";
 import { createBooleanHalfSphereGeometry, createBooleanHollowCylinderGeometry, createBooleanRoundRoofGeometry, createParaboloidGeometry } from "@/lib/roundBodyGeometry";
+import { createCurvedConeGeometry } from "@/lib/curvedCone";
+import { createScrewBossGeometry } from "@/lib/screwBoss";
+import { createSnapFitGeometry } from "@/lib/snapFit";
+import { createRibGeometry } from "@/lib/rib";
 import { createPyramidGeometry } from "@/lib/pyramidGeometry";
 import { roundSideCount } from "@/lib/roundSideCount";
 import { createThreadGeometry } from "@/lib/threadGeometry";
@@ -40,8 +48,9 @@ import { createSpringGeometry } from "@/lib/springGeometry";
 import { textDisplayGeometry } from "@/lib/textFill";
 import { rememberManifoldRuntime, setManifoldLoader } from "@/lib/manifoldHandle";
 import { meshForTwist, twistBandCount } from "@/lib/heightSlices";
-import { groupedContentScale, scaleGroupedVertices } from "@/lib/groupScale";
-import { deformsAboutOrigin, meshYawDegrees, mirroredAxisCount, mirrorSign, resizedImportedMeshPositions, shapeDepth, shapeExtrudeDeformAt, shapeHasExtrudeDeform, shapeHasTaper, shapeTaperScaleAt, shapeWidth } from "@/lib/workplaneShapes";
+import { groupedContentScale, groupedPartSizeScale, scaleGroupedVertices } from "@/lib/groupScale";
+import { quaternionForShape } from "@/lib/geometryRotation";
+import { canonicalizeShape, deformsAboutOrigin, extrudeTwistPivot, meshYawDegrees, mirroredAxisCount, mirrorSign, resizedImportedMeshPositions, resizedShapeSize, shapeDepth, shapeExtrudeDeformAt, shapeHasExtrudeDeform, shapeHasTaper, shapeTaperScaleAt, shapeWidth } from "@/lib/workplaneShapes";
 import type { WorkplaneShape } from "@/types/layerling";
 
 export type Vec3 = [number, number, number];
@@ -54,7 +63,7 @@ export type ShapeUpdatePatch = Partial<WorkplaneShape> & { bakeTransform?: boole
 
 export type ManifoldSolid = ReturnType<ManifoldToplevel["Manifold"]["cube"]>;
 
-/** What a hole reaches past its ends: enough to break an exact touch with a face (no skin left), too little to change a depth. Was 0.05 - a 5 mm blind hole cut 5.05 (Pare 3D build 23). */
+/** What a hole sticks out at its top and bottom: 0.05 took a floor up to that thin away with it (#691). */
 export const CUTTER_PADDING = 0.001;
 
 /** What a hole is wider than typed, on each side: the size stays, an exact touch with a wall does not. */
@@ -126,7 +135,33 @@ function sanitizeName(name: string) {
   return name.replace(/[^a-z0-9_-]+/gi, "_") || "shape";
 }
 
-export function transformMesh(mesh: MeshData, shape: WorkplaneShape): MeshData {
+/**
+ * The extent a taper or twist works over: its lowest and highest point and the middle it turns about. Left out, it is
+ * the mesh's own extent. One part of a group passes the group's, so it turns as it does inside the whole (#1648).
+ */
+export type DeformFrame = { minY: number; maxY: number; centerX: number; centerZ: number };
+
+/** The extent of a mesh as a taper or twist sees it, before transformMesh. */
+export function deformFrameOf(vertices: readonly Vec3[]): DeformFrame | undefined {
+  if (vertices.length === 0) return undefined;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
+  vertices.forEach(([x, y, z]) => {
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minZ = Math.min(minZ, z);
+    maxZ = Math.max(maxZ, z);
+  });
+  return { minY, maxY, centerX: (minX + maxX) / 2, centerZ: (minZ + maxZ) / 2 };
+}
+
+export function transformMesh(mesh: MeshData, shape: WorkplaneShape, frame?: DeformFrame): MeshData {
   const centerY = shape.height / 2;
   const tapered = shapeHasTaper(shape);
   const deformed = shapeHasExtrudeDeform(shape);
@@ -137,22 +172,11 @@ export function transformMesh(mesh: MeshData, shape: WorkplaneShape): MeshData {
   let deformCenterX = 0;
   let deformCenterZ = 0;
   if ((tapered || deformed) && mesh.vertices.length) {
-    minLocalY = Number.POSITIVE_INFINITY;
-    maxLocalY = Number.NEGATIVE_INFINITY;
-    let minX = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let minZ = Number.POSITIVE_INFINITY;
-    let maxZ = Number.NEGATIVE_INFINITY;
-    mesh.vertices.forEach((vertex) => {
-      minLocalY = Math.min(minLocalY, vertex[1]);
-      maxLocalY = Math.max(maxLocalY, vertex[1]);
-      minX = Math.min(minX, vertex[0]);
-      maxX = Math.max(maxX, vertex[0]);
-      minZ = Math.min(minZ, vertex[2]);
-      maxZ = Math.max(maxZ, vertex[2]);
-    });
-    deformCenterX = (minX + maxX) / 2;
-    deformCenterZ = (minZ + maxZ) / 2;
+    const extent = frame ?? deformFrameOf(mesh.vertices as Vec3[])!;
+    minLocalY = extent.minY;
+    maxLocalY = extent.maxY;
+    deformCenterX = extent.centerX;
+    deformCenterZ = extent.centerZ;
     // A star turns about its own middle, not about the middle of its box (#476).
     if (deformsAboutOrigin(shape.kind)) {
       deformCenterX = 0;
@@ -178,6 +202,11 @@ export function transformMesh(mesh: MeshData, shape: WorkplaneShape): MeshData {
   const mirrorY = mirrorSign(shape.mirrorY);
   const mirrorZ = mirrorSign(shape.mirrorZ);
   const reversedWinding = mirroredAxisCount(shape) % 2 === 1;
+  // A body with a rotation pivot of its own twists about the vertical through it, not about its middle.
+  // Relative to the middle the taper works about, like localX and localZ below.
+  const twistPivot = deformed ? extrudeTwistPivot(shape) : undefined;
+  const pivotX = twistPivot ? twistPivot.x - deformCenterX : 0;
+  const pivotZ = twistPivot ? twistPivot.z - deformCenterZ : 0;
   const local = mesh.vertices.map(([x, y, z]) => {
     const normalizedHeight = (y - minLocalY) / taperHeight;
     const widthScale = tapered ? shapeTaperScaleAt(shape, normalizedHeight, "width") : 1;
@@ -188,8 +217,10 @@ export function transformMesh(mesh: MeshData, shape: WorkplaneShape): MeshData {
       const deform = shapeExtrudeDeformAt(shape, normalizedHeight);
       const cos = Math.cos(deform.twistRadians);
       const sin = Math.sin(deform.twistRadians);
-      const twistedX = localX * cos - localZ * sin;
-      const twistedZ = localX * sin + localZ * cos;
+      const aboutX = localX - pivotX;
+      const aboutZ = localZ - pivotZ;
+      const twistedX = pivotX + aboutX * cos - aboutZ * sin;
+      const twistedZ = pivotZ + aboutX * sin + aboutZ * cos;
       localX = twistedX + deform.offsetX;
       localZ = twistedZ + deform.offsetZ;
     }
@@ -197,17 +228,17 @@ export function transformMesh(mesh: MeshData, shape: WorkplaneShape): MeshData {
     localZ += deformCenterZ;
     return [localX, y, localZ] as Vec3;
   });
-  // Build 116 (from layerling): a slope or narrowing along (slopeAlong.ts), after the taper and the twist, as the viewport does.
-  const along = shapeHasAlongDeform(shape)
+  // A slope along (slopeAlong.ts) lowers the top towards one end, after the taper and the twist, as the viewport does.
+  const sloped = shapeHasAlongDeform(shape)
     ? slopeMesh(local, mesh.faces as Array<[number, number, number]>, shape)
     : { vertices: local, faces: mesh.faces as Array<[number, number, number]> };
   return {
     ...mesh,
-    vertices: along.vertices.map(([localX, y, localZ]) => {
+    vertices: sloped.vertices.map(([localX, y, localZ]) => {
       const vertex = new THREE.Vector3(localX * mirrorX, (y - centerY) * mirrorY, localZ * mirrorZ).applyMatrix4(matrix);
       return [vertex.x + shape.x, vertex.y + (shape.elevation ?? 0) + centerY, vertex.z + shape.z] as Vec3;
     }),
-    faces: reversedWinding ? along.faces.map(([a, b, c]) => [a, c, b] as [number, number, number]) : along.faces,
+    faces: reversedWinding ? sloped.faces.map(([a, b, c]) => [a, c, b] as [number, number, number]) : sloped.faces,
   };
 }
 
@@ -371,14 +402,12 @@ function createBooleanWedgeGeometry(width: number, height: number, depth: number
   return geometry;
 }
 
-function createBooleanTorusGeometry(width: number, height: number, depth: number, shape: Pick<WorkplaneShape, "sides" | "steps">) {
-  const tubeRadius = Math.max(0.1, height / 2);
-  const majorRadius = Math.max(0.2, Math.min(width, depth) / 2 - tubeRadius);
+function createBooleanTorusGeometry(width: number, height: number, depth: number, shape: Pick<WorkplaneShape, "sides" | "steps" | "torusTubeRatio">) {
+  const { tubeRadius, majorRadius, outerDiameter, verticalScale } = torusRadii(width, depth, height, torusTubeRatio({ ...shape, width, depth, height }));
   const { ringSides, tubeSteps } = torusTessellation(shape, width, depth, height);
   const geometry = new THREE.TorusGeometry(majorRadius, tubeRadius, tubeSteps, ringSides);
   geometry.rotateX(Math.PI / 2);
-  const outerDiameter = (majorRadius + tubeRadius) * 2;
-  geometry.scale(width / Math.max(0.001, outerDiameter), 1, depth / Math.max(0.001, outerDiameter));
+  geometry.scale(width / Math.max(0.001, outerDiameter), verticalScale, depth / Math.max(0.001, outerDiameter));
   return geometry;
 }
 
@@ -410,7 +439,8 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
       break;
     case "cylinder":
     case "ellipse":
-      geometry = createPrismGeometry(width, height, depth, roundSideCount(shape.sides, width, depth), shape.segments ?? 1);
+      // A cylinder set as a hole may end in a drill point below its bottom (Discussion #621).
+      geometry = createPrismGeometry(width, height, depth, roundSideCount(shape.sides, width, depth), shape.segments ?? 1, shapeDrillPointLength(shape));
       break;
     case "sphere":
       geometry = new THREE.SphereGeometry(1, sphereTessellation(shape.steps).widthSegments, sphereTessellation(shape.steps).heightSegments);
@@ -436,6 +466,18 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
       break;
     case "paraboloid":
       geometry = createParaboloidGeometry(width, height, depth, shape.steps ?? 32);
+      break;
+    case "curvedCone":
+      geometry = createCurvedConeGeometry(width, height, depth, shape.curvedConeTop, shape.curvedConeBend, roundSideCount(shape.sides, width, depth));
+      break;
+    case "screwBoss":
+      geometry = createScrewBossGeometry({ ...shape, width, depth, height });
+      break;
+    case "snapFit":
+      geometry = createSnapFitGeometry({ ...shape, width, depth, height });
+      break;
+    case "rib":
+      geometry = createRibGeometry({ ...shape, width, depth, height });
       break;
     case "torus":
       geometry = createBooleanTorusGeometry(width, height, depth, shape);
@@ -465,6 +507,16 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         heartQuality: shape.heartQuality,
       });
       break;
+    case "sector":
+      geometry = createSectorGeometry({
+        width,
+        depth,
+        height,
+        sectorAngle: shape.sectorAngle,
+        sectorInnerDiameter: shape.sectorInnerDiameter,
+        sectorEndRadius: shape.sectorEndRadius,
+      });
+      break;
     case "crescent":
       geometry = createCrescentGeometry({
         width,
@@ -487,7 +539,10 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
     case "counterbore":
     case "countersink":
     case "doubleCountersink":
-      geometry = createScrewHoleGeometry({ kind: shape.kind, width, depth, height, screwHoleShaft: shape.screwHoleShaft, screwHoleHeadDepth: shape.screwHoleHeadDepth, screwHoleAngle: shape.screwHoleAngle, sides: roundSideCount(shape.sides, width, depth) });
+      geometry = createScrewHoleGeometry({ kind: shape.kind, width, depth, height, screwHoleShaft: shape.screwHoleShaft, screwHoleHeadDepth: shape.screwHoleHeadDepth, screwHoleAngle: shape.screwHoleAngle, screwHoleRecess: shape.screwHoleRecess, screwHoleChamfer: shape.screwHoleChamfer, drillPointAngle: shapeDrillPointAngle(shape), slot: shape.screwHoleSlot, sides: roundSideCount(shape.sides, width, depth) });
+      break;
+    case "finishingWasher":
+      geometry = createFinishingWasherGeometry({ width, depth, height, screwHoleShaft: shape.screwHoleShaft, screwHoleHeadDepth: shape.screwHoleHeadDepth, screwHoleAngle: shape.screwHoleAngle, sides: roundSideCount(shape.sides, width, depth) });
       break;
     case "teardrop":
       geometry = createTeardropGeometry({ width, depth, height, sides: roundSideCount(shape.sides, width, depth) });
@@ -516,11 +571,24 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         depth,
         height,
         hingeKnuckles: shape.hingeKnuckles,
+        hingeKnuckleWidth: shape.hingeKnuckleWidth,
+        hingeConeSize: shape.hingeConeSize,
+        hingeStyle: shape.hingeStyle,
+        hingeSnapGrip: shape.hingeSnapGrip,
         hingePinDiameter: shape.hingePinDiameter,
         hingeLeafThickness: shape.hingeLeafThickness,
         hingeClearance: shape.hingeClearance,
         hingePinless: shape.hingePinless,
         hingeAngle: shape.hingeAngle,
+        hingeScrewHoles: shape.hingeScrewHoles,
+        hingeScrewDiameter: shape.hingeScrewDiameter,
+        hingeScrewSpacing: shape.hingeScrewSpacing,
+        hingeScrewAcross: shape.hingeScrewAcross,
+        hingeScrewCountersink: shape.hingeScrewCountersink,
+        hingeCornerRadius: shape.hingeCornerRadius,
+        hingeLeafStyle: shape.hingeLeafStyle,
+        hingeScrewHead: shape.hingeScrewHead,
+        hingeNutWidth: shape.hingeNutWidth,
         sides: shape.sides,
       });
       break;
@@ -535,6 +603,7 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         gridfinityHalfGrid: shape.gridfinityHalfGrid,
         gridfinityLargePlate: shape.gridfinityLargePlate,
         gridfinitySwallowtail: shape.gridfinitySwallowtail,
+        gridfinityClipNotches: shape.gridfinityClipNotches,
         gridfinityLabelBack: shape.gridfinityLabelBack,
         gridfinityLabelFront: shape.gridfinityLabelFront,
         gridfinityLabelLeft: shape.gridfinityLabelLeft,
@@ -589,6 +658,7 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         gridfinityDividerPositionsX: shape.gridfinityDividerPositionsX,
         gridfinityDividerPositionsZ: shape.gridfinityDividerPositionsZ,
         gridfinityCompartmentLabels: shape.gridfinityCompartmentLabels,
+        gridfinityCompartmentSplits: shape.gridfinityCompartmentSplits,
         gridfinityOpenings: shape.gridfinityOpenings,
         gridfinityOpeningCorner: shape.gridfinityOpeningCorner,
         gridfinityOpeningCornerSize: shape.gridfinityOpeningCornerSize,
@@ -620,6 +690,9 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         gearType: shape.gearType,
         gearRim: shape.gearRim,
         helixAngle: shape.helixAngle,
+        bevelHelixAngle: shape.bevelHelixAngle,
+        ringRackHelixAngle: shape.ringRackHelixAngle,
+        ringRackHerringbone: shape.ringRackHerringbone,
         helixQuality: shape.helixQuality,
         gearProfile: shape.gearProfile,
         gearPressureAngle: shape.gearPressureAngle,
@@ -629,14 +702,8 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
     case "hirth":
       geometry = createHirthGeometry(width, height, depth, shape);
       break;
-    case "screwBoss":
-      geometry = createScrewBossGeometry({ ...shape, width, depth, height });
-      break;
-    case "snapFit":
-      geometry = createSnapFitGeometry({ ...shape, width, depth, height });
-      break;
-    case "rib":
-      geometry = createRibGeometry({ ...shape, width, depth, height });
+    case "pulley":
+      geometry = createPulleyGeometry(shape);
       break;
     case "honeycomb":
       geometry = createHoneycombGeometry({
@@ -669,6 +736,7 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         cornerFillet: shape.cornerFillet,
         cornerFillets: shape.cornerFillets,
         topBottomFillet: shape.topBottomFillet,
+        bottomFillet: shape.bottomFillet,
         roundedBoxQuality: shape.roundedBoxQuality,
       });
       break;
@@ -712,13 +780,18 @@ function geometryMeshForShape(shape: WorkplaneShape): MeshData | null {
         springWire: shape.springWire,
         springHand: shape.springHand,
         springQuality: shape.springQuality,
+        springForm: shape.springForm,
+        springPattern: shape.springPattern,
+        springEnds: shape.springEnds,
       });
       break;
     case "wedge":
       geometry = createBooleanWedgeGeometry(width, height, depth);
       break;
     case "polygon":
-      geometry = createPrismGeometry(width, height, depth, shape.sides ?? 6);
+      geometry = (shape.cornerFillet ?? 0) > 0
+        ? createRoundedPolygonGeometry(width, height, depth, shape.sides ?? 6, shape.cornerFillet ?? 0, Boolean(shape.polygonFlat))
+        : createPrismGeometry(width, height, depth, shape.sides ?? 6, 1, 0, polygonFlatAngle(shape.sides, shape.polygonFlat));
       break;
     case "icosahedron":
       geometry = new THREE.IcosahedronGeometry(size / 2, 1);
@@ -754,22 +827,38 @@ export function meshReachAlong(mesh: Pick<MeshData, "vertices">, direction: { x:
   return reach;
 }
 
+/**
+ * A thread inside a group, at the size the group's stretch gives it, in the group's own frame: its width, height and
+ * depth stretch by the length each of its own axes gets (a thread lying on its side has them on other axes), and its
+ * place stretches with the group. The same sizes Ungroup gives it, so the group shows what opening it would.
+ */
+function groupedThreadAtStretch(thread: WorkplaneShape, [sx, sy, sz]: readonly [number, number, number]): WorkplaneShape {
+  const quaternion = quaternionForShape(thread);
+  const axes = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)]
+    .map((axis) => axis.applyQuaternion(quaternion).toArray() as [number, number, number]) as [[number, number, number], [number, number, number], [number, number, number]];
+  const part = groupedPartSizeScale(axes, [sx, sy, sz]);
+  const width = shapeWidth(thread) * part.width;
+  const depth = shapeDepth(thread) * part.depth;
+  const height = thread.height * part.height;
+  return canonicalizeShape({
+    ...thread,
+    x: thread.x * sx,
+    z: thread.z * sz,
+    elevation: ((thread.elevation ?? 0) + thread.height / 2) * sy - height / 2,
+    width,
+    depth,
+    height,
+    size: resizedShapeSize(width, depth),
+  });
+}
+
 export function meshForShape(shape: WorkplaneShape): MeshData {
   if (shape.kind === "mesh" && shape.importedMesh) {
     return importedMeshForShape(shape);
   }
 
   if (shape.groupedShapes?.length) {
-    const vertices: Vec3[] = [];
-    const faces: [number, number, number][] = [];
-    shape.groupedShapes.filter((child) => !child.hidden).forEach((child) => {
-      const childMesh = meshForShape(child);
-      appendMeshData(vertices, faces, childMesh);
-    });
-    // Without the stretch, split, export and alignment would see a resized
-    // group at the size it had when it was grouped.
-    const scaled = scaleGroupedVertices(vertices, groupedContentScale(shape, localGroupBounds(shape.groupedShapes)));
-    return transformMesh({ name: sanitizeName(shape.name), vertices: scaled, faces }, shape);
+    return transformMesh(groupedContentMesh(shape), shape);
   }
 
   const cached = cachedUnplacedMesh(shape);
@@ -791,11 +880,34 @@ export function meshForShape(shape: WorkplaneShape): MeshData {
   return transformMesh(raw, shape);
 }
 
+/** A group's parts in its own frame, stretched to its size, before its own taper, twist and placement (transformMesh). */
+export function groupedContentMesh(shape: WorkplaneShape): MeshData {
+  const vertices: Vec3[] = [];
+  const faces: [number, number, number][] = [];
+  const children = shape.groupedShapes ?? [];
+  const stretch = groupedContentScale(shape, localGroupBounds(children));
+  // A thread is not stretched with the group: it is built again at the size the stretch gives it, as Ungroup builds
+  // it, so its turns keep their shape instead of coming out squeezed or pulled (Discussion #1066).
+  const rebuilt: MeshData[] = [];
+  children.filter((child) => !child.hidden).forEach((child) => {
+    if (child.kind === "thread") rebuilt.push(meshForShape(groupedThreadAtStretch(child, stretch)));
+    else appendMeshData(vertices, faces, meshForShape(child));
+  });
+  // Without the stretch, split, export and alignment would see a resized
+  // group at the size it had when it was grouped.
+  const scaled = scaleGroupedVertices(vertices, stretch);
+  rebuilt.forEach((mesh) => appendMeshData(scaled, faces, mesh));
+  return { name: sanitizeName(shape.name), vertices: scaled, faces };
+}
+
 // Moving or turning a spring built it again from scratch, about 300 ms each time it was aligned,
 // exported or split. The mesh before transformMesh does not depend on where the shape stands, so
 // the last ones are kept and found by the other fields. Text is left out: it builds a stand-in
-// until its font has loaded.
-const PLACEMENT_FIELDS = new Set(["id", "name", "color", "gridfinityLabelColor", "x", "z", "elevation", "rotation", "rotationX", "rotationZ"]);
+// until its font has loaded. Paint (paint.ts) lies on the mesh and does not change it.
+// With them, the marks and switches that leave the body's own mesh as it is: hiding, locking or marking a large mesh
+// does not build it again (none of them is read while the mesh is built).
+const PLACEMENT_FIELDS = new Set(["id", "name", "color", "gridfinityLabelColor", "paint", "x", "z", "elevation", "rotation", "rotationX", "rotationZ",
+  "breakawayBase", "stencilBridge", "supportRibFor", "moldOf", "locked", "shapeLocked", "hidden", "transparent", "multicolor"]);
 const MAX_UNPLACED_MESHES = 24;
 const MAX_UNPLACED_MESH_VERTICES = 1_500_000;
 const unplacedMeshCache: Array<{ shape: WorkplaneShape; mesh: MeshData; fontRevision: number }> = [];
@@ -909,10 +1021,22 @@ export function boundsForCuboids(bounds: Cuboid[]): Cuboid {
   };
 }
 
+/**
+ * The box around the real vertices of every shape, also of a wrapped body, which meshAabb measures by its
+ * cylinder. A group is shown stretched to its size over the vertices it holds, so it has to be sized by them (#667).
+ */
+export function boundsForShapesOfVertices(shapes: WorkplaneShape[]): Cuboid {
+  return boundsForCuboids(shapes.map((shape) => aabbOfShape(shape, true)));
+}
+
 export function meshAabb(shape: WorkplaneShape): Cuboid {
+  return aabbOfShape(shape, false);
+}
+
+function aabbOfShape(shape: WorkplaneShape, ofVertices: boolean): Cuboid {
   // A wrapped body covers only an arc; its box around the cylinder's axis is what
   // makes "centre on the cylinder" put it on that cylinder's wall (#106).
-  if (shape.cylinderWrap && shape.importedMesh) return shapeAabb(shape);
+  if (shape.cylinderWrap && shape.importedMesh && !ofVertices) return shapeAabb(shape);
   const mesh = meshForShape(shape);
   if (mesh.vertices.length === 0) {
     return shapeAabb(shape);

@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 import { t } from "@/lib/i18n";
-import type { PrintIssue } from "@/lib/printCheck";
+import type { PrintIssue } from "@/lib/pareReadyCheck";
 
 export const PRINT_CHECK_EVENT = "pare3d:print-check";
 export const SPLIT_TO_FIT_EVENT = "pare3d:split-to-fit";

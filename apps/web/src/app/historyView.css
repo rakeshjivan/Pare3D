@@ -55,7 +55,7 @@
 
 .history-view-heading strong {
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .history-view-heading span {
@@ -112,6 +112,40 @@
   outline: 2px solid #d07313;
   outline-offset: 4px;
   border-radius: 999px;
+}
+
+.history-view-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.history-view-play > button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  color: #745e48;
+  background: #fff;
+  border: 1px solid #d8c8b7;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.history-view-play > button.active {
+  color: #fff;
+  background: #d07313;
+  border-color: #d07313;
+}
+
+.history-view-play label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  color: #745e48;
+  font-size: 13px;
 }
 
 .history-view-steps {
@@ -245,6 +279,81 @@
   color: #fff;
 }
 
+/* Each row: the step to show, and beside it the bin that deletes it (memory 14.11.2026, #1728). */
+.history-view-list li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.history-view-list li > button:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* What deleting the step would free: quiet, on the right, in step with the numbers above and below. */
+.history-view-list-size {
+  flex: none;
+  font-size: 11px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-view-list button.history-view-list-delete {
+  flex: none;
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+  color: #a33a2a;
+  opacity: 0.6;
+}
+
+.history-view-list button.history-view-list-delete:hover:not(:disabled),
+.history-view-list button.history-view-list-delete:focus-visible {
+  background: #fdf1ee;
+  opacity: 1;
+}
+
+.history-view-list button.history-view-list-delete:disabled {
+  cursor: default;
+  opacity: 0.2;
+}
+
+/* Above the list: how much the whole history takes, and the button that picks the largest steps. */
+.history-view-list-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+
+.history-view-list-head button {
+  display: inline-flex;
+  min-height: 28px;
+  padding: 0 10px;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #a33a2a;
+  background: white;
+  border: 1px solid #e3bdb4;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.history-view-list-head button:hover:not(:disabled) {
+  background: #fdf1ee;
+}
+
+.history-view-list-head button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .history-view-state {
   display: flex;
   flex-wrap: wrap;
@@ -255,7 +364,7 @@
 }
 
 .history-view-state strong {
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .history-view-facts {
@@ -457,6 +566,23 @@ html[data-theme="dark"] .history-view-list-now {
   color: #5fd394;
 }
 
+html[data-theme="dark"] .history-view-list button.history-view-list-delete {
+  color: #ff8a78;
+}
+
+html[data-theme="dark"] .history-view-list button.history-view-list-delete:hover:not(:disabled),
+html[data-theme="dark"] .history-view-list button.history-view-list-delete:focus-visible,
+html[data-theme="dark"] .history-view-list-head button:hover:not(:disabled) {
+  background: #4a2a22;
+}
+
+html[data-theme="dark"] .history-view-list-head button {
+  color: #ff8a78;
+  background: #413121;
+  border-color: #7a4a3e;
+}
+
+html[data-theme="dark"] .history-view-play > button:not(.active),
 html[data-theme="dark"] .history-view-slider > button,
 html[data-theme="dark"] .history-view-actions .secondary,
 html[data-theme="dark"] .history-view-inside button {

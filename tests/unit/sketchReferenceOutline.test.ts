@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { shapeMeshFootprint } from "@/components/SketchWorkspace";
+import manifoldModule from "manifold-3d";
+import { beforeAll, describe, expect, it } from "vitest";
+import { importedMeshFootprint, referenceShapeTurn, shapeMeshFootprint } from "@/components/SketchWorkspace";
+import { sketchReferenceShapeOnWorkplane } from "@/lib/editorSketchCad";
+import { meshForShape } from "@/lib/editorMeshCore";
+import { rememberManifoldRuntime } from "@/lib/manifoldHandle";
 import type { WorkplaneShape } from "@/types/layerling";
 
 // #596: a body under a sketch is drawn with its real outline, not as the rectangle of its width and depth.
@@ -41,8 +45,170 @@ describe("the outline of a body under a sketch (#596)", () => {
     expect(plain.map(([x, z]) => `${x.toFixed(1)},${z.toFixed(1)}`).sort().join("|")).not.toBe(turned.map(([x, z]) => `${x.toFixed(1)},${z.toFixed(1)}`).sort().join("|"));
   });
 
+  it("shows a group by the outlines of its parts, not as a box (#778)", () => {
+    // A thin round plate under a smaller hexagon, grouped: the box of the group would be 40 x 40.
+    const group = shape({
+      kind: "mesh", x: 0, z: 0, width: 40, depth: 40, height: 14,
+      groupedShapes: [
+        shape({ id: "plate", kind: "cylinder", x: 0, z: 0, width: 40, depth: 40, height: 4 }),
+        shape({ id: "hex", kind: "polygon", sides: 6, x: 0, z: 0, elevation: 4, width: 12, depth: 12, height: 10 }),
+      ],
+    });
+    const footprint = shapeMeshFootprint(group);
+    expect(footprint?.world).toBe(true);
+    const points = corners(footprint?.outlineD ?? null);
+    // The plate is round: far more than four corners, and none of them on the box's corner (20, 20).
+    expect(points.length).toBeGreaterThan(40);
+    expect(points.some(([x, z]) => Math.abs(x - 20) < 0.5 && Math.abs(z - 20) < 0.5)).toBe(false);
+    // Both parts are in it: the plate reaches 20 from the middle, the hexagon's corners stay within 6.5.
+    expect(Math.max(...points.map(([x]) => Math.abs(x)))).toBeGreaterThan(19);
+    expect(points.some(([x, z]) => Math.hypot(x, z) < 6.5)).toBe(true);
+  });
+
+  it("counts the triangle limit per part of a group, so fine parts keep their outline (#834)", () => {
+    // Two bolts side by side in one group, as a knurl with a bolt in the report: each is under the limit, both together over it.
+    // A group's parts stand relative to the group.
+    const bolt = (id: string, x: number) => shape({ id, kind: "thread", x, z: 0, width: 10, depth: 10, height: 25 });
+    const parts = [bolt("left", -8), bolt("right", 8)];
+    const triangles = parts.map((part) => meshForShape(part).faces.length);
+    expect(Math.max(...triangles)).toBeLessThanOrEqual(20000);
+    expect(triangles[0] + triangles[1]).toBeGreaterThan(20000);
+    const group = shape({ kind: "mesh", x: 25, z: 0, width: 26, depth: 10, height: 25, groupedShapes: parts });
+    const points = corners(shapeMeshFootprint(group)?.outlineD ?? null);
+    // Two round outlines, not the group's box with its corners at (25 ± 13, ± 5).
+    expect(points.length).toBeGreaterThan(40);
+    expect(points.some(([x, z]) => Math.abs(Math.abs(x - 25) - 13) < 0.3 && Math.abs(Math.abs(z) - 5) < 0.3)).toBe(false);
+    expect(points.some(([x]) => x < 25)).toBe(true);
+    expect(points.some(([x]) => x > 25)).toBe(true);
+  });
+
+  it("shows each part of a group on a side face, also the part behind the plane (#778)", () => {
+    // A bar of 40 x 10 x 10 and a thin post of 6 mm on top of it, grouped; the workplane lies on the bar's front face (z = 5).
+    const group = shape({
+      kind: "mesh", x: 0, z: 0, width: 40, depth: 10, height: 30,
+      groupedShapes: [
+        shape({ id: "bar", kind: "box", x: 0, z: 0, width: 40, depth: 10, height: 10 }),
+        shape({ id: "post", kind: "cylinder", x: 0, z: 0, elevation: 10, width: 6, depth: 6, height: 20 }),
+      ],
+    });
+    const front = { origin: { x: 0, y: 0, z: 5 }, normal: { x: 0, y: 0, z: 1 }, xAxis: { x: 1, y: 0, z: 0 }, zAxis: { x: 0, y: -1, z: 0 } };
+    const reference = sketchReferenceShapeOnWorkplane(group, front, true);
+    expect(reference.importedMesh?.partTriangleCounts?.length).toBe(2);
+    const points = corners(importedMeshFootprint(reference)?.outlineD ?? null);
+    // The bar's face runs 40 wide and 10 high; the post stands 20 above it and only 6 wide. As one body only the bar's face showed.
+    const heights = points.map(([, z]) => -z);
+    expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(29);
+    const top = Math.max(...heights);
+    expect(points.filter(([, z]) => Math.abs(-z - top) < 0.5).every(([x]) => Math.abs(x) < 3.5)).toBe(true);
+  });
+
+  it("shows a body that has no face on the plane as it is seen, not as the hull round it (#778)", () => {
+    // A ring seen from above: its hole is part of the outline, where the hull was one round patch.
+    const torus = shape({ kind: "torus", x: 0, z: 0, width: 40, depth: 40, height: 10 });
+    const above = { origin: { x: 0, y: 20, z: 0 }, normal: { x: 0, y: 1, z: 0 }, xAxis: { x: 1, y: 0, z: 0 }, zAxis: { x: 0, y: 0, z: 1 } };
+    const points = corners(importedMeshFootprint(sketchReferenceShapeOnWorkplane(torus, above, true))?.outlineD ?? null);
+    expect(Math.max(...points.map(([x, z]) => Math.hypot(x, z)))).toBeGreaterThan(19);
+    expect(points.some(([x, z]) => Math.hypot(x, z) < 11)).toBe(true);
+  });
+
   it("leaves boxes and round shapes to the cheaper drawing", () => {
     expect(shapeMeshFootprint(shape({ kind: "box" }))).toBeNull();
     expect(shapeMeshFootprint(shape({ kind: "cylinder" }))).toBeNull();
+  });
+});
+
+describe("a body with a chamfered bottom edge under a sketch (#1006)", () => {
+  it("shows the wall's outline when seen from above, not the smaller bottom face", async () => {
+    const { footprintOfPositions } = await import("@/components/SketchWorkspace");
+    // A 10 x 10 box, 10 high, its bottom edges chamfered by 1: the bottom face is 8 x 8, the top and the walls are 10 x 10.
+    const v = (x: number, y: number, z: number) => [x, y, z];
+    const quad = (a: number[], b: number[], c: number[], d: number[]) => [...a, ...b, ...c, ...a, ...c, ...d];
+    const positions = [
+      ...quad(v(1, 0, 1), v(9, 0, 1), v(9, 0, 9), v(1, 0, 9)),
+      ...quad(v(0, 1, 0), v(10, 1, 0), v(10, 10, 0), v(0, 10, 0)),
+      ...quad(v(0, 10, 0), v(0, 10, 10), v(10, 10, 10), v(10, 10, 0)),
+      ...quad(v(0, 1, 10), v(0, 1, 0), v(0, 10, 0), v(0, 10, 10)),
+      ...quad(v(10, 1, 0), v(10, 1, 10), v(10, 10, 10), v(10, 10, 0)),
+      ...quad(v(0, 1, 10), v(10, 1, 10), v(10, 10, 10), v(0, 10, 10)),
+    ];
+    const width = (d: string | null) => {
+      const xs = corners(d).map(([x]) => x);
+      return Math.max(...xs) - Math.min(...xs);
+    };
+    const bottom = footprintOfPositions(positions, (x, z) => ({ x, z }), 10, 10, false);
+    const seen = footprintOfPositions(positions, (x, z) => ({ x, z }), 10, 10, true);
+    expect(width(bottom?.outlineD ?? null)).toBeCloseTo(8, 3);
+    expect(width(seen?.outlineD ?? null)).toBeCloseTo(10, 3);
+  });
+});
+
+describe("an imported mesh under a sketch is shown as it is seen from above (Discussion #1366)", () => {
+  beforeAll(async () => {
+    const runtime = await manifoldModule();
+    runtime.setup();
+    rememberManifoldRuntime(runtime);
+  });
+
+  /** A closed box of 12 triangles, each wound outward. */
+  const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) => {
+    const c = [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2];
+    const p = (i: number) => [i & 1 ? x1 : x0, i & 2 ? y1 : y0, i & 4 ? z1 : z0];
+    const quads = [[0, 1, 3, 2], [4, 5, 7, 6], [0, 1, 5, 4], [2, 3, 7, 6], [0, 2, 6, 4], [1, 3, 7, 5]];
+    const out: number[] = [];
+    for (const [a, b, d, e] of quads) {
+      for (const tri of [[a, b, d], [a, d, e]].map((t) => t.map(p))) {
+        const [u, v, w] = tri;
+        const n = [(v[1] - u[1]) * (w[2] - u[2]) - (v[2] - u[2]) * (w[1] - u[1]), (v[2] - u[2]) * (w[0] - u[0]) - (v[0] - u[0]) * (w[2] - u[2]), (v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0])];
+        const outward = n[0] * (u[0] - c[0]) + n[1] * (u[1] - c[1]) + n[2] * (u[2] - c[2]) > 0;
+        out.push(...(outward ? [u, v, w] : [u, w, v]).flat());
+      }
+    }
+    return out;
+  };
+  // A mushroom: a stem 2 x 2 mm standing on the plate, a cap 10 x 10 mm on it - narrow where it stands, wide seen from above,
+  // as a Benchy on its keel.
+  const mushroom = [...box(-1, 1, 0, 5, -1, 1), ...box(-5, 5, 5, 7, -5, 5)];
+  const imported = (positions: number[]) => shape({
+    kind: "mesh", x: 20, z: 10, width: 10, depth: 10, height: 7, size: 10,
+    importedMesh: { positions, baseWidth: 10, baseDepth: 10, baseHeight: 7, triangleCount: positions.length / 9, sourceFormat: "stl" },
+  });
+  const extent = (d: string | null) => {
+    const points = corners(d);
+    const xs = points.map(([x]) => x);
+    const zs = points.map(([, z]) => z);
+    return [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)].map((value) => Math.round(value * 1000) / 1000);
+  };
+
+  it("draws the cap seen from above, where the outline was only the stem it stands on", () => {
+    const footprint = importedMeshFootprint(imported(mushroom));
+    // In the plate's coordinates: the body's middle at x 20, z 10, the cap 10 mm across.
+    expect(extent(footprint?.outlineD ?? null)).toEqual([15, 25, 5, 15]);
+    expect(footprint?.fillD).toBe(footprint?.outlineD);
+  });
+
+  it("keeps the face it stands on for a mesh the kernel does not take as closed", () => {
+    // One triangle of the cap's top left out: open, so no outline from above; the stem's bottom, as before.
+    const open = [...box(-1, 1, 0, 5, -1, 1), ...box(-5, 5, 5, 7, -5, 5).slice(0, -9)];
+    expect(extent(importedMeshFootprint(imported(open))?.outlineD ?? null)).toEqual([19, 21, 9, 11]);
+  });
+});
+
+describe("a turned box under a sketch is turned the way it stands (Issue #1734)", () => {
+  // SVG's rotate(degrees) with y pointing down, as the sketch draws a box or a round body underneath.
+  const svgTurn = (x: number, z: number, degrees: number) => {
+    const angle = (degrees * Math.PI) / 180;
+    return [x * Math.cos(angle) - z * Math.sin(angle), x * Math.sin(angle) + z * Math.cos(angle)];
+  };
+
+  it("puts the far end of a box at 45° where its mesh has it, not mirrored", () => {
+    const box = shape({ kind: "box", x: 0, z: 0, width: 100, depth: 10, height: 5, rotation: 45 });
+    const vertices = meshForShape(box).vertices;
+    const far = vertices.reduce((best, vertex) => (vertex[0] > best[0] ? vertex : best));
+    const drawn = [svgTurn(50, -5, referenceShapeTurn(box)), svgTurn(50, 5, referenceShapeTurn(box))]
+      .reduce((best, point) => (point[0] > best[0] ? point : best));
+    expect(drawn[0]).toBeCloseTo(far[0], 4);
+    expect(drawn[1]).toBeCloseTo(far[2], 4);
+    // The far end lies behind the middle, up the screen: the bar runs like "/", as in the view.
+    expect(drawn[1]).toBeLessThan(0);
   });
 });

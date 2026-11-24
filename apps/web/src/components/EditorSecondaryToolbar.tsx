@@ -31,7 +31,7 @@ import {
   ToolbarBundleIcon,
   ToolbarGroupIcon,
   ToolbarGuideIcon,
-  ToolbarHideSelectedIcon, ToolbarImportIcon,
+  ToolbarHideSelectedIcon, ToolbarImportIcon, ToolbarAttachmentsIcon,
   ToolbarIntersectionIcon, ToolbarKeyboardIcon,
   ToolbarFilletIcon,
   ToolbarHistoryIcon,
@@ -65,7 +65,13 @@ import {
   ToolbarVectorExportIcon,
   ToolbarCutOutIcon,
   ToolbarPunchIcon,
-  ToolbarLoftSketchesIcon
+  ToolbarLoftSketchesIcon,
+  ToolbarMoldIcon,
+  ToolbarCableChannelIcon,
+  ToolbarSurfaceTextureIcon,
+  ToolbarPaintIcon,
+  ToolbarStencilBridgeIcon,
+  ToolbarPrintCheckIcon
 } from "./icons";
 import { type SketchPrimitive, type SketchTool } from "./SketchWorkspace";
 import { MORE_SHAPE_IDS, moreShapeIcon, type MoreShapeId } from "@/lib/moreShapes";
@@ -91,7 +97,8 @@ import { ViewLookSwitch } from "@/components/ViewLookSwitch";
 import { libraryShapeAssets, shapeAssetColor, shapeAssetLabel, shapeAssetMenuLabel } from "@/lib/shapeCatalog";
 import type { CadModifierKind } from "@/lib/cadModifierTypes";
 import type { ShapeAsset, SketchOperation, WorkplaneWorkspaceSettings } from "@/types/layerling";
-import { topTip, type TopPanel } from "@/components/EditorTopActionPanel";
+import { topTip } from "@/components/topTip";
+import { type TopPanel } from "@/components/workplane/TopActionPanel";
 
 import { OPEN_PARAMETERS_EVENT, MESH_CHECK_EVENT, FILL_HOLE_EVENT, libraryShapeIds, HISTORY_VIEW_COMMANDS, type ToolbarMode } from "@/lib/editorShared";
 
@@ -343,6 +350,27 @@ export function SecondaryToolbar({
   onFaceTool,
   onBlendBodies,
   build33,
+  canMold,
+  moldActive,
+  onMold,
+  canCableChannel,
+  cableChannelActive,
+  onCableChannel,
+  canStencilBridges,
+  stencilBridgesActive,
+  onStencilBridges,
+  canPrintCheck,
+  printCheckActive,
+  onPrintCheck,
+  canSurfaceTexture,
+  attachmentCount,
+  surfaceTextureActive,
+  onSurfaceTextureTool,
+  canPaint,
+  paintActive,
+  onPaint,
+  canHull,
+  onHull,
   blendBodiesActive,
   canBlendBodies,
   faceToolActive,
@@ -354,7 +382,6 @@ export function SecondaryToolbar({
   onFlexi,
   onLid,
   onLoftSketches,
-  onIntersectPreview,
   intersectPreviewActive,
   onFillet,
   onHollow,
@@ -522,7 +549,30 @@ export function SecondaryToolbar({
   onFaceTool: () => void;
   onBlendBodies: () => void;
   /** Fork (build 33): Hull, Fit check and Round a mesh. */
-  build33: { canHull: boolean; onHull: () => void; fitActive: boolean; onFitCheck: () => void; canRound: boolean; roundActive: boolean; onRound: () => void; sculptActive: boolean; onSculpt: () => void; textureActive: boolean; onTexture: () => void; textActive: boolean; onText: () => void; draftActive: boolean; onDraft: () => void };
+  /** Tools from layerling the toolbar offers too (Mold, Cable channel, Stencil bridges, Print check, Surface texture, Paint, Hull). */
+  canMold?: boolean;
+  moldActive?: boolean;
+  onMold?: () => void;
+  canCableChannel?: boolean;
+  cableChannelActive?: boolean;
+  onCableChannel?: () => void;
+  canStencilBridges?: boolean;
+  stencilBridgesActive?: boolean;
+  onStencilBridges?: () => void;
+  canPrintCheck?: boolean;
+  printCheckActive?: boolean;
+  onPrintCheck?: () => void;
+  /** How many files the design keeps (layerling's attachments). */
+  attachmentCount?: number;
+  canSurfaceTexture?: boolean;
+  surfaceTextureActive?: boolean;
+  onSurfaceTextureTool?: () => void;
+  canPaint?: boolean;
+  paintActive?: boolean;
+  onPaint?: () => void;
+  canHull?: boolean;
+  onHull?: () => void;
+  build33: { canHull: boolean; onHull: () => void; fitActive: boolean; onFitCheck: () => void; canRound: boolean; roundActive: boolean; onRound: () => void; sculptActive: boolean; onSculpt: () => void; textActive: boolean; onText: () => void; draftActive: boolean; onDraft: () => void };
   blendBodiesActive: boolean;
   canBlendBodies: boolean;
   faceToolActive: boolean;
@@ -534,7 +584,7 @@ export function SecondaryToolbar({
   onFlexi: () => void;
   onLid: () => void;
   onLoftSketches: () => void;
-  onIntersectPreview: () => void;
+
   intersectPreviewActive: boolean;
   onFillet: () => void;
   onHollow: () => void;
@@ -955,12 +1005,12 @@ export function SecondaryToolbar({
     { id: "group", label: t("editor.tool.group"), icon: ToolbarGroupIcon, action: onGroup, enabled: canGroup },
     { id: "bundle", label: t("editor.tool.bundle"), icon: ToolbarBundleIcon, action: onBundle, enabled: canGroup },
     { id: "ungroup", label: t("editor.tool.ungroup"), icon: ToolbarUngroupIcon, action: onUngroup, enabled: canUngroup },
-    { id: "intersect", label: t("editor.tool.intersect"), icon: ToolbarIntersectionIcon, action: onIntersect, enabled: canIntersect || intersectPreviewActive },
-    { id: "intersect-preview", label: t("editor.tool.intersectPreview"), icon: Blend, action: onIntersectPreview, enabled: canIntersect || intersectPreviewActive, active: intersectPreviewActive },
+    // Layerling (#372): the first click shows what the shapes share, the second applies it.
+    { id: "intersect", label: t("editor.tool.intersect"), icon: ToolbarIntersectionIcon, action: onIntersect, enabled: canIntersect || intersectPreviewActive, active: intersectPreviewActive },
     // Fork (build 25): a smooth piece joining two bodies.
     { id: "blendBodies", label: t("blend.title"), icon: ForkBlendIcon, action: onBlendBodies, enabled: canBlendBodies || blendBodiesActive, active: blendBodiesActive },
     // Fork (build 33).
-    { id: "hull", label: t("hull.title"), icon: Spline, action: build33.onHull, enabled: build33.canHull },
+    { id: "hull", label: t("hull.title"), icon: Spline, action: onHull ?? build33.onHull, enabled: canHull ?? build33.canHull },
   ];
   const modifyTools = [
     { id: "mirror", label: t("editor.tool.mirror"), icon: ToolbarMirrorIcon, action: onMirror, enabled: canModifySelection, active: mirrorMode },
@@ -977,13 +1027,18 @@ export function SecondaryToolbar({
     { id: "fillet", label: t("editor.tool.fillet"), icon: ToolbarFilletIcon, action: onFillet, enabled: canEdgeModify, active: edgeModifierKind === "fillet" },
     { id: "hollow", label: t("editor.tool.hollow"), icon: ToolbarHollowIcon, action: onHollow, enabled: canEdgeModify, active: hollowActive },
     { id: "lid", label: t("editor.tool.lid"), icon: PackageOpen, action: onLid, enabled: canLid || lidActive, active: lidActive },
+    ...(onMold ? [{ id: "mold", label: t("editor.tool.mold"), icon: ToolbarMoldIcon, action: onMold, enabled: Boolean(canMold ?? canLid) || Boolean(moldActive), active: Boolean(moldActive) }] : []),
+    ...(onCableChannel ? [{ id: "cableChannel", label: t("editor.tool.cableChannel"), icon: ToolbarCableChannelIcon, action: onCableChannel, enabled: Boolean(canCableChannel) || Boolean(cableChannelActive), active: Boolean(cableChannelActive) }] : []),
     { id: "offset", label: t("editor.tool.offset"), icon: ToolbarOffsetIcon, action: onOffset, enabled: canEdgeModify, active: offsetActive },
     { id: "deleteFace", label: t("editor.tool.deleteFace"), icon: ToolbarDeleteFaceIcon, action: onDeleteFace, enabled: canEdgeModify, active: deleteFaceActive && !build33.draftActive },
     { id: "draft", label: t("draft.title"), icon: ForkDraftIcon, action: build33.onDraft, enabled: canEdgeModify, active: build33.draftActive },
     { id: "surfaceText", label: t("editor.tool.surfaceText"), icon: Type, action: build33.onText, enabled: true, active: build33.textActive },
     { id: "roundAll", label: t("meshRound.title"), icon: Squircle, action: build33.onRound, enabled: build33.canRound || build33.roundActive, active: build33.roundActive },
     // Fork (build 55): a pattern pressed into or raised out of the surface.
-    { id: "texture", label: t("texture.title"), icon: Grip, action: build33.onTexture, enabled: build33.canRound || build33.textureActive, active: build33.textureActive },
+    // Layerling's texture on an exact body, and paint.
+    ...(onSurfaceTextureTool ? [{ id: "surfaceTexture", label: t("inspector.surfaceTexture"), icon: ToolbarSurfaceTextureIcon, action: onSurfaceTextureTool, enabled: Boolean(canSurfaceTexture) || Boolean(surfaceTextureActive), active: Boolean(surfaceTextureActive) }] : []),
+    ...(onPaint ? [{ id: "paint", label: t("paint.title"), icon: ToolbarPaintIcon, action: onPaint, enabled: Boolean(canPaint) || Boolean(paintActive), active: Boolean(paintActive) }] : []),
+    ...(onStencilBridges ? [{ id: "stencilBridges", label: t("stencilBridges.title"), icon: ToolbarStencilBridgeIcon, action: onStencilBridges, enabled: Boolean(canStencilBridges) || Boolean(stencilBridgesActive), active: Boolean(stencilBridgesActive) }] : []),
     { id: "cutOut", label: t("editor.tool.cutOut"), icon: ToolbarCutOutIcon, action: onCutOut, enabled: canCutOut || cutOutActive, active: cutOutActive },
     { id: "punch", label: t("editor.tool.punch"), icon: ToolbarPunchIcon, action: onPunch, enabled: canCutOut || punchActive, active: punchActive },
     { id: "cookieCutter", label: t("editor.tool.cookieCutter"), icon: Cookie, action: onCookieCutter, enabled: canCookieCutter },
@@ -1012,6 +1067,7 @@ export function SecondaryToolbar({
     { id: "spaceOut", label: t("distribute.title"), icon: ForkSpaceOutIcon, action: onAlign, enabled: canAlign, active: alignMode },
     { id: "fitCheck", label: t("editor.tool.clearance"), icon: ScanSearch, action: build33.onFitCheck, enabled: true, active: build33.fitActive },
     { id: "layerCheck", label: t("editor.tool.layerCheck"), icon: Layers3, action: onLayerCheck, enabled: true, active: layerCheckActive },
+    ...(onPrintCheck ? [{ id: "printCheck", label: t("editor.tool.printCheck"), icon: ToolbarPrintCheckIcon, action: onPrintCheck, enabled: Boolean(canPrintCheck) || Boolean(printCheckActive), active: Boolean(printCheckActive) }] : []),
   ];
   // Fork: the makers - each opens its own panel.
   const makeTools = [
@@ -1239,6 +1295,7 @@ export function SecondaryToolbar({
       ...arrangeTools.map((tool) => fromTool(tool, t("editor.group.arrange"))),
       plain("note", t("editor.tool.note"), manageGroup, true, onNoteTool, { icon: ToolbarNoteIcon, active: noteMode }),
       plain("import", t("editor.import"), manageGroup, true, () => onTopPanel("import"), { icon: ToolbarImportIcon }),
+      plain("attachments", t("editor.attachments"), manageGroup, true, () => onTopPanel("attachments"), { icon: ToolbarAttachmentsIcon, keywords: ["attachment", "file", "notes", "instructions", "readme"] }),
       plain("export", t("editor.export"), manageGroup, true, () => window.dispatchEvent(new Event(OPEN_EXPORT_WINDOW_EVENT)), { icon: ToolbarVectorExportIcon }),
       plain("print-check", t("printCheck.command"), manageGroup, true, () => window.dispatchEvent(new Event(PRINT_CHECK_EVENT))),
       plain("split-to-fit", t("splitToFit.command"), manageGroup, true, () => window.dispatchEvent(new Event(SPLIT_TO_FIT_EVENT))),
@@ -1896,6 +1953,12 @@ export function SecondaryToolbar({
                 <button className="action-icon-button" aria-label={t("editor.import")} title={`${t("editor.import")} (${COMMAND_SHORTCUTS.import})`} data-tip={topTip(t("editor.import"), "bring in STL, 3MF, STEP, SVG or images", COMMAND_SHORTCUTS.import)} onClick={() => onTopPanel("import")} disabled={historyViewActive}>
                   <Import className="title-icon" aria-hidden="true" />
                   <span className="title-label" aria-hidden="true">{t("editor.import")}</span>
+                </button>
+                {/* Layerling's attachments: files kept with the design (instructions, a README, a datasheet). */}
+                <button className={`action-icon-button ${(attachmentCount ?? 0) > 0 ? "has-attachments" : ""}`} aria-label={(attachmentCount ?? 0) > 0 ? t("editor.attachmentsCount", { count: attachmentCount ?? 0 }) : t("editor.attachments")} title={t("editor.attachments")} data-tip={topTip(t("editor.attachments"), "files kept with the design: instructions, notes, datasheets")} onClick={() => onTopPanel("attachments")} disabled={historyViewActive}>
+                  <ToolbarAttachmentsIcon className="title-icon" aria-hidden="true" />
+                  <span className="title-label" aria-hidden="true">{t("editor.attachments")}</span>
+                  {(attachmentCount ?? 0) > 0 ? <span className="attachments-indicator" aria-hidden="true" /> : null}
                 </button>
                 {/* Build 71: Export is the blue button beside these. */}
                 {/* Fork (build 37): the design's named values. */}

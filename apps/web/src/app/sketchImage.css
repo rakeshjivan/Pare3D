@@ -1,0 +1,513 @@
+/* The reference image under a sketch (#216): its frame, handles and calibration marks on the plate, and its settings panel. */
+
+.sketch-reference-images image {
+  cursor: move;
+  image-rendering: auto;
+  transition: opacity 100ms ease;
+}
+
+.sketch-reference-images image:hover {
+  filter: saturate(1.08) contrast(1.03);
+}
+
+.sketch-image-selection-box {
+  fill: none;
+  stroke: #da7409;
+  stroke-width: 1.7;
+  stroke-dasharray: 5 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-image-resize-handle {
+  fill: #ffffff;
+  stroke: #a3590b;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-image-resize-handle:hover {
+  fill: #ffb24b;
+  stroke: #9d4d00;
+}
+
+.sketch-image-resize-handle.handle-nw,
+.sketch-image-resize-handle.handle-se {
+  cursor: nwse-resize;
+}
+
+.sketch-image-resize-handle.handle-ne,
+.sketch-image-resize-handle.handle-sw {
+  cursor: nesw-resize;
+}
+
+.sketch-image-resize-handle.handle-n,
+.sketch-image-resize-handle.handle-s {
+  cursor: ns-resize;
+}
+
+.sketch-image-resize-handle.handle-e,
+.sketch-image-resize-handle.handle-w {
+  cursor: ew-resize;
+}
+
+/* Reference image (#216): crop handles and the calibration marks. */
+.sketch-image-selection-box.cropping {
+  stroke: #2f7f9e;
+}
+
+.sketch-image-resize-handle.crop {
+  fill: #e7f4f9;
+  stroke: #2f7f9e;
+}
+
+.sketch-image-resize-handle.crop:hover {
+  fill: #9fd3e8;
+}
+
+/* The turning arrows beyond the corners of a picture or a selection: the 3D editor's rotate handle for the
+   up axis (.rotate-handle.axis-z), the same arrow in the same blue with the same light edge. The arc and the
+   heads take their strokes from .rotate-arrow-arc and .rotate-arrow-heads. */
+.sketch-rotate-handle {
+  --rotate-handle-axis: #2f6fe0;
+  --rotate-handle-halo: rgba(255, 252, 247, 0.95);
+  color: var(--rotate-handle-axis);
+  cursor: grab;
+  touch-action: none;
+}
+
+html[data-theme="dark"] .sketch-rotate-handle {
+  --rotate-handle-axis: #6aa0ff;
+  --rotate-handle-halo: rgba(28, 24, 20, 0.9);
+}
+
+/* A band along the arrow takes the pointer, never the corner square beside it (forum, 621826). */
+.sketch-rotate-handle-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: stroke;
+}
+
+.sketch-rotate-handle svg {
+  filter: drop-shadow(0 0 1px var(--rotate-handle-halo)) drop-shadow(0 0 1.5px var(--rotate-handle-halo));
+}
+
+/* Hovered, the arrow gets heavier. */
+.sketch-rotate-handle:hover .rotate-arrow-arc {
+  stroke-width: 3;
+}
+
+/* The padlock on a locked picture: a click unlocks it. */
+.sketch-lock-badge {
+  cursor: pointer;
+  color: #7c6853;
+}
+
+.sketch-lock-badge rect {
+  fill: rgba(255, 255, 255, 0.95);
+  stroke: #a3590b;
+  stroke-width: 1.2;
+  filter: drop-shadow(0 1px 2px rgba(76, 51, 25, 0.2));
+}
+
+.sketch-lock-badge:hover {
+  color: #9d4d00;
+}
+
+.sketch-lock-badge:hover rect {
+  fill: #ffb24b;
+}
+
+.sketch-image-calibration circle {
+  fill: rgba(255, 255, 255, 0.85);
+  stroke: #2f7f9e;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-image-calibration line {
+  stroke: #2f7f9e;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-image-action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sketch-image-hint {
+  margin: -2px 0 0;
+  color: #8d7b68;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* No header above it, so it takes the bottom padding at the top too. */
+.property-card.sketch-image-calibrate-card {
+  padding-top: 18px;
+}
+
+.sketch-image-calibrate-field {
+  display: grid;
+  gap: 6px;
+}
+
+html[data-theme="dark"] .sketch-image-hint {
+  color: #b7a992;
+}
+
+.sketch-image-dimension rect {
+  fill: rgba(255, 255, 255, 0.97);
+  stroke: rgba(139, 118, 95, 0.9);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 2px rgba(76, 51, 25, 0.15));
+}
+
+.sketch-image-dimension text {
+  fill: #5a3917;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.sketch-image-inspector .shape-inspector-header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sketch-image-inspector .inspector-header-icon.danger:hover {
+  color: #c3262e;
+  background: #fff0f1;
+}
+
+.sketch-image-inspector .inspector-header-icon:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.sketch-image-preview-card {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  margin: 10px;
+  padding: 14px;
+  color: #907d6a;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.sketch-image-preview-card img {
+  display: block;
+  width: 100%;
+  height: 112px;
+  object-fit: contain;
+  background:
+    linear-gradient(45deg, #f6f3ed 25%, transparent 25%),
+    linear-gradient(-45deg, #f6f3ed 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f6f3ed 75%),
+    linear-gradient(-45deg, transparent 75%, #f6f3ed 75%);
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  background-size: 12px 12px;
+  border: 1px solid #e9e1d3;
+  border-radius: 4px;
+}
+
+.sketch-image-inspector .property-card-header.static {
+  cursor: default;
+}
+
+.sketch-image-inspector .property-card-header.static:hover {
+  color: #5d4731;
+}
+
+.sketch-image-range-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sketch-image-number-input,
+.sketch-image-position-field input {
+  width: 100%;
+  height: 31px;
+  padding: 0 10px;
+  color: #746352;
+  font: 700 14px/1 var(--font-ui);
+  background: #ffffff;
+  border: 1px solid #daccbe;
+  border-radius: 999px;
+  outline: 0;
+}
+
+.sketch-image-number-input:focus,
+.sketch-image-position-field input:focus {
+  border-color: #ea953d;
+  box-shadow: 0 0 0 3px rgba(161, 83, 0, 0.14);
+}
+
+.sketch-image-range-row span {
+  min-width: 26px;
+  color: #988672;
+  font-size: 12px;
+}
+
+.sketch-image-range > input[type="range"] {
+  width: 100%;
+  height: 12px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sketch-image-range > input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: linear-gradient(to right, #d27009 0 var(--slider-pos), #e8e3da var(--slider-pos) 100%);
+  border-radius: 999px;
+}
+
+.sketch-image-range > input[type="range"]::-webkit-slider-thumb {
+  width: 13px;
+  height: 13px;
+  margin-top: -4.5px;
+  appearance: none;
+  background: #ffffff;
+  border: 2px solid #ce6d09;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(90, 58, 23, 0.22);
+}
+
+.sketch-image-position-field {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  color: #867563;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.sketch-image-aspect-toggle {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #7c6853;
+  background: #fcfaf7;
+  border: 1px solid #ded1c4;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sketch-image-aspect-toggle.active {
+  color: #a55808;
+  background: #f8f4ee;
+  border-color: #d59c5f;
+}
+
+.sketch-image-aspect-toggle:disabled,
+.sketch-image-position-field input:disabled,
+.sketch-image-number-input:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
+.sketch-reference-images image.locked {
+  cursor: default;
+}
+
+/* Calibrating: the next two clicks mark points on the picture, so the pointer is a crosshair, not the move cross. */
+.sketch-reference-images image.calibrating {
+  cursor: crosshair;
+}
+
+/* The ring shown while turning in the sketch (forum, 621358): inside it the turn snaps to 22.5°, and then the
+   ring is drawn in the handle's blue; outside it, faint. */
+.sketch-turn-ring {
+  --sketch-turn-ring: rgba(47, 111, 224, 0.35);
+  --sketch-turn-ring-active: #2f6fe0;
+  fill: none;
+  stroke: var(--sketch-turn-ring);
+}
+
+.sketch-turn-ring.active {
+  stroke: var(--sketch-turn-ring-active);
+}
+
+html[data-theme="dark"] .sketch-turn-ring {
+  --sketch-turn-ring: rgba(106, 160, 255, 0.4);
+  --sketch-turn-ring-active: #6aa0ff;
+}
+
+/* Trace: the outlines the settings give, over the picture, and their points. */
+.sketch-trace-preview path.background {
+  fill: var(--sketch-plate, #f5f0e7);
+  fill-opacity: 0.88;
+  stroke: none;
+}
+
+.sketch-trace-preview path {
+  fill: rgba(229, 72, 77, 0.12);
+  stroke: #e5484d;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-trace-preview circle,
+.sketch-trace-preview rect {
+  fill: #ffffff;
+  stroke: #0b72b9;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-trace-preview rect.corner {
+  stroke: #e5484d;
+}
+
+/* Holes and areas over the outlines: a construction line dashed, the one pointed at in the list stronger. */
+.sketch-trace-preview path.ring {
+  fill: none;
+  stroke: #e5484d;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-trace-preview path.ring.area {
+  stroke: #1f8a4c;
+}
+
+.sketch-trace-preview path.ring.line {
+  stroke-dasharray: 5 4;
+}
+
+.sketch-trace-preview path.ring.highlight {
+  stroke: #f08a00;
+  stroke-width: 3.4;
+}
+
+.sketch-reference-images image.trace-picking {
+  cursor: crosshair;
+}
+
+.sketch-trace-parts .shell-opening-options {
+  flex-wrap: wrap;
+}
+
+.sketch-trace-list {
+  display: grid;
+  gap: 6px;
+}
+
+.sketch-trace-list-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sketch-trace-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.sketch-trace-list li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.sketch-trace-list li.highlight {
+  background: rgba(240, 138, 0, 0.14);
+}
+
+.sketch-trace-item-cut {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+/* Cut away: the parts cut, and the corners being set. */
+.sketch-trace-preview path.cut {
+  fill: rgba(240, 138, 0, 0.12);
+  stroke: #d97a00;
+  stroke-width: 1.6;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-trace-preview path.cut.highlight {
+  stroke-width: 3.2;
+  fill: rgba(240, 138, 0, 0.24);
+}
+
+.sketch-trace-preview path.cut.draft {
+  fill: none;
+  stroke-dasharray: none;
+}
+
+.sketch-trace-preview circle.draft {
+  fill: #ffffff;
+  stroke: #d97a00;
+}
+
+.sketch-trace-preview circle.draft.first {
+  fill: #d97a00;
+}
+
+/* A region taken into the shape (the magnetic lasso's, as a rule) in blue, dashed like a cut. */
+.sketch-trace-preview path.taken {
+  fill: rgba(11, 114, 185, 0.1);
+  stroke: #0b72b9;
+  stroke-width: 1.6;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-trace-preview path.taken.highlight {
+  stroke-width: 3.2;
+  fill: rgba(11, 114, 185, 0.22);
+}
+
+.sketch-trace-preview path.taken.draft {
+  fill: none;
+  stroke-dasharray: none;
+}
+
+/* The line on to the pointer, as the next click would lay it: lighter than the line laid. */
+.sketch-trace-preview path.draft.hover {
+  stroke-dasharray: 4 3;
+  stroke-opacity: 0.75;
+}
+
+.sketch-trace-preview circle.draft.lasso {
+  stroke: #0b72b9;
+}
+
+.sketch-trace-preview circle.draft.lasso.first {
+  fill: #0b72b9;
+}
+
+.sketch-trace-item-action {
+  max-width: 132px;
+  min-height: 26px;
+  font-size: 12px;
+}

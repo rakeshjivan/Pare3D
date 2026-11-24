@@ -30,7 +30,7 @@ function keys(p: ArrayLike<number>) {
 describe("a scan keeps its place in the scanner's coordinates (build 74)", () => {
   // As STL import does: the Z-up file turned to Y-up, marked as turned.
   const turned = () => { const p = scanSoup(); const out: number[] = []; for (let i = 0; i < p.length; i += 3) out.push(p[i], p[i + 2], -p[i + 1]); return out; };
-  const imported = (): WorkplaneShape => importedShapeFromTriangleSoup("upper.stl", turned(), undefined, "stl", true);
+  const imported = (): WorkplaneShape => importedShapeFromTriangleSoup("upper.stl", turned(), undefined, "stl", {}, true);
 
   it("reads back the file's own coordinates after import", () => {
     const shape = imported();

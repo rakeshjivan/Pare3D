@@ -81,6 +81,13 @@ A click beside the plate or [[Esc]] returns the workplane to the base plate. Qui
 
 While a workplane sits on a face, an eye appears next to {{ui:camera.placeWorkplane}}. It hides the workplane without dropping it, for a clear look at the design: new shapes still land on that face, and rotating still turns about it. A click on the eye shows it again, and so does setting a new workplane.
 
+
+### Detail level
+
+{{ui:detail.title}} in the camera bar opens a slider for how much is drawn around your model, from {{ui:detail.level5}} to {{ui:detail.level1}}. {{ui:detail.level4}} leaves out the notes and the plate labels, {{ui:detail.level3}} also the reference points and the distances while moving and to the origin, {{ui:detail.level2}} also the dimensions at the selection, the snap guide lines and the axis arrows, and {{ui:detail.level1}} also the grid.
+
+Below the slider every one of these has its own switch; change one, and the level is called {{ui:detail.own}}. {{ui:detail.handles}}, the squares and arrows at the selection, stay at every level until you switch them off here. What you switch off in the settings stays off at every level. Holding [[V]] shows everything for a moment, also what [[Q]] and [[Shift+Q]] have hidden. A field you click meanwhile stays open after you let go. Only the view changes: snapping and measuring work on, a measurement of the tape measure always stays, and neither the design nor an export changes. The sketch has its own slider, for notes, the edges of other parts, dimensions and grid, and this browser remembers both.
+
 ### The look of the view
 
 The switch at the top of the window, beside {{ui:workspace.simpleMode}}, sets how the view looks: **{{ui:view.look.plate}}** (the plate and its grid), **{{ui:view.look.clear}}** (the same light background with nothing under the parts, for a clean look or a screenshot) or a **dark grey background, as Meshmixer's**, with a light that follows the camera so the surface of a scan reads the same whichever way it is turned - the best for sculpting. The workplane still works when it is hidden; only its picture goes. The choice is remembered.

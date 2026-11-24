@@ -1,4 +1,4 @@
-import type { GridSize, ShapeKind, WorkplaneWorkspaceSettings } from "@/types/layerling";
+import type { GridSize, GroupResizeMode, ShapeKind, WorkplaneShape, WorkplaneWorkspaceSettings } from "@/types/layerling";
 
 export const LAYERLING_MCP_ROUTE = "/api/layerling-mcp";
 export const LAYERLING_MCP_STALE_MS = 15_000;
@@ -16,6 +16,8 @@ export type LayerlingMcpShapeSummary = {
   color: string;
   hole: boolean;
   locked: boolean;
+  /** Lock shape (#1277): moves, turns and groups, but keeps its size, settings, name and body. */
+  shapeLocked?: boolean;
   hidden: boolean;
   position: {
     x: number;
@@ -40,6 +42,8 @@ export type LayerlingMcpShapeSummary = {
   };
   /** The body's own pivot, if it has one, in workplane coordinates. */
   rotationPivot: { x: number; z: number; elevation: number } | null;
+  /** The build plate the object stands on, counted from 1; only while the design has several (Discussion #456). */
+  plate?: number;
   edgeTreatments: unknown[];
   /**
    * Was diese Form ausmacht, ueber die Masse hinaus: Seitenzahl, Gewindegroesse,
@@ -47,10 +51,39 @@ export type LayerlingMcpShapeSummary = {
    */
   settings?: Record<string, string | number | boolean>;
   groupedCount: number;
+  /** Groups and bundles: what the group does with its parts when it is resized (Discussion #526). */
+  groupResize?: GroupResizeMode;
+  /** A hull: whether the holes and hollows of its parts stay open (Discussion #1440). */
+  keepHoles?: boolean;
   importedTriangles: number;
   cadDisplayEdgeCount: number | null;
   sketchPointCount: number;
   sketchSegmentCount: number;
+  /** A sketch body's fill (#197): its stroke or null, whether holes are left out, its inset. */
+  sketchStroke?: NonNullable<WorkplaneShape["sketchProfile"]>["stroke"] | null;
+  silhouette?: boolean;
+  sketchInset?: NonNullable<WorkplaneShape["sketchProfile"]>["inset"] | null;
+  /** A text's fill (#215) and lettering. */
+  textStroke?: WorkplaneShape["textStroke"] | null;
+  textSilhouette?: boolean;
+  textStretch?: boolean;
+  textVertical?: boolean;
+  textSpacing?: number;
+  textKerning?: boolean;
+  textLetterWidth?: number;
+  textFullCircle?: boolean;
+  textEdge?: WorkplaneShape["textEdge"] | null;
+  textKeyring?: WorkplaneShape["textKeyring"];
+  layeredText?: boolean;
+  layeredIcon?: boolean;
+  qrCode?: WorkplaneShape["qrCode"];
+  sbcBoard?: WorkplaneShape["sbcBoard"];
+  fan?: WorkplaneShape["fan"];
+  /** A surface texture: its settings, the masks as a count, and whether it can still be changed. */
+  surfaceTexture?: Record<string, unknown> & { masks: number; changeable: boolean };
+  surfaceTextureLayers?: { pattern: unknown; faces: number; region?: number }[];
+  /** Paint: how many strokes the body carries and the colours they show. */
+  paint?: { strokes: number; colors: string[] };
   children?: LayerlingMcpShapeSummary[];
 };
 
@@ -69,6 +102,8 @@ export type LayerlingMcpSceneSummary = {
   openGroups?: { groupId: string; name: string; partIds: string[] }[];
   /** The active workplane: the base plate, or a plane set on a face; hidden means it still applies but is not drawn. */
   workplane?: { onBase: boolean; hidden: boolean; origin: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } };
+  /** The files kept with the design (#820): what they are, never what they hold; layerling_get_attachment reads one. */
+  attachments?: { id: string; name: string; mediaType: string; bytes: number; sha256: string }[];
 };
 
 export type LayerlingMcpEditorSummary = {
@@ -89,7 +124,10 @@ export type LayerlingMcpCommandName =
   | "get_scene"
   | "list_objects"
   | "select_objects"
+  | "hide_others"
+  | "rename_project"
   | "delete_objects"
+  | "move_object"
   | "create_shape"
   | "import_mesh"
   | "update_object"
@@ -98,24 +136,35 @@ export type LayerlingMcpCommandName =
   | "place_on_face"
   | "perforate_face"
   | "thread_insert"
+  | "magnet_pocket"
   | "sweep_sketch"
   | "push_face"
+  | "paint_object"
+  | "support_rib"
+  | "stencil_bridges"
   | "scale_objects"
   | "mate_faces"
   | "open_group"
   | "close_group"
+  | "add_to_group"
+  | "take_out_of_group"
   | "group_objects"
   | "ungroup_objects"
   | "intersect_objects"
+  | "hull_objects"
   | "cookie_cutter"
   | "flexi_joints"
   | "make_lid"
+  | "make_mold"
+  | "make_cable_channel"
   | "loft_sketches"
   | "boolean_cut"
   | "separate_parts"
   | "split_objects"
   | "wrap_around_cylinder"
+  | "texture_surface"
   | "simplify_mesh"
+  | "make_exact"
   | "save_custom_shape"
   | "list_custom_shapes"
   | "insert_custom_shape"
@@ -127,28 +176,56 @@ export type LayerlingMcpCommandName =
   | "hollow_object"
   | "offset_object"
   | "cut_out"
+  | "punch"
   | "array_objects"
   | "inspect_errors"
   | "estimate_print"
+  | "check_clearance"
+  | "printer_play"
+  | "check_print"
+  | "check_layers"
+  | "split_bolt"
   | "add_reference_points"
   | "list_reference_points"
   | "remove_reference_points"
+  | "list_notes"
+  | "add_note"
+  | "update_note"
+  | "remove_notes"
   | "show_overhangs"
   | "measure_section"
   | "bundle_objects"
   | "layer_text"
+  | "text_block"
   | "layer_icon"
   | "create_qr_code"
+  | "create_sbc_board"
+  | "create_fan"
+  | "reference_image"
   | "set_section_view"
   | "set_history_view"
   | "restore_from_history"
   | "clear_history"
+  | "delete_history_steps"
+  | "list_backups"
+  | "open_backup"
   | "show_workplane"
+  | "focus_mode"
+  | "detail_level"
   | "saved_view"
+  | "build_plates"
+  | "measurements"
+  | "measure_angle"
   | "export_section_svg"
+  | "sketch_from_section"
   | "export_drawing"
   | "export_mesh"
   | "save_project"
+  | "list_attachments"
+  | "get_attachment"
+  | "add_attachment"
+  | "rename_attachment"
+  | "remove_attachment"
   | "import_file"
   | "add_font"
   | "list_fonts"

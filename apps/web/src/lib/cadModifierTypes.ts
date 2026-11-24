@@ -1,10 +1,11 @@
-import type { ScrewBossFields } from "@/lib/screwBoss";
+import type { CadLidRequest } from "@/lib/cadLid";
 import type { ThreadOutlineTier } from "@/lib/threadOutline";
 import type { ThreadHead } from "@/types/layerling";
+import type { ThreadDriveOutline } from "@/lib/threadGeometry";
+import type { ScrewBossFields } from "@/lib/screwBoss";
 import type { SnapFitFields } from "@/lib/snapFit";
 import type { RibFields } from "@/lib/rib";
-import type { ThreadDriveOutline } from "@/lib/threadGeometry";
-import type { GridfinityCompartmentLabel, GridfinityLabelCorner, GridfinityOpening, GridfinityOutlinePoint, GridfinityType, ShellEdges, ShellOpenings } from "@/types/layerling";
+import type { GridfinityCompartmentLabel, GridfinityCompartmentSplit, GridfinityLabelCorner, GridfinityOpening, GridfinityOutlinePoint, GridfinityType, ShellEdges, ShellOpenings } from "@/types/layerling";
 
 export type CadModifierKind = "chamfer" | "chamfillet" | "fillet" | "shell" | "deleteFace" | "draft" | "offset";
 
@@ -15,10 +16,10 @@ export type CadModifierEdge = {
   display: boolean;
   selectable: boolean;
   angle: number;
-  boundary: boolean;
-  manifold: boolean;
   /** Fork (build 32): true for an outside edge, false for an inside one; missing when it could not be told. */
   convex?: boolean;
+  boundary: boolean;
+  manifold: boolean;
 };
 
 export type CadModifierQuality = "draft" | "standard" | "fine";
@@ -124,10 +125,21 @@ export type CadModifierProfilePart = {
    * also lays the extrusion on its side).
    */
   kind: "extrusion" | "revolution" | "sweep" | "loft";
+  /**
+   * Revolution only: a slotted screw hole (Discussion #1531). The half-section is turned whole at each end of a slot
+   * `length` long, and the whole section, both halves, is pushed along the slot between them. The slot runs along
+   * the local y axis, or along x with `alongX`, centred on the axis.
+   */
+  slot?: { length: number; alongX: boolean };
   /** Sweep only: the centre line, piece by piece. */
   path?: CadModifierSweepPiece[];
   /** Loft only: the section at the top, loop for loop and piece for piece the partner of `loops`. */
   topLoops?: CadModifierProfileLoop[];
+  /**
+   * Loft only, instead of `topLoops`: the top is this one point at `height` (a pointed pyramid). The bottom is then
+   * one outline of straight lines, and every side is the flat triangle from one of its edges to the point.
+   */
+  apex?: { x: number; z: number };
   /**
    * Loft only, through more sections (#1034): every section up the height with its loops (outer first, the
    * opening second), piece for piece alike; `loops` is the first of them and `topLoops` the last.
@@ -144,6 +156,20 @@ export type CadModifierProfilePart = {
   twistCenter?: { x: number; z: number };
   /** Degrees between two sections of a twisted loft, where the standard step is too coarse for an outline with fine teeth (a knurl). */
   twistStep?: number;
+  /**
+   * Loft only: the sections at the shares `t` of the way up, scaled by `sx` across and `sz` in
+   * height from the shape's own section; `loops` is the first of them and `topLoops` the last - a round roof sloping or narrowing
+   * along its length. Two neighbours where nothing between them curves are joined by a ruled
+   * loft, the rest smoothly; a `corner` breaks the loft there, so the edge stays sharp.
+   */
+  sections?: Array<{ t: number; sx: number; sz: number; corner?: boolean }>;
+  /**
+   * Extrusion only: what the body keeps of itself inside a second prism - `loops` (one outline)
+   * pushed `height` along its local y and placed by `frame` (a 3x4 matrix, row by row) in the
+   * part's own frame. An upright body whose top slopes along its length (slope along) is its
+   * plain extrusion trimmed by its side outline pushed across.
+   */
+  trim?: { loops: CadModifierProfileLoop[]; height: number; frame: number[] };
   /** Loft only: 0 to 1, how much of an S-curve the sides take between the ends instead of a straight line (#271); built like a turned loft, through sections. */
   smooth?: number;
   /** Loft only, with a twist: how far the lean moves the top; the turning centre moves along with it. */
@@ -156,6 +182,17 @@ export type CadModifierProfilePart = {
   tilt?: { x: number; z: number };
   /** Extrusion only: round every edge of the two flat ends by this radius (a rounded box). */
   capFillet?: number;
+  /**
+   * Extrusion only, with `capFillet`: the bottom end (y = 0) on its own. `capFillet` is then the top
+   * end alone (0 when it stays flat); without this the two ends share `capFillet`.
+   */
+  capFilletBottom?: number;
+  /**
+   * Extrusion only, a GT2 pulley (Discussion #1319): `loops` is the toothed band alone, pushed up
+   * from `teethBottom` to `teethTop`; the round discs (flanges, hub) on the y axis are joined to it
+   * and the bore is cut through the whole height.
+   */
+  pulley?: { teethBottom: number; teethTop: number; discs: Array<{ bottom: number; top: number; radius: number }>; boreRadius: number };
   /**
    * Extrusion only: chamfer a round body at both ends at 45 degrees - keep
    * what lies within `radius` less `size` plus the distance from the nearer
@@ -282,16 +319,31 @@ export type CadModifierSpringPart = {
  * face between the helices of its two corners; the result stretched by
  * `stretch` (x and z) as the mesh is, then the straight round bore cut
  * through it. Built in the shape's own frame (y up, the foot at y = 0);
- * `transform` places it.
+ * `transform` places it. A herringbone gear's corners turn by half the
+ * twist up to the middle and back.
  */
 export type CadModifierHelicalGearPart = {
   corners: Array<{ angle: number; radius: number }>;
   /** Radians; the corners turn from +x towards +z as they rise when positive. */
   twist: number;
+  /** A herringbone gear: the corners turn by half the twist up to the middle and back to where they began at the top. */
+  herringbone?: boolean;
   height: number;
   stretch: { x: number; z: number };
   /** 0 for none. */
   boreRadius: number;
+  /**
+   * A ring gear with slanted teeth (Discussion #1627): the corners are its teeth, turning inside a round rim of
+   * this radius (before the stretch); it has no bore.
+   */
+  ringRadius?: number;
+  /**
+   * A rack with slanted teeth (#1627) instead of a turning ring: the outline of a straight rack longer than this
+   * one (x along it, teeth towards +z, counter-clockwise), drawn out upwards while its teeth move `travel` along it
+   * (half of it up to the middle and back for herringbone teeth), then cut off square at x = +-length / 2.
+   * `corners` and `twist` are not used.
+   */
+  rack?: { outline: Array<{ x: number; z: number }>; length: number; backZ: number; tipZ: number; travel: number };
   transform?: number[];
   expected?: { bounds: number[]; volume: number };
 };
@@ -309,6 +361,8 @@ export type CadModifierHirthPart = {
   teeth: number;
   toothHeight: number;
   boreRadius: number;
+  /** Saw teeth (Discussion #1320): how far past its crest a root lies, as a share of one tooth; missing means 0.5, symmetric teeth. */
+  split?: number;
   transform?: number[];
   expected?: { bounds: number[]; volume: number };
 };
@@ -329,6 +383,7 @@ export type CadModifierGridfinityPart = {
   gridfinityHalfGrid?: boolean;
   gridfinityLargePlate?: boolean;
   gridfinitySwallowtail?: boolean;
+  gridfinityClipNotches?: boolean;
   gridfinityLabelBack?: boolean;
   gridfinityLabelFront?: boolean;
   gridfinityLabelLeft?: boolean;
@@ -383,6 +438,7 @@ export type CadModifierGridfinityPart = {
   gridfinityDividerPositionsX?: number[];
   gridfinityDividerPositionsZ?: number[];
   gridfinityCompartmentLabels?: GridfinityCompartmentLabel[];
+  gridfinityCompartmentSplits?: GridfinityCompartmentSplit[];
   gridfinityOpenings?: GridfinityOpening[];
   gridfinityOpeningCorner?: GridfinityLabelCorner;
   gridfinityOpeningCornerSize?: number;
@@ -434,11 +490,17 @@ export type CadModifierMeshPart = {
   gridfinity?: CadModifierGridfinityPart;
   /** A Hirth joint's exact body; positions/indices (if any) are only the fallback if it cannot be built. */
   hirth?: CadModifierHirthPart;
+  /** A screw boss's, snap-fit's or rib's exact body; positions/indices (if any) are only the fallback if it cannot be built. */
   enclosure?: CadModifierEnclosurePart;
   primitive?: CadModifierPrimitivePart;
   /** When set, positions/indices (if any) are only the fallback if the exact body fails. */
   profile?: CadModifierProfilePart;
   hole: boolean;
+  /**
+   * The groups inside the treated group that this part sits in, where such a group mixes solids and holes: its
+   * holes cut only the solids with the same scope (#996). Missing or empty for the treated group's own level.
+   */
+  scope?: number[];
 };
 
 export type CadModifierComponentMesh = {
@@ -463,6 +525,10 @@ export type CadFaceInfo = {
   center: { x: number; y: number; z: number };
   /** Out of the body, for flat faces only. */
   normal?: { x: number; y: number; z: number };
+  /** Twice the area over the perimeter: how narrow the face is, for the thin faces Delete face takes along. */
+  width: number;
+  /** The faces it shares an edge with. */
+  neighbours: number[];
 };
 
 /** The prepared body's faces: each face's description and, for picking, the tessellation with the face of every triangle. */
@@ -488,26 +554,44 @@ export type CadModifierExactReport = {
 
 export type CadModifierWorkerRequest =
   // faces: also send the body's faces (Delete face); faceMesh: with their tessellation, for picking.
+  // exact: the mesh parts are to be made exact (Make exact): larger meshes and more time than the edge tool allows.
   | { type: "prepare"; requestId: number; parts: CadModifierMeshPart[]; sharpAngle: number; suppressTreatmentDetailEdges?: boolean; faces?: boolean; faceMesh?: boolean; exact?: boolean }
+  // Fork (build 29): build a Blend piece as an exact loft (cadBlendLoft.ts); answered like a preview.
+  | { type: "blendLoft"; requestId: number; rings: number[][]; innerRings?: number[][]; expectedVolume?: number }
   | {
       type: "preview";
       requestId: number;
-      kind: CadModifierKind | "exact";
+      // "lid" (#1154) changes nothing: it builds the exact lid for the prepared body. "exact" changes nothing either:
+      // it gives back the prepared body itself, the mesh rebuilt as an exact solid (Make exact).
+      kind: CadModifierKind | "lid" | "exact";
       edgeIds: number[];
       amount: number;
       quality: CadModifierQuality;
       chamferAngle: number;
-      // Fork (build 32): only for "fillet": the radius at the edge's end when it changes along it.
+      // Only for "fillet" of one edge (#687): the radius at the edge's end, `amount` the one at its start.
       endAmount?: number;
+      // Only for "fillet" (#1160): a scoop cut out of the edge instead of a rounding, `amount` the radius.
+      concave?: boolean;
       // Only for "shell": which faces stay open; `amount` is the wall thickness.
       shellOpenings?: ShellOpenings;
+      shellEdges?: ShellEdges;
       // Only for "shell" with the top open: the collar round the top and the groove under the wall, this high (mm).
       shellStack?: number;
-      shellEdges?: ShellEdges;
+      shellStackFoot?: { hollow?: boolean; grip?: number; gripDepth?: number };
+      // Only for "shell" with the top open: a Gridfinity floor with at most this many cells, the walls fitted to them, and dividers.
+      shellGrid?: { cells: number; fit?: boolean; magnets?: boolean; screws?: boolean };
+      shellDividers?: { x: number; z: number; height?: number; thickness?: number; manual?: boolean; walls?: { dir: "x" | "z"; at: number; from: number; to: number; slant?: number }[]; angle?: number; scoops?: { x: number; z: number; side: "front" | "back" | "left" | "right" }[]; scoopRadius?: number; pockets?: { points: { x: number; z: number }[]; depth: number }[]; pocketFill?: number };
+      // Only for "shell" with the top open (#1663): a ledge round the inside of the wall, this wide (mm), its top this high (mm) above the inside of the floor.
+      shellShelf?: number;
+      shellShelfHeight?: number;
       // Only for "offset" (#919): `amount` is the distance, moved inward when this is set.
       offsetShrink?: boolean;
-      // Only for "deleteFace" and "draft": the faces to delete or lean, as the prepare numbered them.
+      // Only for "offset" (#1057): only the sides move, the body keeps its height.
+      offsetSideways?: boolean;
+      // Only for "deleteFace": the faces to delete, as the prepare numbered them.
       faceIds?: number[];
+      // Only for "lid" (#1154): the kind, sizes, pockets and place of the lid.
+      lid?: CadLidRequest;
       // The finest deflection the shape's edge-treatment history has needed
       // so far, if any - a floor beneath this operation's own deflection.
       minDeflection?: CadModifierDeflection;
@@ -516,11 +600,22 @@ export type CadModifierWorkerRequest =
       // the worker does not search for one.
       addedEdgeIds?: number[];
     }
-  // Fork (build 29): build a Blend piece as an exact loft (cadBlendLoft.ts); answered like a preview.
-  | { type: "blendLoft"; requestId: number; rings: number[][]; innerRings?: number[][]; expectedVolume?: number }
+  // The largest size up to `amount` at which the picked edges still take the chamfer or fillet (Discussion #1635):
+  // `amount` is the refused one. A variable fillet keeps the ratio of its two ends.
+  | {
+      type: "largest";
+      requestId: number;
+      kind: "chamfer" | "chamfillet" | "fillet";
+      edgeIds: number[];
+      amount: number;
+      chamferAngle: number;
+      endAmount?: number;
+      concave?: boolean;
+    }
   | { type: "dispose"; requestId: number };
 
 export type CadModifierWorkerResponse =
+  // exactReport: what the mesh parts were rebuilt from (planes, cylinders, ... and facets), when any was.
   | { type: "ready"; requestId: number; edges: CadModifierEdge[]; selectableEdgeIds: number[]; sourceType: string; faces?: CadModifierFaces; exactReport?: CadModifierExactReport }
   | {
       type: "preview";
@@ -535,7 +630,14 @@ export type CadModifierWorkerResponse =
       // The deflection actually used for this operation - request.minDeflection
       // folded in, so the caller can carry it forward as the new floor.
       deflection: CadModifierDeflection;
+      // Short corner edges the worker took along so a refused chamfer or fillet went through (#1178).
+      cornerEdgeIds?: number[];
+      /** Sharp inner corners at the ends of the picked edges, rounded or chamfered first at `amount` so they went through. */
+      innerCorners?: { count: number; amount: number };
     }
   | { type: "disposed"; requestId: number }
+  // amount: the largest size that went through, null when none did; endAmount goes with it for a variable fillet.
+  | { type: "largest"; requestId: number; amount: number | null; endAmount?: number }
   // failedEdgeIds: the selected edges the kernel could not treat together.
-  | { type: "error"; requestId: number; message: string; resetSession?: boolean; failedEdgeIds?: number[] };
+  // tightestBend: a fillet refused because a picked curve bends round the outside tighter than its radius, in mm (#1473).
+  | { type: "error"; requestId: number; message: string; resetSession?: boolean; failedEdgeIds?: number[]; tightestBend?: number };

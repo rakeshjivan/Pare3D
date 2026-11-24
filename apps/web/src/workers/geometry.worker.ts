@@ -1,24 +1,27 @@
 /// <reference lib="webworker" />
 
-import { checkClearance, type ClearanceOptions } from "@/lib/clearanceCheck";
-import { buildMessage } from "@/lib/buildStamp";
-import { articulateShapes, type FlexiOptions } from "@/lib/flexiJoints";
-import { lidForShapes, type LidOptions } from "@/lib/lidTool";
-import { buildGroupedShapeFromSelection, exportSolidVolume, splitShapeIfCrossed } from "@/lib/editorBooleans";
-import { checkLayers, type LayerCheckOptions } from "@/lib/layerCheck";
+import { exportMeshesTo3mf } from "@/lib/threemfExport";
+import { unflattenThreeMfMeshes, type FlatThreeMfMesh } from "@/lib/threemfFlat";
 import { splitBoltForShape, type BoltSplitOptions } from "@/lib/boltSplit";
+import { buildMessage } from "@/lib/buildStamp";
+import { checkClearance, type ClearanceOptions } from "@/lib/clearanceCheck";
+import { articulateShapes, type FlexiOptions } from "@/lib/flexiJoints";
+import { lidForShapes, lidTopForShapes, type LidOptions } from "@/lib/lidTool";
+import { analyseMoldForShapes, moldForShapes, type MoldOptions } from "@/lib/moldTool";
+import { checkPrint, type PrintCheckOptions } from "@/lib/printCheck";
+import { checkLayers, type LayerCheckOptions } from "@/lib/layerCheck";
+import { buildGroupedShapeFromSelection, exportSolidVolume, faceReadPositions, previewSplitConnectors, splitShapeIfCrossed } from "@/lib/editorBooleans";
 import { getManifoldRuntime, setManifoldAssetBase } from "@/lib/editorMeshCore";
 import { packValue, packedTransfer, unpackValue } from "@/lib/geometryTransfer";
 import { resultMeshes, type GeometryWorkerRequest, type GeometryWorkerResponse } from "@/lib/geometryWorkerTypes";
 import { prepareImportedMeshDisplay } from "@/lib/importedMeshDisplay";
-import { simplifyTrianglePositions } from "@/lib/meshSimplify";
+import { simplifyTrianglePositions, type SimplifyOptions } from "@/lib/meshSimplify";
 import { importedShapesFromObj } from "@/lib/objImport";
-import { importedShapeFromStl } from "@/lib/stlImport";
-import { exportMeshesTo3mf } from "@/lib/threemfExport";
-import { unflattenThreeMfMeshes, type FlatThreeMfMesh } from "@/lib/threemfFlat";
+import { importedShapeFromStl, type MeshPlacement, type StlReadOptions } from "@/lib/stlImport";
 import { importedShapesFromStepFile } from "@/lib/stepFileImport";
 import { setLanguage } from "@/lib/i18n";
 import type { ModelSplitPlane } from "@/lib/modelSplit";
+import type { SplitConnectorOptions } from "@/lib/splitConnectors";
 import type { WorkplaneShape } from "@/types/layerling";
 
 /**
@@ -45,17 +48,20 @@ self.onmessage = async (event: MessageEvent<GeometryWorkerRequest>) => {
       const { selected, triangleLimit } = args as { selected: WorkplaneShape[]; triangleLimit: number };
       result = await buildGroupedShapeFromSelection(selected, triangleLimit);
     } else if (request.task === "split") {
-      const { shape, plane } = args as { shape: WorkplaneShape; plane: Pick<ModelSplitPlane, "axis" | "normal" | "position"> };
-      result = await splitShapeIfCrossed(shape, plane);
+      const { shape, plane, connectors, stretch } = args as { shape: WorkplaneShape; plane: Pick<ModelSplitPlane, "axis" | "normal" | "position">; connectors?: SplitConnectorOptions; stretch?: number };
+      result = await splitShapeIfCrossed(shape, plane, connectors, stretch);
+    } else if (request.task === "splitConnectors") {
+      const { targets, plane, connectors } = args as { targets: WorkplaneShape[]; plane: Pick<ModelSplitPlane, "axis" | "normal" | "position">; connectors: SplitConnectorOptions };
+      result = await previewSplitConnectors(targets, plane, connectors);
     } else if (request.task === "flexi") {
       const { targets, options } = args as { targets: WorkplaneShape[]; options: FlexiOptions };
       result = await articulateShapes(targets, options);
     } else if (request.task === "clearance") {
       const { source, options } = args as { source: WorkplaneShape[]; options: Partial<ClearanceOptions> };
       result = await checkClearance(source, options);
-    } else if (request.task === "boltSplit") {
-      const { shape, options } = args as { shape: WorkplaneShape; options: Partial<BoltSplitOptions> };
-      result = await splitBoltForShape(shape, options);
+    } else if (request.task === "printCheck") {
+      const { source, options } = args as { source: WorkplaneShape[]; options: Partial<PrintCheckOptions> };
+      result = await checkPrint(source, options);
     } else if (request.task === "layerCheck") {
       // Says how far it got, at most every 100 ms, so the panel's bar moves.
       const { source, options } = args as { source: WorkplaneShape[]; options: Partial<LayerCheckOptions> };
@@ -71,12 +77,24 @@ self.onmessage = async (event: MessageEvent<GeometryWorkerRequest>) => {
     } else if (request.task === "lid") {
       const { targets, options } = args as { targets: WorkplaneShape[]; options: LidOptions };
       result = await lidForShapes(targets, options);
+    } else if (request.task === "mold") {
+      const { targets, options } = args as { targets: WorkplaneShape[]; options: MoldOptions };
+      result = await moldForShapes(targets, options);
+    } else if (request.task === "moldCheck") {
+      const { targets, options } = args as { targets: WorkplaneShape[]; options: MoldOptions };
+      result = await analyseMoldForShapes(targets, options);
+    } else if (request.task === "boltSplit") {
+      const { shape, options } = args as { shape: WorkplaneShape; options: Partial<BoltSplitOptions> };
+      result = await splitBoltForShape(shape, options);
+    } else if (request.task === "lidTop") {
+      const { targets } = args as { targets: WorkplaneShape[] };
+      result = await lidTopForShapes(targets);
     } else if (request.task === "stl") {
-      const { fileName, buffer } = args as { fileName: string; buffer: ArrayBuffer };
-      result = importedShapeFromStl(fileName, buffer);
+      const { fileName, buffer, options } = args as { fileName: string; buffer: ArrayBuffer; options?: StlReadOptions };
+      result = importedShapeFromStl(fileName, buffer, options);
     } else if (request.task === "obj") {
-      const { fileName, text, mtlSources } = args as { fileName: string; text: string; mtlSources: string[] };
-      result = importedShapesFromObj(fileName, text, mtlSources);
+      const { fileName, text, mtlSources, placement } = args as { fileName: string; text: string; mtlSources: string[]; placement?: MeshPlacement };
+      result = importedShapesFromObj(fileName, text, mtlSources, placement);
     } else if (request.task === "step") {
       // The CAD kernel loads here the first time a STEP file comes; reading a file of 390 parts held the page for 4 s.
       const { fileName, buffer } = args as { fileName: string; buffer: ArrayBuffer };
@@ -91,12 +109,15 @@ self.onmessage = async (event: MessageEvent<GeometryWorkerRequest>) => {
       const { source } = args as { source: WorkplaneShape[] };
       result = await exportSolidVolume(source);
     } else if (request.task === "simplify") {
-      const { positions, target } = args as { positions: number[]; target: number };
-      result = await simplifyTrianglePositions(positions, target);
+      const { positions, target, options } = args as { positions: number[]; target: number; options?: SimplifyOptions };
+      result = await simplifyTrianglePositions(positions, target, options);
     } else if (request.task === "threemf") {
       // Build 68: the whole 3MF - welding, the XML and the zip - is made here, not on the page.
       const { meshes, metadata } = args as { meshes: FlatThreeMfMesh[]; metadata: { title?: string } };
       result = exportMeshesTo3mf(unflattenThreeMfMeshes(meshes), metadata);
+    } else if (request.task === "face") {
+      const { shape } = args as { shape: WorkplaneShape };
+      result = await faceReadPositions(shape);
     } else if (request.task === "warm") {
       await getManifoldRuntime();
       result = null;

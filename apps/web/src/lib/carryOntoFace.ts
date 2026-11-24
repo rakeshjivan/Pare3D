@@ -19,12 +19,15 @@ export function carriedOntoFace(
   ids: readonly string[],
   target: { point: Vec; normal: Vec; workplane?: PlacementWorkplane },
   leadId?: string,
+  /** Sunk into the face: the top of the selection, as it stands, on the point, so the parts go below it (#940). */
+  sunk = false,
 ): Map<string, Partial<WorkplaneShape>> {
   const moving = shapes.filter((shape) => ids.includes(shape.id));
   const patches = new Map<string, Partial<WorkplaneShape>>();
   if (!moving.length) return patches;
   const lead = moving.find((shape) => shape.id === leadId) ?? moving[0];
-  const leadTurn = quaternionForShape(lead);
+  // The lead as it would stand before its resting turn: a roof's "up" is its corner, not its polygon axis (#1956).
+  const leadTurn = quaternionForShape(lead).multiply(restingTurn(lead).invert());
   const up = new THREE.Vector3(0, 1, 0).applyQuaternion(leadTurn).normalize();
   // The lead's own spin about its up axis, measured against the frame a face facing `up` has.
   const spin = frameFacing(up).invert().multiply(leadTurn);
@@ -36,15 +39,16 @@ export function carriedOntoFace(
   const side = Math.abs(up.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
   const u = new THREE.Vector3().crossVectors(up, side).normalize();
   const v = new THREE.Vector3().crossVectors(up, u).normalize();
-  const low = { up: Infinity, uMin: Infinity, uMax: -Infinity, vMin: Infinity, vMax: -Infinity };
+  const low = { up: Infinity, upMax: -Infinity, uMin: Infinity, uMax: -Infinity, vMin: Infinity, vMax: -Infinity };
   moving.forEach((shape) => frameCorners(shape).forEach((corner) => {
     low.up = Math.min(low.up, corner.dot(up));
+    low.upMax = Math.max(low.upMax, corner.dot(up));
     low.uMin = Math.min(low.uMin, corner.dot(u));
     low.uMax = Math.max(low.uMax, corner.dot(u));
     low.vMin = Math.min(low.vMin, corner.dot(v));
     low.vMax = Math.max(low.vMax, corner.dot(v));
   }));
-  const foot = up.clone().multiplyScalar(low.up)
+  const foot = up.clone().multiplyScalar(sunk ? low.upMax : low.up)
     .addScaledVector(u, (low.uMin + low.uMax) / 2)
     .addScaledVector(v, (low.vMin + low.vMax) / 2);
   const shift = new THREE.Vector3(target.point.x, target.point.y, target.point.z).sub(foot);
@@ -62,6 +66,17 @@ export function carriedOntoFace(
     });
   });
   return patches;
+}
+
+/**
+ * The turn about its own X axis a part rests in when it is put in (libraryAssetTurnX): the roof (#1931) is a
+ * three-sided polygon laid on one flat side, so carried onto a face it lies down again instead of standing on
+ * its triangle (#1956). Every other part stands as it is made.
+ */
+function restingTurn(shape: WorkplaneShape) {
+  return shape.kind === "polygon" && shape.polygonRoof
+    ? new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(270))
+    : new THREE.Quaternion();
 }
 
 /**

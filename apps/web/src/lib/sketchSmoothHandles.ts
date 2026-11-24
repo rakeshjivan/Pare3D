@@ -12,7 +12,10 @@ export function cloneSketchProfile(profile: SketchProfile): SketchProfile {
     ...(profile.stroke ? { stroke: { ...profile.stroke } } : {}),
     ...(profile.silhouette ? { silhouette: true } : {}),
     ...(profile.keyring ? { keyring: { ...profile.keyring } } : {}),
+    ...(profile.flush ? { flush: { ...profile.flush, ...(profile.flush.pocket ? { pocket: { ...profile.flush.pocket } } : {}) } } : {}),
     ...(profile.inset ? { inset: { ...profile.inset } } : {}),
+    ...(profile.sweepAnchor && profile.sweepAnchor !== "center" ? { sweepAnchor: profile.sweepAnchor } : {}),
+    ...(profile.notes ? { notes: profile.notes.map((note) => ({ ...note })) } : {}),
     ...(profile.constraints?.length ? { constraints: profile.constraints.map((constraint) => ({ ...constraint })) } : {}),
   };
 }
@@ -120,6 +123,19 @@ export function withSmoothSketchHandles(profile: SketchProfile, onlyPointIds?: R
     });
   });
   return next;
+}
+
+/**
+ * After a point was deleted: lays the handles again only of its former neighbours that sit on a smooth
+ * curve. Every other point keeps its handles - handles dragged by hand elsewhere in the outline used to be
+ * laid anew too, and the whole curve changed far from the deleted point (forum, 621213).
+ */
+export function withSmoothHandlesAfterRemoval(before: SketchProfile, after: SketchProfile, removedId: string) {
+  const neighbours = new Set(before.segments.flatMap((segment) =>
+    segment.startId === removedId ? [segment.endId] : segment.endId === removedId ? [segment.startId] : []));
+  const onSmoothCurve = new Set(after.segments.flatMap((segment) => segment.kind === "smooth" ? [segment.startId, segment.endId] : []));
+  const ids = new Set([...neighbours].filter((id) => onSmoothCurve.has(id)));
+  return ids.size ? withSmoothSketchHandles(after, ids) : after;
 }
 
 /**

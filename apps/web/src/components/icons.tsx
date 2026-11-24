@@ -1,4 +1,4 @@
-import { Blend } from "lucide-react";
+import { Blend, Layers3, PrinterCheck, SearchCheck } from "lucide-react";
 import type { CSSProperties, SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement>;
@@ -10,7 +10,7 @@ type SpriteRect = {
 };
 
 const toolbarSprite = "assets/editor/toolbar-sprite.svg?v=2";
-const vectorToolbarSprite = "assets/editor/vector-toolbar-icons.svg?v=1";
+const vectorToolbarSprite = "assets/editor/vector-toolbar-icons.svg?v=2";
 
 // The drawn height of a sprite icon comes from --sprite-icon-size (35px unless
 // a stylesheet sets it), so the toolbar size setting can scale it from CSS.
@@ -66,8 +66,9 @@ function VectorToolbarSpriteIcon({ rect, className, style }: IconProps & { rect:
   );
 }
 
+// A plain cube: the plus beside it went when the button got the chevron tab of the other menus (Discussion #1506).
 export function ToolbarShapeAddIcon(props: IconProps) {
-  return <VectorToolbarSpriteIcon rect={{ x: 104, y: 0, width: 29, height: 27 }} {...props} />;
+  return <VectorToolbarSpriteIcon rect={{ x: 104, y: 0, width: 24, height: 27 }} {...props} />;
 }
 
 export function ToolbarHideSelectedIcon(props: IconProps) {
@@ -92,6 +93,17 @@ export function ToolbarIntersectionIcon(props: IconProps) {
   );
 }
 
+// Hull (#863): two parts of different sizes, wrapped in one outline that touches both.
+export function ToolbarHullIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true" className="toolbar-vector-art-icon" {...props}>
+      <path d="M13.4 19.2L29.4 11.1A12 12 0 1 1 29.4 34.9L13.4 30.8A6 6 0 0 1 13.4 19.2Z" fill="currentColor" opacity="0.22" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" />
+      <circle cx="14" cy="25" r="6" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="3 2.5" />
+      <circle cx="32" cy="23" r="12" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="3 2.5" />
+    </svg>
+  );
+}
+
 // Loft between two sketches: a small outline above a large one, joined by the walls between them.
 export function ToolbarLoftSketchesIcon(props: IconProps) {
   return (
@@ -104,10 +116,22 @@ export function ToolbarLoftSketchesIcon(props: IconProps) {
   );
 }
 
-// The class gives it the same disabled dimming as the rest of the ribbon; the
-// bare theme colour alone left it looking live on the dark grounds.
-export function ToolbarIntersectPreviewIcon({ className, ...props }: IconProps) {
-  return <Blend className={["toolbar-vector-art-icon", className].filter(Boolean).join(" ")} {...props} />;
+/**
+ * The clearance check: two parts with the gap between them measured. The class gives it the same disabled dimming as the
+ * rest of the ribbon; the bare theme colour alone left it looking live on the dark grounds.
+ */
+export function ToolbarClearanceIcon({ className, ...props }: IconProps) {
+  return <SearchCheck className={["toolbar-vector-art-icon", className].filter(Boolean).join(" ")} {...props} />;
+}
+
+/** The print check: a printer with a tick, beside the clearance check's magnifier; the same class for the dimming. */
+export function ToolbarPrintCheckIcon({ className, ...props }: IconProps) {
+  return <PrinterCheck className={["toolbar-vector-art-icon", className].filter(Boolean).join(" ")} {...props} />;
+}
+
+/** The print analysis (Druckanalyse): layers stacked, as the slicer lays them down; the same class for the dimming. */
+export function ToolbarLayerCheckIcon({ className, ...props }: IconProps) {
+  return <Layers3 className={["toolbar-vector-art-icon", className].filter(Boolean).join(" ")} {...props} />;
 }
 
 export function ToolbarAlignIcon(props: IconProps) {
@@ -120,13 +144,17 @@ export {
   SketchEllipseIcon,
   SketchHalfCircleIcon,
   SketchPieSliceIcon,
+  ToolbarAttachmentsIcon,
+  ToolbarBuildPlatesIcon,
   ToolbarCenterOnWorkplaneIcon,
   ToolbarChamferIcon,
+  ToolbarCookieCutterIcon,
   ToolbarCopyIcon,
   ToolbarDropToWorkplaneIcon,
   ToolbarDuplicateIcon,
   ToolbarExportIcon,
   ToolbarFilletIcon,
+  ToolbarFlexiIcon,
   ToolbarHistoryIcon,
   ToolbarHollowIcon,
   ToolbarOffsetIcon,
@@ -135,7 +163,8 @@ export {
   ToolbarDeleteFaceIcon,
   ToolbarSimplifyIcon,
   ToolbarMakeExactIcon,
-  ToolbarBuildPlatesIcon,
+  ToolbarSurfaceTextureIcon,
+  ToolbarPaintIcon,
   ToolbarBundleIcon,
   ToolbarGroupIcon,
   ToolbarGuideIcon,
@@ -147,11 +176,15 @@ export {
   ToolbarPatternIcon,
   ToolbarHolePatternIcon,
   ToolbarThreadInsertIcon,
-  ToolbarSupportRibIcon,
   ToolbarFaceToolIcon,
+  ToolbarSupportRibIcon,
+  ToolbarStencilBridgeIcon,
   ToolbarConstructionLineIcon,
   ToolbarMiddleLineIcon,
   ToolbarLayFlatIcon,
+  ToolbarLidIcon,
+  ToolbarMoldIcon,
+  ToolbarCableChannelIcon,
   ToolbarMateFacesIcon,
   ToolbarNoteIcon,
   ToolbarSplitIcon,
@@ -165,3 +198,7 @@ export {
   ToolbarVectorExportIcon,
   ToolbarWorkplaneIcon,
 } from "@/components/toolbarIcons";
+
+export function ToolbarIntersectPreviewIcon({ className, ...props }: IconProps) {
+  return <Blend className={["toolbar-vector-art-icon", className].filter(Boolean).join(" ")} {...props} />;
+}

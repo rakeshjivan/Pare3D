@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { setLanguage } from "@/lib/i18n";
-import { displayShapeName, renamedShapeName } from "@/lib/shapeCatalog";
+import { displayShapeName, hasOwnShapeName, renamedShapeName } from "@/lib/shapeCatalog";
 
 describe("displayShapeName", () => {
   afterEach(() => setLanguage("en", false));
@@ -11,7 +11,7 @@ describe("displayShapeName", () => {
     expect(displayShapeName({ name: "Box", kind: "cylinder" })).toBe("Box");
   });
 
-  it("shows the editor's own names", () => {
+  it("switches back with the language", () => {
     setLanguage("en", false);
     expect(displayShapeName({ name: "Sketch extrusion", kind: "mesh" })).toBe("Sketch body");
     expect(displayShapeName({ name: "Box", kind: "box" })).toBe("Box");
@@ -40,5 +40,19 @@ describe("renamedShapeName", () => {
     const shape = { name: "Lid", kind: "box" as const };
     expect(renamedShapeName(shape, "   ")).toBe("");
     expect(displayShapeName({ ...shape, name: "" })).toBe("Box");
+  });
+});
+
+// The export window suggests the name of a single body only when somebody gave it one (forum, 26.10.2026).
+describe("hasOwnShapeName", () => {
+  afterEach(() => setLanguage("en", false));
+
+  it("tells a typed name from one the editor handed out", () => {
+    expect(hasOwnShapeName({ name: "Lid", kind: "box" })).toBe(true);
+    expect(hasOwnShapeName({ name: "Box", kind: "cylinder" })).toBe(true);
+    expect(hasOwnShapeName({ name: "Box", kind: "box" })).toBe(false);
+    expect(hasOwnShapeName({ name: "Group", kind: "mesh" })).toBe(false);
+    expect(hasOwnShapeName({ name: "Hull", kind: "mesh" })).toBe(false);
+    expect(hasOwnShapeName({ name: "  ", kind: "box" })).toBe(false);
   });
 });

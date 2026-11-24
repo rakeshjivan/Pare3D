@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { acceleratedRaycast, computeBoundsTree } from "three-mesh-bvh";
 import { strFromU8, unzipSync } from "fflate";
 import manifoldModule, { type ManifoldToplevel } from "manifold-3d";
-import { buildPartColoredMeshGeometry, createShapeObject, groupChildAppearance, shapeGeometrySignature, shapeMaterialSignature, syncShapeObjectAppearance, tapeShapeTopologyKey } from "@/components/WorkplaneViewport";
+import { buildPartColoredMeshGeometry, createShapeObject, groupChildAppearance, shapeGeometrySignature, shapeMaterialSignature, syncShapeObjectAppearance, tapeShapeTopologyKey } from "@/components/workplane/viewportShapeObjects";
 import { buildGroupDisplayMesh, buildGroupedShapeFromSelection, exportBodiesWithLooseHoles, exportFaceColors, expandBundles, multicolorExportSolids } from "@/lib/editorBooleans";
 import { editorHistoryEntry } from "@/lib/editorHistory";
 import { mcpShapeSummary } from "@/lib/editorMcpSummary";
@@ -240,7 +240,7 @@ describe("a Gridfinity bin's letters in their own colour in a 3MF or OBJ", () =>
     expect(sameShapeApartFromPlacement(binShape(), binShape({ gridfinityLabelColor: "#ff0000" }))).toBe(true);
   });
 
-  it.skip("keeps the letters' colour in a group shown in its parts' colours, also when it is resized, and counts it as a second colour", async () => {
+  it("keeps the letters' colour in a group shown in its parts' colours, also when it is resized, and counts it as a second colour", async () => {
     const shape = binShape();
     const neighbour = box("box", BIN, 70);
     const built = await buildGroupedShapeFromSelection([shape, neighbour], 250_000);
@@ -253,7 +253,7 @@ describe("a Gridfinity bin's letters in their own colour in a 3MF or OBJ", () =>
     expectLetterAreas(grown, undefined, { letters: expected.letters * 2.25, bin: (expected.bin + 1600) * 2.25 });
   });
 
-  it.skip("keeps the letters' colour when a group shown in its parts' colours goes into another group", async () => {
+  it("keeps the letters' colour when a group shown in its parts' colours goes into another group", async () => {
     const shape = binShape();
     const inner = { ...(await buildGroupedShapeFromSelection([shape, box("box", "#ff00ff", 70)], 250_000)).group!, multicolor: true } as WorkplaneShape;
     const outer = { ...(await buildGroupedShapeFromSelection([inner, box("other", "#00ff00", -80)], 250_000)).group!, multicolor: true } as WorkplaneShape;
@@ -262,7 +262,7 @@ describe("a Gridfinity bin's letters in their own colour in a 3MF or OBJ", () =>
     expect(areas[LETTERS]).toBeCloseTo(expectedAreas(shape).letters, 1);
   });
 
-  it.skip("keeps the letters' colour in a group cut by a hole only with Multicolor on", async () => {
+  it("keeps the letters' colour in a group cut by a hole only with Multicolor on", async () => {
     const shape = binShape();
     const hole = box("hole", "#999999", 30, { hole: true, z: 10, width: 8, depth: 8, height: 40, size: 8 });
     const built = await buildGroupedShapeFromSelection([shape, hole], 250_000);
@@ -272,7 +272,7 @@ describe("a Gridfinity bin's letters in their own colour in a 3MF or OBJ", () =>
     expectLetterAreas({ ...group, multicolor: true }, undefined, { letters: expectedAreas(shape).letters });
   });
 
-  it.skip("leaves a group in one colour, a bundle in one colour and its parts without the letters' colour", () => {
+  it("leaves a group in one colour, a bundle in one colour and its parts without the letters' colour", () => {
     const shape = binShape();
     const group = { ...box("group", "#00ff00", 0), groupedShapes: [shape, box("box", BIN, 70)], multicolor: false } as WorkplaneShape;
     expect(multicolorExportSolids(group)).toBeNull();
@@ -448,7 +448,7 @@ describe("a Gridfinity bin's letters in their own colour in the view", () => {
     expect(Array.isArray(surfaceOf(createShapeObject(binShape({ hole: true }))).material)).toBe(false);
   });
 
-  it.skip("shows the letters' colour in a group cut by a hole and shown in its parts' colours", async () => {
+  it("shows the letters' colour in a group cut by a hole and shown in its parts' colours", async () => {
     const shape = binShape();
     const hole = box("hole", "#999999", 30, { hole: true, z: 10, width: 8, depth: 8, height: 40, size: 8 });
     const group = { ...(await buildGroupedShapeFromSelection([shape, hole], 250_000)).group!, multicolor: true } as WorkplaneShape;
@@ -468,7 +468,7 @@ describe("a Gridfinity bin's letters in their own colour in the view", () => {
     expect(areas[LETTERS]).toBeCloseTo(expectedAreas(shape).letters, 1);
   });
 
-  it.skip("shows the letters' colour in a group drawn as one body with Multicolor on", async () => {
+  it("shows the letters' colour in a group drawn as one body with Multicolor on", async () => {
     const shape = binShape();
     const group = { ...(await buildGroupedShapeFromSelection([shape, box("box", "#ff00ff", 70)], 250_000)).group!, multicolor: true } as WorkplaneShape;
     const mesh = buildGroupDisplayMesh(group);
@@ -476,14 +476,14 @@ describe("a Gridfinity bin's letters in their own colour in the view", () => {
     expect(colorsOf(buildPartColoredMeshGeometry(mesh!, group.groupedShapes!)!)).toEqual([BIN, LETTERS, "#ff00ff"].sort());
   });
 
-  it.skip("keeps a bin without letters of their own colour in its colour in a group drawn as one body with Multicolor on", async () => {
+  it("keeps a bin without letters of their own colour in its colour in a group drawn as one body with Multicolor on", async () => {
     const group = { ...(await buildGroupedShapeFromSelection([binShape({ gridfinityLabelColor: undefined }), box("box", "#ff00ff", 70)], 250_000)).group!, multicolor: true } as WorkplaneShape;
     expect(colorsOf(buildPartColoredMeshGeometry(buildGroupDisplayMesh(group)!, group.groupedShapes!)!)).toEqual([BIN, "#ff00ff"].sort());
   });
 });
 
 describe("part colours of other bodies drawn in several materials", () => {
-  it.skip("colours a picture plate in a group shown in its parts' colours by its own colour, not by its picture's white", async () => {
+  it("colours a picture plate in a group shown in its parts' colours by its own colour, not by its picture's white", async () => {
     // A picture plate is a box with a material for each side; only a bin's letters are split into surfaces of their own.
     const group = { ...(await buildGroupedShapeFromSelection([box("plate", "#ff0000", 0), box("box", "#0000ff", 30)], 250_000)).group!, multicolor: true } as WorkplaneShape;
     const mesh = buildGroupDisplayMesh(group)!;
@@ -528,7 +528,7 @@ describe("the letters' colour through the project, the defaults and MCP", () => 
     expect(makeShapeFromAsset(asset, { x: 0, z: 0 }, { gridfinityLabelColor: LETTERS })).toMatchObject({ gridfinityLabelColor: LETTERS });
   });
 
-  it.skip("takes the colour from MCP, an empty one as the bin's, and reads it back", () => {
+  it("takes the colour from MCP, an empty one as the bin's, and reads it back", () => {
     expect(mcpGridfinityPatch({ gridfinityLabelColor: "#F2C200" })).toStrictEqual({ gridfinityLabelColor: LETTERS });
     expect(mcpGridfinityPatch({ gridfinityLabelColor: "" })).toStrictEqual({ gridfinityLabelColor: undefined });
     expect(() => mcpGridfinityPatch({ gridfinityLabelColor: "yellow" })).toThrow(/gridfinityLabelColor/);

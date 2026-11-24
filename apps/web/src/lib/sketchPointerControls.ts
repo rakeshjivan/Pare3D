@@ -5,8 +5,9 @@ export type SketchPointerModifiers = {
   shiftKey: boolean;
 };
 
-export function isSketchPanGesture(event: SketchPointerModifiers) {
-  return event.button === 1 || (event.button === 2 && (event.ctrlKey || event.metaKey || event.shiftKey));
+/** Whether a press shifts the sketch: the middle button, or the right one with a modifier - or alone in the slicer scheme, where the right button shifts the 3D view too (#1013). */
+export function isSketchPanGesture(event: SketchPointerModifiers, scheme: "layerling" | "slicer" = "layerling") {
+  return event.button === 1 || (event.button === 2 && (scheme === "slicer" || event.ctrlKey || event.metaKey || event.shiftKey));
 }
 
 export type SketchView = { zoom: number; pan: { x: number; z: number } };
@@ -63,8 +64,9 @@ export function zoomSketchViewAt(
   offset: { x: number; y: number },
   pixelsPerUnit: number,
   bounds: { width: number; depth: number },
+  minZoom = SKETCH_MIN_ZOOM,
 ): SketchView {
-  const zoom = Math.min(SKETCH_MANUAL_MAX_ZOOM, Math.max(SKETCH_MIN_ZOOM, view.zoom * factor));
+  const zoom = Math.min(SKETCH_MANUAL_MAX_ZOOM, Math.max(minZoom, view.zoom * factor));
   if (!(pixelsPerUnit > 0) || zoom === view.zoom) return { zoom, pan: view.pan };
   const shift = 1 / view.zoom - 1 / zoom;
   return {
@@ -79,6 +81,14 @@ export function zoomSketchViewAt(
 /** The tools that draw a chain of points: a line, a curve, a smooth line. */
 export function isChainDrawingTool(tool: string) {
   return tool === "line" || tool === "bezier" || tool === "smooth";
+}
+
+/**
+ * Whether switching from one tool to another goes on with the chain being drawn (#1725): from a straight
+ * line to a smooth line or a curve and back the next point joins the last one, any other switch ends it.
+ */
+export function toolSwitchKeepsChain(from: string, to: string) {
+  return from !== to && isChainDrawingTool(from) && isChainDrawingTool(to);
 }
 
 /** How far the pointer may wander between pressing and releasing the right button and still count as a click, in screen pixels. */

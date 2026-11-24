@@ -4,6 +4,8 @@ import { Search, X } from "lucide-react";
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ComponentType } from "react";
 import { createPortal } from "react-dom";
 import { GuideHelpLink } from "@/components/GuideHelpLink";
+import { keyLabel } from "@/lib/keyNames";
+import { pressedKey } from "@/lib/keyPressed";
 import { rememberCommand, searchCommands } from "@/lib/commandSearch";
 import { t } from "@/lib/i18n";
 import { useLanguage } from "@/lib/useLanguage";
@@ -130,7 +132,10 @@ export function CommandPalette({ commands, onClose }: { commands: PaletteCommand
         // window is open every key stops here.
         onKeyDown={(event) => {
           event.stopPropagation();
-          if (event.key === "Escape" || ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "k")) {
+          // While an input method is composing (kana to kanji, pinyin), every key belongs to it: Esc takes the
+          // composition back, the arrows walk through its candidates, Enter confirms it.
+          if (event.nativeEvent.isComposing) return;
+          if (event.key === "Escape" || ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && pressedKey(event) === "k")) {
             event.preventDefault();
             onClose();
           } else if (event.key === "ArrowDown") {
@@ -145,7 +150,7 @@ export function CommandPalette({ commands, onClose }: { commands: PaletteCommand
           } else if (event.key === "End" && results.length > 0) {
             event.preventDefault();
             setIndex(results.length - 1);
-          } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+          } else if (event.key === "Enter") {
             event.preventDefault();
             choose(results[current]);
           } else if (event.key === "Tab") {
@@ -211,7 +216,7 @@ export function CommandPalette({ commands, onClose }: { commands: PaletteCommand
                   <span className="command-palette-label">{command.label}</span>
                   {command.shortcut ? (
                     <span className="command-palette-keys">
-                      {command.shortcut.split("+").map((key) => <kbd key={key}>{key}</kbd>)}
+                      {command.shortcut.split("+").map((key) => <kbd key={key}>{keyLabel(key)}</kbd>)}
                     </span>
                   ) : null}
                   <span className="command-palette-group">{command.group}</span>

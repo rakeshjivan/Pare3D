@@ -1,7 +1,7 @@
 import { splitShapesByPlane } from "@/lib/editorBooleans";
 import { meshForShape } from "@/lib/editorMeshCore";
 import { arrangeOnPlate } from "@/lib/distribute";
-import { DEFAULT_CUT_CONNECTORS, type CutConnectorOptions } from "@/lib/cutConnectors";
+import { SPLIT_CONNECTOR_DEFAULTS, type SplitConnectorOptions } from "@/lib/splitConnectors";
 import type { WorkplaneShape } from "@/types/layerling";
 
 /*
@@ -49,7 +49,7 @@ export type SplitToFitResult =
   | { status: "done"; pieces: WorkplaneShape[]; pins: WorkplaneShape[]; connectorCount: number }
   | { status: "failed"; error: string };
 
-export async function splitToFit(shape: WorkplaneShape, bed: Bed, connectors: CutConnectorOptions = { ...DEFAULT_CUT_CONNECTORS, type: "dowel" }): Promise<SplitToFitResult> {
+export async function splitToFit(shape: WorkplaneShape, bed: Bed, connectors: SplitConnectorOptions = { ...SPLIT_CONNECTOR_DEFAULTS, kind: "dowels", count: 2 }): Promise<SplitToFitResult> {
   const plan = planSplitToFit(boundsOf(shape), bed);
   if (!plan.length) return { status: "fits" };
   let pieces: WorkplaneShape[] = [shape];
@@ -58,14 +58,14 @@ export async function splitToFit(shape: WorkplaneShape, bed: Bed, connectors: Cu
   for (const step of plan) {
     const next: WorkplaneShape[] = [];
     for (const piece of pieces) {
-      const outcome = await splitShapesByPlane([piece], { axis: step.axis, normal: [...NORMALS[step.axis]] as [number, number, number], position: step.position }, () => true, connectors);
+      const outcome = await splitShapesByPlane([piece], { axis: step.axis, normal: [...NORMALS[step.axis]] as [number, number, number], position: step.position }, () => true, undefined, connectors);
       if (outcome.status === "failed") return { status: "failed", error: outcome.error };
       if (outcome.status !== "done") return { status: "failed", error: "stale" };
       const parts = outcome.replacements.get(piece.id);
       if (parts?.length) {
-        next.push(...parts);
-        pins.push(...outcome.pins);
-        connectorCount += outcome.connectorCount;
+        // The loose dowels come as a part of their own: they are not cut again.
+        parts.forEach((part) => (part.id.includes("-split-dowels-") ? pins : next).push(part));
+        connectorCount += outcome.connectors?.placed ?? 0;
       } else {
         next.push(piece);
       }

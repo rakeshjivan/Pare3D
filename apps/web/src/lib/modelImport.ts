@@ -1,15 +1,19 @@
 import { unzipSync } from "fflate";
 import { pendingMeshChecks } from "@/lib/meshRepair";
 import { t } from "@/lib/i18n";
+import { localizedError } from "@/lib/userErrors";
 import { importExtensionSupported } from "@/lib/importExtensions";
 import { attachProjectAsset, projectAssetFromBytes, sourceFormatForFileName } from "@/lib/projectAssets";
 import { isPlyFile, plyAsStlFile } from "@/lib/plyImport";
-import { readKeepSvgPage } from "@/lib/importPreferences";
+import { readKeepMeshPosition, readKeepSvgPage } from "@/lib/importPreferences";
 import { scaleSvgText } from "@/lib/svgScale";
 import { decodeSvgBytes, importedColourShapesFromSvg, importedShapeFromSvgWithReport, prepareSvgImport } from "@/lib/svgImport";
 import { importedShapesFrom3mf } from "@/lib/threemfImport";
 import { sketchProfileFromSvg, sketchProfileFromSvgPaths } from "@/lib/svgSketch";
+import { DXF_SKETCH_COLOR, DXF_SKETCH_HEIGHT, DxfImportError, sketchProfileFromDxf } from "@/lib/dxfImport";
 import { importedPictureSvg, isPictureFile, svgEmbeddedPicture } from "@/lib/pictureIcon";
+import { createLocalId } from "@/lib/localIds";
+import { canonicalizeShape } from "@/lib/workplaneShapes";
 import { dxfToSvg } from "@/lib/dxf";
 import type { ProjectAsset, SketchProfile, WorkplaneShape } from "@/types/layerling";
 
@@ -77,13 +81,24 @@ export async function importModelFiles(
      * the sketch of its outlines. Null keeps the mesh - so does an import without it.
      */
     svgAsSketch?: (mesh: WorkplaneShape, profile: SketchProfile) => Promise<WorkplaneShape | null>;
+    /**
+     * Builds a sketch body from a sketch and its height: how a DXF comes in (#774). Without it a DXF cannot be read
+     * (the dashboard's import has no kernel at hand).
+     */
+    sketchFromProfile?: (profile: SketchProfile, height: number) => Promise<WorkplaneShape>;
     /** An SVG keeps its place on its drawing page, so files of one page line up (#258). Left out: the setting in the import window. */
     svgKeepPagePosition?: boolean;
     /** An SVG or a picture comes in at this width in mm, scaled from its own size (#448). Null or left out: its own size. */
     svgWidth?: number | null;
+    /**
+     * An STL, OBJ or 3MF stands where its file puts it, so parts exported as separate files fit together (Issue #1939).
+     * Left out: the setting in the import window.
+     */
+    keepMeshPosition?: boolean;
   } = {},
 ): Promise<ModelImportResult | null> {
   const prepared = await prepareImportFiles(selected);
+  const placement = { keepPosition: options.keepMeshPosition ?? readKeepMeshPosition() };
   const files = prepared.files;
   const result: ModelImportResult = {
     shapes: [],
@@ -110,6 +125,58 @@ export async function importModelFiles(
         result.failures.push({ fileName: file.name, reason: error instanceof Error ? error.message : String(error) });
         continue;
       }
+    }
+
+    // A DXF comes in as sketch bodies of its closed outlines and their holes beside them (#774): no mesh, no file kept.
+    // Without a way to build sketch bodies (a caller of its own), the older way below: the DXF's outlines as an SVG.
+    if (/\.dxf$/i.test(file.name) && options.sketchFromProfile) {
+      const sketchFromProfile = options.sketchFromProfile;
+      options.onProgress?.(index, files.length, file, false);
+      try {
+        const dxf = sketchProfileFromDxf(new TextDecoder().decode(new Uint8Array(await file.arrayBuffer())));
+        // Every solid outline a body, its holes loose holes beside it: each moved and sized in the editor itself.
+        const name = file.name.replace(/\.dxf$/i, "");
+        const shapes: WorkplaneShape[] = [];
+        for (const profile of dxf.parts.solids) {
+          const built = await sketchFromProfile(profile, DXF_SKETCH_HEIGHT);
+          shapes.push({ ...built, name: name || built.name, color: DXF_SKETCH_COLOR });
+        }
+        for (const profile of dxf.parts.holes) {
+          shapes.push({ ...(await sketchFromProfile(profile, DXF_SKETCH_HEIGHT)), hole: true, color: DXF_SKETCH_COLOR });
+        }
+        dxf.parts.roundHoles.forEach(({ x, z, diameter }) => {
+          shapes.push(canonicalizeShape({
+            id: createLocalId("shape"),
+            name: "Cylinder",
+            kind: "cylinder",
+            color: DXF_SKETCH_COLOR,
+            hole: true,
+            x,
+            z,
+            elevation: 0,
+            size: diameter,
+            width: diameter,
+            depth: diameter,
+            height: DXF_SKETCH_HEIGHT,
+            rotation: 0,
+            rotationX: 0,
+            rotationZ: 0,
+          }));
+        });
+        result.shapes.push(...shapes);
+        result.importedFileNames.push(file.name);
+        if (dxf.unit) result.notes.push(t("status.importDxfUnit", { name: file.name, unit: dxf.unit }));
+        if (dxf.unitless) result.notes.push(t("status.importDxfUnitless", { name: file.name }));
+        if (dxf.openLeftOut > 0) result.notes.push(t("status.importDxfOpen", { name: file.name, count: dxf.openLeftOut }));
+        const skipped = Object.values(dxf.skipped).reduce((sum, count) => sum + count, 0);
+        if (skipped > 0) result.notes.push(t("status.importDxfSkipped", { name: file.name, count: skipped, kinds: Object.keys(dxf.skipped).join(", ") }));
+      } catch (error) {
+        const reason = error instanceof DxfImportError
+          ? t(error.reason === "binary" ? "status.importDxfBinary" : error.reason === "empty" ? "status.importDxfEmpty" : error.reason === "tooComplex" ? "status.importDxfTooComplex" : "status.importUnreadable")
+          : error instanceof Error ? error.message : t("status.importUnreadable");
+        result.failures.push({ fileName: file.name, reason });
+      }
+      continue;
     }
 
     // A PNG or JPG comes in traced into an outline, as an SVG (#359).
@@ -139,8 +206,8 @@ export async function importModelFiles(
       // die Datei als Ganzes bauen sie nicht nach.
       if (isObj || is3mf) {
         const colored = isObj
-          ? await (await import("@/lib/geometryWorker")).importedShapesFromObjOffThread(file.name, new TextDecoder().decode(bytes), prepared.mtlSources)
-          : importedShapesFrom3mf(file.name, buffer);
+          ? await (await import("@/lib/geometryWorker")).importedShapesFromObjOffThread(file.name, new TextDecoder().decode(bytes), prepared.mtlSources, placement)
+          : importedShapesFrom3mf(file.name, buffer, placement);
         if ("missingMaterialColors" in colored && colored.missingMaterialColors) result.notes.push(t("status.importObjNoMtl", { name: file.name }));
         if ("droppedVertexColors" in colored && colored.droppedVertexColors) result.notes.push(t("status.importObjVertexColors", { name: file.name }));
         // The same words fit a 3MF whose object has a colour at almost every point (#1867).
@@ -158,7 +225,9 @@ export async function importModelFiles(
         // Read off the page: several solids come in as one body each (#830), anything else as one body.
         const step = await (await import("@/lib/geometryWorker")).importedShapesFromStepOffThread(file.name, buffer);
         if (step.assembly) {
-          result.shapes.push(...step.shapes);
+          // The file's assemblies become bundles, one inside the other, so a whole one hides or moves at once (#830).
+          const placed = step.tree ? await (await import("@/lib/stepAssemblyBundles")).bundledStepAssembly(step.shapes, step.tree) : step.shapes;
+          result.shapes.push(...placed);
           result.importedFileNames.push(file.name);
           result.notes.push(t("status.importStepParts", { name: file.name, count: step.shapes.length }));
           continue;
@@ -228,7 +297,7 @@ export async function importModelFiles(
         }
       } else {
         // Read off the page (lib/geometryWorker.ts), loaded only when a file needs it.
-        shape = await (await import("@/lib/geometryWorker")).importedShapeFromStlOffThread(file.name, buffer);
+        shape = await (await import("@/lib/geometryWorker")).importedShapeFromStlOffThread(file.name, buffer, placement);
       }
       // Eine eigene OBJ traegt ihr Netz selbst ("json") und braucht die Datei nicht.
       if (shape.importedMesh?.sourceFormat === "json") {
@@ -253,9 +322,17 @@ export async function importModelFiles(
 }
 
 /** Die Fehlerzeile unter einer Importmeldung, oder nichts. */
+/**
+ * Why a file did not come in, as a person reads it: the readers throw English, which came on screen as it was ("SVG
+ * entities are not supported" in the Facebook group). The MCP answer keeps the raw reason.
+ */
+export function importFailureReason(failure: ImportFailure) {
+  return localizedError(failure.reason);
+}
+
 export function importFailureSummary(failures: readonly ImportFailure[]) {
   if (!failures.length) return "";
-  const details = failures.slice(0, 3).map((failure) => `${failure.fileName}: ${failure.reason}`).join("; ");
+  const details = failures.slice(0, 3).map((failure) => `${failure.fileName}: ${importFailureReason(failure)}`).join("; ");
   const more = failures.length > 3 ? t("status.importFailedMore", { count: failures.length - 3 }) : "";
   return " " + t("status.importFailedList", { details, more });
 }

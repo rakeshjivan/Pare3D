@@ -59,17 +59,20 @@ describe("hiding the workplane from the camera bar", () => {
 
   it("is a pressed toggle named for what a click does next", () => {
     expect(button).toContain("aria-pressed={workplaneLayerHidden}");
-    expect(button).toContain('workplaneLayerHidden ? t("camera.showWorkplane") : t("camera.hideWorkplane")');
+    // With a workplane on a face showing it is the build plate's switch (Discussion #1714).
+    expect(button).toContain("aria-label={platesSwitchLabel}");
+    expect(viewport).toContain('t(workplaneLayerHidden ? "camera.showBuildPlate" : "camera.hideBuildPlate")');
+    expect(viewport).toContain('t(workplaneLayerHidden ? "camera.showWorkplane" : "camera.hideWorkplane")');
     expect(button).toContain("setWorkplaneLayerHidden((current) => !current)");
     expect(button).toContain("crossed={workplaneLayerHidden}");
   });
 
-  it("hides the whole workplane layer, also on a scene built while it is hidden", () => {
-    // On a change: the layer that holds plate, grid, labels and face workplane.
-    expect(viewport).toMatch(/state\.workplaneLayer\.visible = !workplaneLayerHidden;\s*state\.needsRender = true;\s*\}, \[workplaneLayerHidden\]\);/);
+  it("hides the plates, also on a scene built while it is hidden", () => {
+    // On a change: the plates with grid and labels; a face workplane stays (Discussion #1714, showWorkplanePlates).
+    expect(viewport).toMatch(/showWorkplanePlates\(state\.workplaneLayer, !workplaneLayerHidden\);\s*state\.needsRender = true;\s*\}, \[workplaneLayerHidden\]\);/);
     // On a new scene: read through the ref. The effect above runs before the
     // scene exists on mount, so this is what hides a plate built while hidden.
-    expect(viewport).toMatch(/threeRef\.current = state;\s*rebuildWorkplane\([^\n]*\);\s*state\.workplaneLayer\.visible = !workplaneLayerHiddenRef\.current;/);
+    expect(viewport).toMatch(/threeRef\.current = state;\s*rebuildWorkplane\([^\n]*\);\s*showWorkplanePlates\(state\.workplaneLayer, !workplaneLayerHiddenRef\.current\);/);
     expect(viewport).toContain("workplaneLayerHiddenRef.current = workplaneLayerHidden;");
   });
 
@@ -79,8 +82,8 @@ describe("hiding the workplane from the camera bar", () => {
 
   it("joins the tools in the two-column bar of a flat window, so plus and minus stay side by side", () => {
     const css = read("apps/web/src/app/globals.css");
-    const compact = css.slice(css.indexOf("@container workplane (max-height: 600px)"));
-    expect(compact).toMatch(/\.camera-controls > \.workplane-display-control-group,[^{]*\{\s*order: 2;/);
+    const compact = css.slice(css.indexOf("@container workplane (max-height: 800px)"));
+    expect(compact).toMatch(/\.camera-controls > \.camera-group \{\s*display: grid;\s*grid-template-columns: repeat\(2, auto\);\s*grid-column: 1 \/ -1;/);
   });
 });
 

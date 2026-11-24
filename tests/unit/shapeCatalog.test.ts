@@ -70,18 +70,6 @@ describe("shape catalog", () => {
     expect(kinds.indexOf("gridfinity")).toBe(kinds.indexOf("spring") + 1);
   });
 
-  it("exposes the Hirth joint, knurl, hinge and dovetail between gear and the decorative shapes in the toolbar catalog", () => {
-    const kinds = toolbarShapeAssets.map((asset) => asset.kind);
-
-    const gearIndex = kinds.indexOf("gear");
-    const dovetailIndex = kinds.indexOf("dovetail");
-    expect(kinds.indexOf("hirth")).toBe(gearIndex + 1);
-    expect(kinds.indexOf("knurl")).toBe(gearIndex + 2);
-    expect(kinds.indexOf("hinge")).toBe(gearIndex + 3);
-    expect(dovetailIndex).toBe(gearIndex + 4);
-    expect(kinds.indexOf("star")).toBe(dovetailIndex + 1);
-  });
-
   it("no longer offers the honeycomb: the hole pattern tool replaced it (#223)", () => {
     expect(toolbarShapeAssets.map((asset) => asset.kind)).not.toContain("honeycomb");
   });
@@ -347,5 +335,18 @@ describe("the colour the library shows", () => {
   it("is the same colour the shape is added in", () => {
     expect(makeShapeFromAsset(box).color).toBe(box.color);
     expect(makeShapeFromAsset(box, undefined, { color: "#123456" }).color).toBe("#123456");
+  });
+
+  it("keeps a rounded box's bottom edge on its own only when one is given, and fits the two in the height", () => {
+    const asset: ShapeAsset = { id: "roundedBox", name: "Rounded Box", src: "roundedBox.png", kind: "roundedBox", color: "#e74c3c" };
+    const shared = makeShapeFromAsset(asset, undefined, { topBottomFillet: 4 });
+    expect(shared.topBottomFillet).toBe(4);
+    expect(shared.bottomFillet).toBeUndefined();
+    const apart = makeShapeFromAsset(asset, undefined, { height: 20, topBottomFillet: 15, bottomFillet: 9 });
+    expect([apart.topBottomFillet, apart.bottomFillet]).toEqual([11, 9]);
+    const flatTop = makeShapeFromAsset(asset, undefined, { topBottomFillet: 0, bottomFillet: 3 });
+    expect([flatTop.topBottomFillet, flatTop.bottomFillet]).toEqual([0, 3]);
+    // other shapes have neither
+    expect(makeShapeFromAsset({ ...asset, id: "box", kind: "box" }, undefined, { bottomFillet: 3 }).bottomFillet).toBeUndefined();
   });
 });

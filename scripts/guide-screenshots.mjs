@@ -32,7 +32,9 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function session(language, port) {
   const profile = mkdtempSync(join(tmpdir(), "edge-guide-"));
   const edge = spawn(EDGE, [
-    "--headless=new", ...(process.platform === "linux" ? [] : ["--disable-gpu"]), "--disable-extensions", "--no-first-run", `--lang=${language === "de" ? "de-DE" : "en-US"}`,
+    // A fresh profile otherwise downloads about 500 MB of Edge components on every start.
+    "--headless=new", ...(process.platform === "linux" ? [] : ["--disable-gpu"]), "--disable-extensions", "--no-first-run",
+    "--disable-component-update", "--disable-background-networking", `--lang=${language === "de" ? "de-DE" : "en-US"}`,
     `--window-size=${WIDTH},${HEIGHT}`, `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
     // Fork: on Linux (CI, containers) Chromium runs as root without a GPU.
     ...(process.platform === "linux" ? ["--no-sandbox", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : []),
@@ -68,7 +70,9 @@ async function session(language, port) {
     const message = JSON.parse(event.data);
     if (message.method === "Page.javascriptDialogOpening") void send("Page.handleJavaScriptDialog", { accept: true });
   });
-  await send("Emulation.setDeviceMetricsOverride", { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false });
+  await send("Emulation.setDeviceMetricsOverride", { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false,
+    // A screen larger than the window: the editor takes a window as big as the screen for F11 and hides its title row (focus mode).
+    screenWidth: WIDTH + 640, screenHeight: HEIGHT + 400 });
   await send("Emulation.setFocusEmulationEnabled", { enabled: true });
   await send("Page.setWebLifecycleState", { state: "active" });
   const close = () => {
@@ -84,6 +88,12 @@ async function run(language, port) {
   const { send, evaluate, close } = await session(language, port);
   const imageDirectory = join(root, "docs", "guide", "images", language);
   mkdirSync(imageDirectory, { recursive: true });
+  const editorList = async () => {
+    const editors = await (await fetch(`${BASE}/api/layerling-mcp`)).json();
+    return [...(editors.editors ?? editors)];
+  };
+  let ownEditor = null;
+  let loads = 0;
 
   /** Waits (up to two minutes) until the page is ours and has finished loading. */
   const loaded = async () => {
@@ -103,19 +113,38 @@ async function run(language, port) {
       return text.replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? `{${name}}`));
     },
     async goto(path = "/?editor=1", settle = 6000) {
-      await send("Page.navigate", { url: `${BASE}${path}` });
-      await wait(settle);
-      await loaded();
+      if (!path.includes("editor")) {
+        await send("Page.navigate", { url: `${BASE}${path}` });
+        await wait(settle);
+      } else {
+        // Other editors on the same dev server (the other languages of this run, another session's browser) must not get
+        // this scene's commands: ours is the one whose address carries this load's mark. Once it has reported to the
+        // bridge it takes commands, so there is no fixed wait; a busy dev server can take a while to bring it up.
+        loads += 1;
+        const mark = `guide=${language}-${loads}`;
+        // The object list starts closed, as for a new reader; the browser would keep it open after a scene that showed it.
+        await evaluate(`try { localStorage.removeItem("layerling.editor.objectListOpen"); } catch {} true`);
+        await send("Page.navigate", { url: `${BASE}${path}${path.includes("?") ? "&" : "?"}${mark}` });
+        await wait(1500);
+        ownEditor = null;
+        for (let tries = 0; tries < 60 && ownEditor === null; tries += 1) {
+          ownEditor = (await editorList()).find((editor) => editor.url?.endsWith(mark))?.editorNumber ?? null;
+          if (ownEditor === null) await wait(500);
+        }
+        if (ownEditor === null) throw new Error("the editor did not report to the bridge");
+        await wait(1000);
+      }
       // The status pill keeps the last message of the bridge; it is not part of what a reader should look at.
       await evaluate(`document.head.insertAdjacentHTML("beforeend", "<style>.editor-status{display:none !important}</style>"); true`);
+      // The dev server compiles parts of the page on demand, which can look like a mixed version to the page; no reader sees that notice.
+      await evaluate(`document.head.insertAdjacentHTML("beforeend", "<style>.new-version-notice{display:none !important}</style>"); true`);
     },
     async mcp(action, params = {}) {
-      const editors = await (await fetch(`${BASE}/api/layerling-mcp`)).json();
-      const list = [...(editors.editors ?? editors)].sort((a, b) => b.lastSeen - a.lastSeen);
+      const editorNumber = ownEditor;
       const response = await fetch(`${BASE}/api/layerling-mcp`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "command", editorNumber: list[0]?.editorNumber, action, params }),
+        body: JSON.stringify({ type: "command", editorNumber, action, params }),
       });
       const result = await response.json();
       if (result.ok === false) throw new Error(`${action}: ${result.error}`);
@@ -127,8 +156,15 @@ async function run(language, port) {
         const wanted = ${JSON.stringify(label)};
         const same = (text) => ${prefix} ? text.startsWith(wanted) : text === wanted;
         const visible = (element) => { const box = element.getBoundingClientRect(); return box.width > 0 && box.height > 0; };
-        const element = [...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate) =>
-          visible(candidate) && (same((candidate.getAttribute("aria-label") ?? "").trim()) || same((candidate.getAttribute("title") ?? "").trim()) || same(candidate.textContent.trim())));
+        const named = (candidate) => same((candidate.getAttribute("aria-label") ?? "").trim()) || same((candidate.getAttribute("title") ?? "").trim()) || same(candidate.textContent.trim());
+        const candidates = [...document.querySelectorAll(${JSON.stringify(selector)})];
+        let element = candidates.find((candidate) => visible(candidate) && named(candidate));
+        if (!element) {
+          // A tool in a ribbon group folded for want of room: open the group first, as a click on its button does.
+          const hidden = candidates.find((candidate) => named(candidate) && candidate.closest(".toolbar-section[data-collapsed]"));
+          hidden?.closest(".toolbar-section[data-collapsed]")?.querySelector("[data-collapse-trigger]")?.click();
+          if (hidden && visible(hidden)) element = hidden;
+        }
         if (!element) return false;
         element.click();
         return true;
@@ -166,7 +202,7 @@ async function run(language, port) {
           input = scope?.querySelector("input:not([type=range]):not([type=checkbox]), textarea");
         }
         if (!input) return "no input";
-        // Focused first: a value box commits what was typed when it loses the focus.
+        // The field takes its value when it is left, so it has to have been entered first.
         input.focus();
         const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value").set;
         setter.call(input, ${JSON.stringify(String(value))});
@@ -222,7 +258,16 @@ async function run(language, port) {
       // Fork (build 64): a clip may reach below the window (a tall panel); capture past it then.
       if (clip) { options.clip = { ...clip, scale: 1 }; options.captureBeyondViewport = true; }
       const result = await send("Page.captureScreenshot", options);
-      writeFileSync(join(imageDirectory, `${name}.webp`), Buffer.from(result.data, "base64"));
+      // Windows may hold the old picture open for a moment (a preview, the virus scanner): try again before giving up.
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          writeFileSync(join(imageDirectory, `${name}.webp`), Buffer.from(result.data, "base64"));
+          break;
+        } catch (error) {
+          if (attempt >= 5) throw error;
+          await wait(500);
+        }
+      }
       console.log(`  ${language}/${name}.webp`);
     },
   };
@@ -244,10 +289,8 @@ async function run(language, port) {
   close();
 }
 
-let port = 9400 + Math.floor(Math.random() * 300);
-for (const language of languages) {
-  console.log(`Language ${language}`);
-  await run(language, port);
-  port += 1;
-}
+// The languages run side by side, each in its own browser on its own port: a run takes about as long as one language.
+const port = 9400 + Math.floor(Math.random() * 300);
+console.log(`Languages ${languages.join(", ")}`);
+await Promise.all(languages.map((language, index) => run(language, port + index)));
 if (!existsSync(join(root, "docs", "guide", "images"))) console.log("No pictures were written.");

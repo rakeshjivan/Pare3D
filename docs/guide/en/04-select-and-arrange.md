@@ -56,6 +56,16 @@ A shape turned at an angle, say by 45°, has its box round it to line up with, n
 
 The key is [[L]]. [[Esc]] cancels.
 
+### Equal gaps
+
+Beside the middle point of each line stands a wider dot with a bar on each side. It spreads three or more shapes in that direction so that the space between neighbouring edges is the same everywhere, whatever size each shape is. The first and the last shape stay where they are, the ones between move. A row of holes of different sizes gets the same wall between them, for example. Move over the dot and you see beforehand where the shapes go; the status bar then tells you the gap. Where there is not enough room between the outer shapes, the gap becomes negative and the shapes overlap evenly, as nested cups do.
+
+If a board (a base the others stand on, such as a flat box, not an SBC board) is among the selected shapes, longer in that direction than all the others, the shapes are spread on it: the gap at its edges is as large as the one between them, and a single shape comes to its middle. Shapes in several rows, such as the animals of a peg puzzle, are spread row by row; shapes whose boxes overlap across the direction form one row. Where the shapes stand in no clean columns, as the animals do from front to back, the shapes standing side by side move as a whole row instead. The whole puzzle then takes one click from left to right and one from front to back.
+
+Without a board, hold [[Shift]] and click an empty spot of the plate first: the plate is then the fixed shape, equal gaps spread the shapes over the whole plate with the same gap to its edges, and the other dots line them up on its edges or its middle. Another click with [[Shift]] on the empty plate lets it go. A click on empty space without [[Shift]] ends Align, as [[L]] and [[Esc]] do.
+
+Hold [[Alt]] and click the dot to type the gap yourself, say 5 mm: the shapes line up that far apart, starting at the first shape or at the one you clicked first; on a board the row comes to its middle. A locked shape stays where it is, so one between the outer shapes stops the equal gaps. On a tablet, which has no Alt key, the switch {{ui:align.sizeSwitch}} beside the dots does the same: switch it on and the dots stay squares and the gap dot opens its field, until you switch it off.
+
 ## The Align menu
 
 Right-click a selection and choose **{{ui:contextMenu.groupArrange}} ›** for the moves that otherwise take several clicks:

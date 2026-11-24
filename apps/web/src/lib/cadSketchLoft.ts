@@ -2,6 +2,7 @@ import { JoinType, type OcctKernel, type ShapeHandle } from "occt-wasm";
 import { cadSketchRegions, orderedCadSketchPaths, type OrderedCadSketchPath } from "@/lib/sketchCadProfile";
 import { pathWire } from "@/lib/sketchCadWire";
 import type { SketchProfile, SketchStroke } from "@/types/layerling";
+import { isKernelMemoryFault } from "@/lib/kernelFault";
 
 /**
  * A loft between two sketches: the outline of one sketch body at the bottom, the outline of another at the top,
@@ -55,7 +56,7 @@ export function sketchLoftMatrix(place: SketchLoftPlace): number[] {
   ];
 }
 
-type Loop = { wire: ShapeHandle; middle: { x: number; z: number } };
+type Loop = { wire: ShapeHandle; middle: { x: number; z: number }; path?: OrderedCadSketchPath };
 type Section = { outer: Loop; holes: Loop[] };
 
 function pathMiddle(path: OrderedCadSketchPath) {
@@ -74,7 +75,8 @@ function movedWire(cad: OcctKernel, wire: ShapeHandle, delta: number, join: numb
       const moved = cad.offsetWire2D(wire, sign * delta, join);
       const movedArea = cad.getSurfaceArea(cad.makeFace(moved));
       if (movedArea > 1e-9 && (delta > 0 ? movedArea > area : movedArea < area)) return moved;
-    } catch {
+    } catch (error) {
+      if (isKernelMemoryFault(error)) throw error;
       // The other way, or the straight pieces.
     }
   }
@@ -99,12 +101,13 @@ function sectionLoops(cad: OcctKernel, profile: SketchProfile, stroke?: SketchSt
   }
   const regions = cadSketchRegions(profile);
   if (regions.length !== 1) throw new Error(SKETCH_LOFT_OUTLINES);
-  const loop = (path: OrderedCadSketchPath): Loop => ({ wire: pathWire(cad, path), middle: pathMiddle(path) });
+  const loop = (path: OrderedCadSketchPath): Loop => ({ wire: pathWire(cad, path), middle: pathMiddle(path), path });
   return { outer: loop(regions[0].outer), holes: regions[0].holes.map(loop) };
 }
 
 function placed(cad: OcctKernel, loop: Loop, matrix: number[]): Loop {
   return {
+    path: loop.path,
     wire: cad.transform(loop.wire, matrix),
     middle: { x: matrix[0] * loop.middle.x + matrix[2] * loop.middle.z + matrix[3], z: matrix[8] * loop.middle.x + matrix[10] * loop.middle.z + matrix[11] },
   };
@@ -124,6 +127,159 @@ function pairedHoles(lower: Loop[], upper: Loop[]) {
   });
 }
 
+type Corner = { x: number; z: number };
+
+/** The corners of an outline made only of straight pieces, in the order it runs, or null where it has a curve. */
+function straightCorners(path: OrderedCadSketchPath | undefined): Corner[] | null {
+  if (!path || !path.closed || path.steps.length < 3) return null;
+  if (path.steps.some(({ segment, from, to }) => segment.kind !== "line" || from.handleOut || to.handleIn)) return null;
+  return path.steps.map(({ from }) => ({ x: from.x, z: from.z }));
+}
+
+/** How far along its length each corner of a closed outline lies, from 0, as shares of the whole. */
+function cornerShares(corners: readonly Corner[]) {
+  const lengths = corners.map((corner, index) => {
+    const next = corners[(index + 1) % corners.length];
+    return Math.hypot(next.x - corner.x, next.z - corner.z);
+  });
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  let run = 0;
+  return corners.map((_, index) => {
+    const share = total > 0 ? run / total : index / corners.length;
+    run += lengths[index];
+    return share;
+  });
+}
+
+/** The point of a closed outline `share` of the way along it. */
+function cornerAt(corners: readonly Corner[], shares: readonly number[], share: number): Corner {
+  let index = shares.length - 1;
+  while (index > 0 && shares[index] > share) index -= 1;
+  const next = (index + 1) % corners.length;
+  const end = next === 0 ? 1 : shares[next];
+  const span = end - shares[index];
+  const along = span > 0 ? (share - shares[index]) / span : 0;
+  return { x: corners[index].x + (corners[next].x - corners[index].x) * along, z: corners[index].z + (corners[next].z - corners[index].z) * along };
+}
+
+/** Two corners closer than this share of the outline's length are one. */
+const SAME_SHARE = 1e-3;
+
+/**
+ * The two outlines as wires with the same number of straight pieces, each piece running to its partner. The kernel
+ * joins the pieces of two outlines one to one in the order they come, so outlines with a different number of corners
+ * (ten against eight, say) loft crosswise or not at all. Every corner of either outline therefore gets a partner on
+ * the other, at the same share of the way along it. Null where an outline has a curve or the counts already match:
+ * those are lofted as they are.
+ */
+function matchedWires(cad: OcctKernel, lower: OrderedCadSketchPath | undefined, upper: OrderedCadSketchPath | undefined): [ShapeHandle, ShapeHandle] | null {
+  const lowerCorners = straightCorners(lower);
+  const upperCorners = straightCorners(upper);
+  if (!lowerCorners || !upperCorners || lowerCorners.length === upperCorners.length) return null;
+  const lowerShares = cornerShares(lowerCorners);
+  const upperShares = cornerShares(upperCorners);
+  const shares: number[] = [];
+  for (const share of [...lowerShares, ...upperShares].sort((a, b) => a - b)) {
+    if (shares.length === 0 || share - shares[shares.length - 1] > SAME_SHARE) shares.push(share);
+  }
+  const wireOf = (corners: Corner[], own: number[]) => {
+    const points = shares.map((share) => {
+      const index = own.findIndex((value) => Math.abs(value - share) <= SAME_SHARE);
+      return index >= 0 ? corners[index] : cornerAt(corners, own, share);
+    });
+    return cad.makeWire(points.map((point, index) => {
+      const next = points[(index + 1) % points.length];
+      return cad.makeLineEdge({ x: point.x, y: 0, z: point.z }, { x: next.x, y: 0, z: next.z });
+    }));
+  };
+  return [wireOf(lowerCorners, lowerShares), wireOf(upperCorners, upperShares)];
+}
+
+/** The directions, seen from the middle of a wire, in which its corners (the ends of its pieces) lie, in radians. */
+function cornerAngles(cad: OcctKernel, wire: ShapeHandle) {
+  const middle = cad.getLinearCenterOfMass(wire);
+  return cad.getSubShapes(wire, "vertex").map((vertex) => {
+    const point = cad.vertexPosition(vertex);
+    return Math.atan2(point.z - middle.z, point.x - middle.x);
+  });
+}
+
+/** Two directions closer than this are the same. */
+const SAME_ANGLE = (2 * Math.PI) / 180;
+
+const angleBetween = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
+/** The directions of `angles` that have no corner among `own`. */
+function missingAngles(angles: readonly number[], own: readonly number[]) {
+  const missing: number[] = [];
+  for (const angle of angles) {
+    if (!own.some((other) => angleBetween(angle, other) <= SAME_ANGLE) && !missing.some((other) => angleBetween(angle, other) <= SAME_ANGLE)) missing.push(angle);
+  }
+  return missing;
+}
+
+/** The pieces of a split wire put back in the order they run, end to start. */
+function chainedWire(cad: OcctKernel, edges: ShapeHandle[]) {
+  const ends = edges.map((edge) => cad.getSubShapes(edge, "vertex").map((vertex) => cad.vertexPosition(vertex)));
+  const same = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1e-5;
+  const order = [0];
+  const used = new Set(order);
+  let tip = ends[0][ends[0].length - 1];
+  while (order.length < edges.length) {
+    const next = ends.findIndex((points, index) => !used.has(index) && points.some((point) => same(point, tip)));
+    if (next < 0) return null;
+    order.push(next);
+    used.add(next);
+    tip = same(ends[next][0], tip) ? ends[next][ends[next].length - 1] : ends[next][0];
+  }
+  return cad.makeWire(order.map((index) => edges[index]));
+}
+
+/** The wire with a corner added in each of `angles`, seen from its middle: cut there by a half plane standing on it. */
+function wireWithCorners(cad: OcctKernel, wire: ShapeHandle, angles: readonly number[]) {
+  if (!angles.length) return wire;
+  const middle = cad.getLinearCenterOfMass(wire);
+  const box = cad.getBoundingBox(wire, true);
+  const reach = 2 * Math.hypot(box.xmax - box.xmin, box.zmax - box.zmin) + 1;
+  const tools = angles.map((angle) => {
+    const out = { x: middle.x + Math.cos(angle) * reach, z: middle.z + Math.sin(angle) * reach };
+    const corners = [
+      { x: middle.x, y: middle.y - 1, z: middle.z },
+      { x: out.x, y: middle.y - 1, z: out.z },
+      { x: out.x, y: middle.y + 1, z: out.z },
+      { x: middle.x, y: middle.y + 1, z: middle.z },
+    ];
+    return cad.makeFace(cad.makeWire(corners.map((corner, index) => cad.makeLineEdge(corner, corners[(index + 1) % corners.length]))));
+  });
+  const pieces = cad.getSubShapes(cad.split(wire, tools), "edge");
+  return chainedWire(cad, pieces) ?? wire;
+}
+
+/**
+ * The two outlines with a corner in every direction, seen from their middles, in which either has one. The kernel
+ * joins two outlines with the same number of pieces piece to piece, in the order they run, wherever their corners lie:
+ * the four sides of a rectangle go to the four quarters of a circle, and the wall turns by 45 degrees on the way up.
+ * With a different number of pieces it gives each corner a partner in the same direction instead. A rounded
+ * rectangle's line, whose inner side loses its rounds where they are no bigger than the line is wide, so lofted its
+ * outer side straight and its inner side turned, and the inner wall came out through the outer one as a hole. With
+ * corners in the same directions on both, every pair of outlines is lofted straight up.
+ */
+function matchedByDirection(cad: OcctKernel, lower: ShapeHandle, upper: ShapeHandle): [ShapeHandle, ShapeHandle] {
+  const lowerAngles = cornerAngles(cad, lower);
+  const upperAngles = cornerAngles(cad, upper);
+  // With a different number of pieces the kernel matches by direction itself, and where each corner's nearest
+  // corner on the other outline has it as its own nearest too (two rounded rectangles, say), piece goes to piece.
+  if (lowerAngles.length !== upperAngles.length || pairedOneToOne(lowerAngles, upperAngles)) return [lower, upper];
+  return [wireWithCorners(cad, lower, missingAngles(upperAngles, lowerAngles)), wireWithCorners(cad, upper, missingAngles(lowerAngles, upperAngles))];
+}
+
+/** Whether the corners of two outlines pair up one to one, each with the corner nearest to it in direction. */
+function pairedOneToOne(a: readonly number[], b: readonly number[]) {
+  const nearest = (angle: number, others: readonly number[]) =>
+    others.reduce((best, other, index) => (angleBetween(angle, other) < angleBetween(angle, others[best]) ? index : best), 0);
+  return a.every((angle, index) => nearest(b[nearest(angle, b)], a) === index);
+}
+
 function loftedSolid(cad: OcctKernel, lower: ShapeHandle, upper: ShapeHandle) {
   const lofted = cad.loft([lower, upper], true, true);
   const solids = cad.isSolid(lofted) ? [lofted] : cad.getSubShapes(lofted, "solid");
@@ -141,9 +297,14 @@ export function buildSketchLoftSolid(cad: OcctKernel, bottom: SketchLoftSection,
   if (lowerLoops.holes.length !== upperLoops.holes.length) throw new Error(SKETCH_LOFT_HOLES);
   const lower = { outer: placed(cad, lowerLoops.outer, lowerMatrix), holes: lowerLoops.holes.map((hole) => placed(cad, hole, lowerMatrix)) };
   const upper = { outer: placed(cad, upperLoops.outer, upperMatrix), holes: upperLoops.holes.map((hole) => placed(cad, hole, upperMatrix)) };
-  let result = loftedSolid(cad, lower.outer.wire, upper.outer.wire);
+  // Outlines with a different number of corners get partners for each other's corners first.
+  const wiresOf = (a: Loop, b: Loop): [ShapeHandle, ShapeHandle] => {
+    const matched = matchedWires(cad, a.path, b.path);
+    return matched ? [cad.transform(matched[0], lowerMatrix), cad.transform(matched[1], upperMatrix)] : matchedByDirection(cad, a.wire, b.wire);
+  };
+  let result = loftedSolid(cad, ...wiresOf(lower.outer, upper.outer));
   for (const [hole, partner] of pairedHoles(lower.holes, upper.holes)) {
-    result = cad.cut(result, loftedSolid(cad, hole.wire, partner.wire));
+    result = cad.cut(result, loftedSolid(cad, ...wiresOf(hole, partner)));
   }
   const solids = cad.isSolid(result) ? [result] : cad.getSubShapes(result, "solid");
   if (solids.length !== 1 || !cad.isValid(solids[0]) || cad.getVolume(solids[0]) <= 1e-9) throw new Error(SKETCH_LOFT_FAILED);

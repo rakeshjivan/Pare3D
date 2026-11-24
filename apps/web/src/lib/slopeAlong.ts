@@ -122,7 +122,7 @@ function archCurve(length: number, keep: number, end: number, curveValue: number
 /**
  * A body's own length along an axis and the length its slope or side drop is measured over: the
  * same, except for a tube's bore split off as a hole (splitBoreTube), which is measured over the
- * tube around it, so its top lies on the tube's instead of running down over its own shorter length.
+ * tube around it, so its top lies on the tube's instead of running down over its own shorter length (#1698).
  */
 export function slopeLengths(shape: Pick<WorkplaneShape, "width" | "depth" | "size" | "slopeSpan">, alongWidth: boolean) {
   const own = alongWidth ? (shape.width ?? shape.size) : (shape.depth ?? shape.size);
@@ -383,7 +383,7 @@ export function slopeMesh(vertices: readonly Vec3[], faces: readonly Face[], sha
   const sideAxis: 0 | 2 = sideDropAcrossWidth(shape) ? 0 : 2;
   const cuts: Record<0 | 2, number[]> = { 0: [], 2: [] };
   // The body's own length along the slope and across the side drop, and how far its kept end lies inside the
-  // length the line is measured over: 0, except for a tube's bore, which lies inside the tube.
+  // length the line is measured over: 0, except for a tube's bore, which lies inside the tube (#1698).
   const slopeLength = slopeLengths(shape, slopeAlongWidth(slopeSide));
   const slopeInset = (slopeLength.span - slopeLength.own) / 2;
   const sideOwnHalf = slopeLengths(shape, sideAxis === 0).own / 2;

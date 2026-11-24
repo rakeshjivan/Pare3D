@@ -3,27 +3,25 @@ import { sizeDimensionAxis } from "@/lib/dimensionAxisColors";
 import { Lock } from "lucide-react";
 import { t } from "@/lib/i18n";
 import * as THREE from "three";
-import {
-  measureKeyForHandle,
-  ROTATION_WHEEL_SHIFT_SNAP_DEGREES,
-  ROTATION_WHEEL_SNAP_DEGREES,
-  type TransformOverlayProps,
-  type TransformOverlayState,
-} from "@/components/workplane/transformOverlayTypes";
+import { measureKeyForHandle, ROTATION_WHEEL_SHIFT_SNAP_DEGREES, ROTATION_WHEEL_SNAP_DEGREES, type TransformOverlayProps, type TransformOverlayState } from "@/components/workplane/transformOverlayTypes";
 
 export {
   continuousSnappedWheelRotation,
+  dimensionMarkNeedsScreenLayout,
   dimensionMarkScreenPush,
   getElevationMeasureKey,
   isPointInsideTransformBounds,
   measureKeyForHandle,
   normalizedRotationPlaneBasis,
   rotateHandleArrow,
+  rotationNeedleAngle,
   rotationPlaneDirectionSign,
+  screenSpaceDimensionMark,
   transformBoundsIntersectClipVolume,
   transformOverlayScreenPoint,
   snappedRotationDelta,
   snappedWheelRotation,
+  DIMENSION_LABEL_MAX_SCREEN_OFFSET,
   DIMENSION_LABEL_MIN_SCREEN_OFFSET,
   ROTATION_WHEEL_SHIFT_SNAP_DEGREES,
   ROTATION_WHEEL_SNAP_DEGREES,
@@ -41,6 +39,8 @@ export {
   type TransformOverlayState,
 } from "@/components/workplane/transformOverlayTypes";
 import { selectWholeValue } from "@/lib/numberField";
+import { touchModeShowsHandle } from "@/lib/touchHandleMode";
+import { useTouchSecondTap } from "@/lib/touchSecondTap";
 import { visibleWorkArea, type VisibleWorkArea } from "@/lib/visibleWorkArea";
 
 /** Below this many screen pixels across, the handles of a touch screen lose their wide catch zone (#574). */
@@ -66,6 +66,9 @@ export function TransformOverlay({
   rotationReadout,
   angleBadge = null,
   locked = false,
+  sizeLocked = false,
+  showSlideArrows = true,
+  handleMode = "all",
   showRotationWheel,
   hideSelectionChrome,
   hideDimensionMarks,
@@ -94,10 +97,11 @@ export function TransformOverlay({
   onCommitRotationEdit,
   onCancelRotationEdit,
 }: TransformOverlayProps) {
-  // With no handle hovered or pinned, a lone selection shows the marks listed
+  // With no handle hovered or pinned, the selection shows the marks listed
   // in alwaysVisibleDimensionKeys. That list is filled when "Dimensions always
   // visible" is on, so the marks appear as soon as the shape is selected.
   const rootRef = useRef<HTMLDivElement>(null);
+  const { armed, accept } = useTouchSecondTap();
   const keepVisible = visibleWorkArea(rootRef.current, box.width, box.height);
   const marks = measureKey
     ? (box.dimensions[measureKey] ?? [])
@@ -217,20 +221,20 @@ export function TransformOverlay({
       {visibleMarks.map((mark) => (
         <button
           key={`${mark.key}-label`}
-          className="dimension-label"
+          className={armed === mark.key ? "dimension-label armed" : "dimension-label"}
           data-axis={sizeDimensionAxis(mark.axis)}
           type="button"
           style={overlayPoint(keepVisible, mark.labelX, mark.labelY)}
-          disabled={locked}
+          disabled={locked || sizeLocked}
           onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => onBeginDimensionEdit(mark)}
+          onClick={() => { if (accept(mark.key)) onBeginDimensionEdit(mark); }}
         >
           {mark.label}
         </button>
       ))}
       {editingDimension ? (
         <input
-          className="dimension-input"
+          className="dimension-input" autoComplete="off"
           data-axis={sizeDimensionAxis(editingDimension.axis)}
           style={overlayPoint(keepVisible, editingDimension.x, editingDimension.y)}
           value={editingDimension.value}
@@ -242,7 +246,7 @@ export function TransformOverlay({
           onBlur={() => onCommitDimensionEdit()}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
-              onCommitDimensionEdit(event.altKey);
+              onCommitDimensionEdit(event.altKey, event.shiftKey);
             }
             if (event.key === "Escape") {
               onCancelDimensionEdit();
@@ -257,9 +261,9 @@ export function TransformOverlay({
       {editingCorner?.entries.map((entry, index) => (
         <input
           key={entry.key}
-          className="dimension-input"
-          data-axis={sizeDimensionAxis(entry.axis)}
+          className="dimension-input" autoComplete="off"
           data-corner-input="true"
+          data-axis={sizeDimensionAxis(entry.axis)}
           style={overlayPoint(keepVisible, entry.x, entry.y)}
           value={entry.value}
           autoFocus={index === 0}
@@ -301,7 +305,9 @@ export function TransformOverlay({
           <span>&deg;</span>
         </label>
       ) : null}
-      {box.handles.map((handle) => (
+      {/* Lock shape (#1277): no handle that changes the size; the lift arrow and the turns stay. */}
+      {/* On a touch screen the camera bar can leave only moving, the size or turning to the finger (Discussion #1747). */}
+      {box.handles.filter((handle) => (!sizeLocked || (handle.kind !== "scale" && handle.kind !== "height")) && touchModeShowsHandle(handleMode, handle.kind)).map((handle) => (
         <button
           key={handle.key}
           className={`transform-handle ${handle.className}`}
@@ -342,7 +348,7 @@ export function TransformOverlay({
           }}
         />
       ))}
-      {box.rotateHandles.map((handle) => (
+      {touchModeShowsHandle(handleMode, "rotate") ? box.rotateHandles.map((handle) => (
         <button
           key={handle.key}
           className={`rotate-handle ${handle.className}`}
@@ -367,11 +373,42 @@ export function TransformOverlay({
           }}
         >
           <span className="rotate-handle-icon" aria-hidden="true">
-            <svg viewBox="-15 -15 30 30" focusable="false">
+            <svg viewBox="-20 -20 40 40" focusable="false">
               <path className="rotate-arrow-arc" d={handle.arc} />
               <path className="rotate-arrow-heads" d={handle.heads} />
             </svg>
           </span>
+        </button>
+      )) : null}
+      {/* The X and Y arrows (Discussion #1434) only move the selection; a locked one keeps still and shows none, and the settings can leave them out. */}
+      {locked || !showSlideArrows || !touchModeShowsHandle(handleMode, "slide") ? null : box.slideHandles.map((handle) => (
+        <button
+          key={handle.key}
+          className={`slide-handle ${handle.className}`}
+          style={{
+            "--overlay-x": `${handle.x}px`,
+            "--overlay-y": `${handle.y}px`,
+            "--slide-handle-angle": `${handle.angle}deg`,
+          } as CSSProperties}
+          title={handle.title}
+          aria-label={handle.title}
+          onPointerEnter={() => onHoverMeasure(null)}
+          onPointerDown={(event) => {
+            if (event.button === 0) {
+              onBeginTransform("slide", handle.key, event);
+            }
+          }}
+          onPointerMove={(event) => onMoveTransform(event.clientX, event.clientY, event.shiftKey, event.altKey)}
+          onPointerUp={onFinishTransform}
+          onPointerCancel={onFinishTransform}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <svg className="slide-handle-icon" viewBox="-16 -8 32 16" aria-hidden="true" focusable="false">
+            {/* A light rim under the arrow: the red one has to show on a red body too. */}
+            <path className="slide-arrow-rim" d="M-14 0 H4 M2 -5.5 L14 0 L2 5.5 Z" />
+            <path className="slide-arrow-shaft" d="M-14 0 H4" />
+            <path className="slide-arrow-head" d="M2 -5.5 L14 0 L2 5.5 Z" />
+          </svg>
         </button>
       ))}
       {liftHandle ? (

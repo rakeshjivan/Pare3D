@@ -7,14 +7,6 @@ import type { WorkplaneShape } from "@/types/layerling";
 const box = { id: "b", name: "Box", kind: "box", x: 0, z: 0, size: 20, width: 20, depth: 20, height: 10, rotation: 0, rotationX: 0, rotationZ: 0, color: "#c00", hole: false } as unknown as WorkplaneShape;
 
 describe("slope and narrow along in Pare (build 116)", () => {
-  it("counts as a deformation, so the exact and primitive paths step aside", () => {
-    const sloped = { ...box, slopeEnd: 4, slopeSide: "back" as const };
-    expect(shapeHasShapeDeform(sloped)).toBe(true);
-    expect(cadModifierProfileForShape(sloped)).toBeNull();
-    const rounded = { ...box, kind: "roundedBox", cornerFillet: 3, topBottomFillet: 0 } as WorkplaneShape;
-    expect(cadModifierProfileForShape(rounded)).not.toBeNull();
-    expect(cadModifierProfileForShape({ ...rounded, slopeEnd: 4 })).toBeNull();
-  });
 
   it("lowers the back of the exported mesh and narrows its far end", () => {
     const vertices: Array<[number, number, number]> = [

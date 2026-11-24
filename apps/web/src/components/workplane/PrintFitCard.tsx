@@ -1,7 +1,7 @@
 "use client";
 
 import { t } from "@/lib/i18n";
-import { readMyPrintFit } from "@/lib/fitTest";
+import { readMyPrintFit } from "@/lib/pareFitTest";
 import { resizedShapeSize, shapeDepth, shapeHasTaper, shapeWidth } from "@/lib/workplaneShapes";
 import type { WorkplaneShape } from "@/types/layerling";
 

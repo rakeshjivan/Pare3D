@@ -1,3 +1,4 @@
+import { bentTubeSettings } from "@/lib/bentTubeGeometry";
 import { canonicalizeShape, hollowStretchSincePicture } from "@/lib/workplaneShapes";
 import type { EdgeTreatmentHistoryEntry, WorkplaneShape } from "@/types/layerling";
 
@@ -64,14 +65,72 @@ export function groupBeforeEdgeTreatments(shape: WorkplaneShape): WorkplaneShape
   return restoreShapeBeforeEdgeTreatment(shape, shape.edgeTreatmentHistory![0]);
 }
 
+/**
+ * The tube, ring or bent tube such a body was before its first fillet or chamfer, with the body's own place and size;
+ * null when it was none. Its bore still cuts what the body is grouped with (#1067): the fillet made it one mesh,
+ * and the mesh alone has no bore to hand on.
+ */
+export function tubeBeforeEdgeTreatments(shape: WorkplaneShape): WorkplaneShape | null {
+  const first = shape.edgeTreatmentHistory?.[0];
+  if (!shape.importedMesh || shape.groupedShapes?.length || !first) return null;
+  const before = first.before;
+  const hollow = before.kind === "tube" || before.kind === "ring" || (before.kind === "bentTube" && bentTubeSettings(before).innerProfile !== "none");
+  return hollow ? restoreShapeBeforeEdgeTreatment(shape, first) : null;
+}
+
+/**
+ * The shape of its own (a Hirth joint, a gear, a cylinder ...) this body was before its first edge feature, as it was
+ * then; null when it was a group, an imported mesh or nothing. A fillet makes the body a fixed one with only its three
+ * measures, and the panel says where the other settings went (#1689).
+ */
+export function shapeBeforeEdgeTreatments(shape: WorkplaneShape): WorkplaneShape | null {
+  const first = shape.edgeTreatmentHistory?.[0];
+  if (!first || !shape.importedMesh || shape.groupedShapes?.length) return null;
+  const before = first.before;
+  if (before.importedMesh || before.groupedShapes?.length || before.kind === "mesh") return null;
+  return before;
+}
+
+/**
+ * The frame this entry left, carried through what each later feature did to the body by itself: a fillet on the
+ * points of a hexagon makes its box shallower and can move its middle. Measured against the bare frame, that read
+ * as a resize, and the group came back squashed when it was ungrouped (#1760). What changed between the features
+ * and since the last of them is still the user's.
+ */
+function appliedFrameCarriedThroughLaterFeatures(history: readonly EdgeTreatmentHistoryEntry[], entryIndex: number, applied: NonNullable<EdgeTreatmentHistoryEntry["appliedFrame"]>) {
+  const later = entryIndex >= 0 ? history.slice(entryIndex + 1) : [];
+  const sameTurn = (frame: NonNullable<EdgeTreatmentHistoryEntry["appliedFrame"]>, before: WorkplaneShape) => (
+    Math.abs(frame.rotation - (before.rotation ?? 0)) < 1e-6
+    && Math.abs(frame.rotationX - (before.rotationX ?? 0)) < 1e-6
+    && Math.abs(frame.rotationZ - (before.rotationZ ?? 0)) < 1e-6
+  );
+  // A later entry without its frame, or one turned while it was made, says nothing reliable: as before then.
+  if (!later.length || later.some((next) => !next.appliedFrame || !sameTurn(next.appliedFrame, next.before))) return applied;
+  const middle = (frame: { elevation?: number; height: number }) => (frame.elevation ?? 0) + frame.height / 2;
+  const ratio = (after: number, before: number) => (before > 0.001 ? after / before : 1);
+  let { width, depth, height, x, z } = applied;
+  let center = middle(applied);
+  for (const next of later) {
+    const frame = next.appliedFrame!;
+    width *= ratio(frame.width, next.before.width);
+    depth *= ratio(frame.depth, next.before.depth);
+    height *= ratio(frame.height, next.before.height);
+    x += frame.x - next.before.x;
+    z += frame.z - next.before.z;
+    center += middle(frame) - middle(next.before);
+  }
+  return { ...applied, width, depth, height, x, z, elevation: center - height / 2 };
+}
+
 export function restoreShapeBeforeEdgeTreatment(shape: WorkplaneShape, entry: EdgeTreatmentHistoryEntry) {
   const before = cloneWorkplaneShapeSnapshot(entry.before);
-  const entryIndex = (shape.edgeTreatmentHistory ?? []).findIndex((candidate) => candidate.id === entry.id);
+  const history = shape.edgeTreatmentHistory ?? [];
+  const entryIndex = history.findIndex((candidate) => candidate.id === entry.id);
   const earlierHistory = entryIndex > 0
     ? compactEdgeTreatmentHistory(shape.edgeTreatmentHistory?.slice(0, entryIndex))
     : undefined;
-  const applied = entry.appliedFrame;
-  const stretch = hollowStretchSincePicture(shape, entry);
+  const applied = entry.appliedFrame ? appliedFrameCarriedThroughLaterFeatures(history, entryIndex, entry.appliedFrame) : undefined;
+  const stretch = hollowStretchSincePicture(shape, { ...entry, appliedFrame: applied });
   const width = applied ? before.width * stretch.x : before.width;
   const depth = applied ? before.depth * stretch.z : before.depth;
   const height = applied ? before.height * stretch.height : before.height;
@@ -88,7 +147,11 @@ export function restoreShapeBeforeEdgeTreatment(shape: WorkplaneShape, entry: Ed
     hidden: shape.hidden,
     x: applied ? before.x + shape.x - applied.x : before.x,
     z: applied ? before.z + shape.z - applied.z : before.z,
-    elevation: applied ? (before.elevation ?? 0) + (shape.elevation ?? 0) - applied.elevation : before.elevation,
+    // Kept by its middle, as x and z are: a body turned before it was baked has its bottom elsewhere, and kept by
+    // the bottom a teardrop stood up and hollowed sank 28 mm into the plate when it was made bigger (Discussion #1150).
+    elevation: applied
+      ? (before.elevation ?? 0) + before.height / 2 + ((shape.elevation ?? 0) + shape.height / 2) - (applied.elevation + applied.height / 2) - height / 2
+      : before.elevation,
     width,
     depth,
     height,
@@ -101,4 +164,13 @@ export function restoreShapeBeforeEdgeTreatment(shape: WorkplaneShape, entry: Ed
     mirrorZ: applied ? toggleMirror(before.mirrorZ, shape.mirrorZ, applied.mirrorZ) : before.mirrorZ,
     edgeTreatmentHistory: earlierHistory?.length ? earlierHistory : undefined,
   });
+}
+
+/**
+ * Whether finishing this body's sketch again costs it something (#1804): the body is built anew from the sketch, with new
+ * edges and faces, so what the edge tools did to the old ones - fillets, chamfers, hollowing, deleted faces - cannot be
+ * laid on it again and goes. The editor says so when the sketch is opened and when it is finished.
+ */
+export function sketchRebuildDropsTreatments(shape: Pick<WorkplaneShape, "sketchProfile" | "edgeTreatments">): boolean {
+  return Boolean(shape.sketchProfile && shape.edgeTreatments?.length);
 }

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { isCustomFontId } from "@/lib/customFonts";
 import { GRIDFINITY_LABEL_FONTS, MIN_GRIDFINITY_LABEL_TEXT_SIZE, gridfinityLabelTextPlaces, type GridfinityLabelLetters, type GridfinityLabelTextPlace, type GridfinityShapeFields } from "@/lib/gridfinityGeometry";
 import { textFont, textFontsLoaded } from "@/lib/textFonts";
-import { textLayoutFont } from "@/lib/textGeometry";
+import { straightTextShapes } from "@/lib/textGeometry";
 
 /**
  * The letters on a Gridfinity bin's label shelves (#1308). A shelf's text is laid out as a text shape lays out one line,
@@ -42,7 +42,7 @@ type Layout = {
 
 function layoutOf(text: string, font: string): Layout {
   const segments = font === "Stencil" ? 1 : 6;
-  const glyphs = textLayoutFont({ text, font }).generateShapes(text, LAYOUT_SIZE);
+  const glyphs = straightTextShapes({ text, font, textKerning: true }, LAYOUT_SIZE);
   const box = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
   const rings = glyphs.map((glyph) => {
     const sampled = glyph.extractPoints(segments);

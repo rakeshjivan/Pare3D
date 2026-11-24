@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compactEdgeTreatmentHistory, edgeTreatmentAppliedFrame, restoreShapeBeforeEdgeTreatment } from "@/lib/edgeTreatmentHistory";
+import { compactEdgeTreatmentHistory, edgeTreatmentAppliedFrame, restoreShapeBeforeEdgeTreatment, shapeBeforeEdgeTreatments, sketchRebuildDropsTreatments } from "@/lib/edgeTreatmentHistory";
 import type { EdgeTreatmentHistoryEntry, WorkplaneShape } from "@/types/layerling";
 
 function box(overrides: Partial<WorkplaneShape> = {}): WorkplaneShape {
@@ -131,6 +131,30 @@ describe("edge treatment history restoration", () => {
     expect(compacted[1].before.edgeTreatmentHistory).toBeUndefined();
   });
 
+  it("rebuilds a body stood up before its hollowing along the right axes and on the plate (Discussion #1150)", () => {
+    // dlguess's teardrop hole: 62.4 wide, 208 long, 75.3 high, tipped up by 270 degrees about x and hollowed, so the
+    // body stands 62.4 wide, 75.3 deep and 208 high on the plate.
+    const before = box({ kind: "teardrop", width: 62.4, depth: 208, height: 75.296, rotationX: 270, elevation: 66.352 });
+    const baked = box({ kind: "mesh", width: 62.395, depth: 75.271, height: 208, elevation: 0 });
+    const entry: EdgeTreatmentHistoryEntry = { ...historyEntry(before), feature: { kind: "shell", amount: 2, edgeCount: 0 }, appliedFrame: edgeTreatmentAppliedFrame(baked) };
+    const middle = (shape: WorkplaneShape) => (shape.elevation ?? 0) + shape.height / 2;
+
+    // Made bigger by 1.432 all round, standing on the plate: the teardrop grows about the middle the body has now,
+    // its length upright reaching down to the plate, not 28.65 mm into it.
+    const bigger = restoreShapeBeforeEdgeTreatment(box({ ...baked, width: 89.402, depth: 107.86, height: 297.889, edgeTreatmentHistory: [entry] }), entry);
+    expect(bigger.width).toBeCloseTo(89.41, 1);
+    expect(bigger.depth).toBeCloseTo(297.89, 1);
+    expect(bigger.height).toBeCloseTo(107.88, 1);
+    expect(middle(bigger) - bigger.depth / 2).toBeCloseTo(0, 1);
+
+    // Only pulled up to 312: the teardrop gets longer, its profile stays as it was instead of turning into an oval.
+    const taller = restoreShapeBeforeEdgeTreatment(box({ ...baked, height: 312, edgeTreatmentHistory: [entry] }), entry);
+    expect(taller.width).toBeCloseTo(62.4, 1);
+    expect(taller.height).toBeCloseTo(75.296, 1);
+    expect(taller.depth).toBeCloseTo(312, 1);
+    expect(middle(taller) - taller.depth / 2).toBeCloseTo(0, 1);
+  });
+
   it("preserves edits made after applying a feature while restoring the pre-feature geometry", () => {
     const before = box({ x: 8, z: 3, width: 40, depth: 20, height: 30, rotation: 15 });
     const applied = box({ kind: "mesh", x: 7.5, z: 3, width: 39, depth: 20, height: 30, rotation: 0 });
@@ -160,5 +184,42 @@ describe("edge treatment history restoration", () => {
       height: 45,
       rotation: 35,
     });
+  });
+});
+
+describe("the shape a treated body was made from (#1689)", () => {
+  const mesh = { meshAssetId: "m", baseWidth: 20, baseDepth: 20, baseHeight: 20, triangleCount: 12 } as WorkplaneShape["importedMesh"];
+  it("names the Hirth joint a chamfered body was", () => {
+    const hirth = box({ id: "h", kind: "hirth", teeth: 24 } as Partial<WorkplaneShape>);
+    const treated = box({ id: "h", kind: "mesh", importedMesh: mesh, edgeTreatmentHistory: [historyEntry(hirth)] });
+    expect(shapeBeforeEdgeTreatments(treated)?.kind).toBe("hirth");
+  });
+  it("has none for a group, an imported mesh or an untreated shape", () => {
+    const group = box({ kind: "mesh", groupedShapes: [box()] });
+    const imported = box({ kind: "mesh", importedMesh: mesh });
+    expect(shapeBeforeEdgeTreatments(box({ kind: "mesh", importedMesh: mesh, edgeTreatmentHistory: [historyEntry(group)] }))).toBeNull();
+    expect(shapeBeforeEdgeTreatments(box({ kind: "mesh", importedMesh: mesh, edgeTreatmentHistory: [historyEntry(imported)] }))).toBeNull();
+    expect(shapeBeforeEdgeTreatments(box())).toBeNull();
+  });
+});
+
+// #1804: a sketch body opens its sketch again whatever was done to it, and finishing builds it anew without its fillets and
+// chamfers. The editor warns of that when it is opened and says it when it is finished - for exactly these bodies.
+describe("sketchRebuildDropsTreatments", () => {
+  const sketchProfile = { points: [], segments: [] };
+
+  it("holds for a sketch body with a chamfer, a fillet or a hollowing", () => {
+    for (const kind of ["chamfer", "fillet", "shell"] as const) {
+      expect(sketchRebuildDropsTreatments(box({ sketchProfile, edgeTreatments: [{ kind, amount: 1, edgeCount: 4 }] }))).toBe(true);
+    }
+  });
+
+  it("does not hold for a sketch body nothing was done to, nor once the treatments are taken back", () => {
+    expect(sketchRebuildDropsTreatments(box({ sketchProfile }))).toBe(false);
+    expect(sketchRebuildDropsTreatments(box({ sketchProfile, edgeTreatments: [] }))).toBe(false);
+  });
+
+  it("does not hold for a body without a sketch: there is nothing to open", () => {
+    expect(sketchRebuildDropsTreatments(box({ edgeTreatments: [{ kind: "chamfer", amount: 1, edgeCount: 4 }] }))).toBe(false);
   });
 });

@@ -1,17 +1,32 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./dashboard.css";
 import "./historyView.css";
+import "./notes.css";
+import "./tape.css";
 import "./myShapes.css";
+import "./shapeLibrary.css";
+import "./attachments.css";
 import "./viewCube.css";
-import "./fork.css";
+import "./secondView.css";
+import "./viewScrollbars.css";
 import "./shortcuts.css";
+import "./ribbonButtons.css";
+import "./sketchImage.css";
+import "./sketchLock.css";
+import "./dashboardSelect.css";
+import "./focusMode.css";
+import "./fileBackups.css";
+import "./fork.css";
 import "./home.css";
 import "./studioLook.css";
 import { STUDIO_LOOK_BOOT_SCRIPT } from "@/lib/studioLook";
 import { DiagnoseStrip } from "@/components/DiagnoseStrip";
+import { HtmlSettingsRestore } from "@/components/HtmlSettingsRestore";
 import { NewVersionNotice } from "@/components/NewVersionNotice";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { DOM_MUTATION_GUARD_SCRIPT } from "@/lib/domMutationGuard";
+import { EDITOR_PROFILE_ELEMENT_ID, parseEditorProfile } from "@/lib/editorProfile";
 import { LANGUAGE_BOOT_SCRIPT } from "@/lib/i18n";
 import { LANGUAGES } from "@/lib/languages";
 import { SHAPE_COLORS_BOOT_SCRIPT } from "@/lib/shapeColors";
@@ -96,6 +111,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const editorProfile = parseEditorProfile(process.env.LAYERLING_EDITOR_PROFILE ?? "");
   return (
     // Translate tools add classes such as translated-ltr to <html>; that must not end in a hydration error (#191).
     // The browser may translate into a language layerling does not speak (#681); the page's language is set first
@@ -106,6 +122,13 @@ export default function RootLayout({
         {/* Before any of React's scripts: a page rearranged by Translate must not crash it (#186). */}
         <script dangerouslySetInnerHTML={{ __html: DOM_MUTATION_GUARD_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: TOOLBAR_SIZE_BOOT_SCRIPT }} />
+        {editorProfile ? (
+          <script
+            id={EDITOR_PROFILE_ELEMENT_ID}
+            type="application/json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(editorProfile).replace(/</g, "\\u003c") }}
+          />
+        ) : null}
         <script dangerouslySetInnerHTML={{ __html: STUDIO_LOOK_BOOT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: SHAPE_COLORS_BOOT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: VIEW_CUBE_POSITION_BOOT_SCRIPT }} />
@@ -113,6 +136,7 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <script dangerouslySetInnerHTML={{ __html: INSTALL_PROMPT_SCRIPT }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }} />
+        <HtmlSettingsRestore />
         {children}
         <ServiceWorkerRegistration />
         <DiagnoseStrip />

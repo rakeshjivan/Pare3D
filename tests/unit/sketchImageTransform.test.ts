@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calibrateImage, cropImage, imageCorners, imageHandlePositions, imageRotateHandle, imageToLocal, imageToWorld, normalizeImageCrop, normalizeImageRotation, resizeImage, rotateImage, uncropImage, imageCropViewBox, imageAngleTo } from "@/lib/sketchImageTransform";
+import { calibrateImage, cropImage, imageCorners, imageHandlePositions, imageToLocal, imageToWorld, normalizeImageCrop, normalizeImageRotation, resizeImage, rotateImage, uncropImage, imageCropViewBox, imageAngleTo, sketchImageSizeLimits } from "@/lib/sketchImageTransform";
 import type { SketchImage } from "@/types/layerling";
 
 // #216: the reference image turned, cropped, calibrated and centred.
@@ -13,6 +13,13 @@ const close = (a: { x: number; z: number }, b: { x: number; z: number }) => {
 };
 
 describe("sketch image transform (#216)", () => {
+  it("lets width and height go past 200 mm on a larger plate, and shows a dragged size as it is (#1727)", () => {
+    expect(sketchImageSizeLimits({ width: 250, depth: 250 }, { width: 120, depth: 80 })).toEqual({ slider: 250, typed: 2500 });
+    expect(sketchImageSizeLimits({ width: 180, depth: 180 }, { width: 50, depth: 50 })).toEqual({ slider: 200, typed: 1800 });
+    expect(sketchImageSizeLimits({ width: 250, depth: 250 }, { width: 310, depth: 200 }).slider).toBe(310);
+    expect(sketchImageSizeLimits({ width: 0, depth: Number.NaN }, { width: 10, depth: 10 })).toEqual({ slider: 200, typed: 200 });
+  });
+
   it("turns points about the centre, counter-clockwise on the plate, and back", () => {
     const turned = image({ rotation: 90 });
     // The right edge's middle, turned a quarter counter-clockwise on screen (z down), points up.
@@ -38,16 +45,14 @@ describe("sketch image transform (#216)", () => {
     expect(resized.depth).toBeCloseTo(20, 6);
     // The west edge stayed where it was: the centre moved up by half the growth.
     close(resized, { x: 10, z: -10 });
-    // The turning handle sits beyond the top edge, in the picture's own up direction.
-    close(imageRotateHandle(turned, 4), { x: 10 - 14, z: -5 });
   });
 
   it("follows the pointer round the centre when turning, snapping with Shift", () => {
     const start = image();
     const startAngle = imageAngleTo(start, { x: 30, z: -5 });
     expect(startAngle).toBeCloseTo(0, 6);
-    expect(rotateImage(start, startAngle, { x: 10, z: -25 }, false).rotation).toBeCloseTo(90, 6);
-    expect(rotateImage(start, startAngle, { x: 10 + 20 * Math.cos(0.4), z: -5 - 20 * Math.sin(0.4) }, true).rotation).toBe(30);
+    expect(rotateImage(start, startAngle, { x: 10, z: -25 }, 0).rotation).toBeCloseTo(90, 6);
+    expect(rotateImage(start, startAngle, { x: 10 + 20 * Math.cos(0.4), z: -5 - 20 * Math.sin(0.4) }, 15).rotation).toBe(30);
   });
 
   it("crops by moving an edge, keeps the opposite edge and remembers the share cut away", () => {

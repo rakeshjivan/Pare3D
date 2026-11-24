@@ -1,26 +1,30 @@
 import type { OcctKernel, ShapeHandle } from "occt-wasm";
-import { enclosurePartSolid } from "@/lib/enclosureSolid";
 import type { WorkplaneShape } from "@/types/layerling";
 import { shapeDepth, shapeHasShapeDeform, shapeWidth } from "@/lib/workplaneShapes";
 import { cadBrepTransformForShape } from "@/lib/cadBakeMetadata";
-import { loadBrepWithOcct, occtKernel, type Brep, type BrepSolid } from "@/lib/brepKernel";
-import { asDesignedRound, cadModifierGridfinityForShape, cadModifierHelicalGearForShape, cadModifierEnclosureForShape, cadModifierHirthForShape, cadModifierProfileForShape, cadModifierSpringForShape, cadModifierThreadForShape } from "@/lib/cadProfileExtrusion";
+import { dropOcctKernel, loadBrepWithOcct, occtKernel, type Brep, type BrepSolid } from "@/lib/brepKernel";
+import { asDesignedRound, cadModifierEnclosureForShape, cadModifierGridfinityForShape, cadModifierHelicalGearForShape, cadModifierHirthForShape, cadModifierProfileForShape, cadModifierSpringForShape, cadModifierThreadForShape, textGlyphProfiles } from "@/lib/cadProfileExtrusion";
 import { threadPartSolid } from "@/lib/threadSolid";
 import { springPartSolid } from "@/lib/springSolid";
 import { helicalGearPartSolid } from "@/lib/gearSolid";
 import { gridfinityPartSolid } from "@/lib/gridfinitySolid";
 import { hirthPartSolid } from "@/lib/hirthSolid";
+import { enclosurePartSolid } from "@/lib/enclosureSolid";
 import { profileExtrusionSolid } from "@/lib/cadProfileSolid";
-import { cadTransformRequiresGeneralTransform } from "@/lib/cadModifierRuntime";
+import { applyCadTransform, isCadModifierWasmMemoryFault } from "@/lib/cadModifierRuntime";
 import { hingeWorldParts } from "@/lib/hingeParts";
 import { restoreGroupedChildren } from "@/lib/editorBooleans";
+import { groupShowsPartColors } from "@/lib/groupColors";
+import { meshForShape } from "@/lib/editorMeshCore";
+import { shapeDrillPointAngle, shapeDrillPointLength } from "@/lib/drillPoint";
+import { exactMeshFreeformShare, exactSolidFromMesh } from "@/lib/cadMeshExact";
 
 /**
  * Why a body did not go into the STEP file, in a word the editor can say in the user's language
  * (#184): a twist has no exact form yet, a mesh has no CAD source, a hole was left out, or the
  * kernel could not build it.
  */
-export type SkipCode = "twist" | "deform" | "mesh" | "oval" | "hole" | "holeCut" | "failed" | "noExact";
+export type SkipCode = "twist" | "deform" | "mesh" | "freeform" | "meshFailed" | "oval" | "hole" | "holeCut" | "failed" | "noExact";
 
 export type SkippedShape = {
   name: string;
@@ -50,7 +54,7 @@ export class StepExportEmptyError extends Error {
 }
 
 // Only primitives that OCCT can represent as exact analytic surfaces under a
-// rigid placement are mapped to B-Rep. Everything else (swept/tessellated/text
+// rigid placement are mapped to B-Rep. Everything else (swept/tessellated
 // shapes) is reported as skipped rather than faceted into a low-fidelity STEP.
 //
 // Cones are exact: the multi-solid STEP writer that used to drop a cone's lateral
@@ -104,7 +108,7 @@ function hasExactSpring(shape: WorkplaneShape) {
 
 function hasExactHelicalGear(shape: WorkplaneShape) {
   try {
-    return cadModifierHelicalGearForShape(shape) !== null;
+    return cadModifierHelicalGearForShape(shape, { anySize: true }) !== null;
   } catch {
     return false;
   }
@@ -135,13 +139,20 @@ function hasExactGridfinity(shape: WorkplaneShape) {
 }
 
 export function stepSourceForShape(shape: WorkplaneShape): StepSource {
-  if (shape.kind === "mesh" && shape.importedMesh?.brepStep) return "imported";
   // A taper or lean is no part of the primitives: the box would go out as a
-  // plain box. A tapered or leaning prism goes out as its loft; a twist, or a
-  // deformed round body, has no exact form yet.
-  if (shapeHasShapeDeform(shape)) return shape.cadBrep ? "baked" : hasExactProfile(shape) ? "profile" : "unsupported";
+  // plain box. A tapered, leaning or twisted prism goes out as its loft. A
+  // stored or imported B-Rep never holds one: an edge treatment bakes the
+  // deformation in and clears it, so one set after that only bends the mesh,
+  // and the B-Rep would go out as it was before (#1237).
+  if (shapeHasShapeDeform(shape)) {
+    if (shape.cadBrep || shape.importedMesh) return "unsupported";
+    return hasExactProfile(shape) ? "profile" : "unsupported";
+  }
+  if (shape.kind === "mesh" && shape.importedMesh?.brepStep) return "imported";
   const oval = (shape.kind === "cylinder" || shape.kind === "cone") && Math.abs(shapeWidth(shape) - shapeDepth(shape)) >= SIZE_EPS;
-  if (EXACT_KINDS.has(shape.kind) && !oval) return "primitive";
+  // A drilled hole (Discussion #621) is no plain cylinder: it goes out turned from its section, the drill point with it.
+  const drilled = shapeDrillPointAngle(shape) !== undefined;
+  if (EXACT_KINDS.has(shape.kind) && !oval && !drilled) return "primitive";
   if (shape.cadBrep) return "baked";
   if (hasExactProfile(shape)) return "profile";
   if (hasExactThread(shape)) return "thread";
@@ -298,29 +309,9 @@ function buildBakedBody(brep: Brep, shape: WorkplaneShape): BuildOutcome {
   const stored = shape.cadBrep;
   if (!stored) return { skip: unsupportedReason() };
 
-  const restored = brep.fromBREP(stored);
-  if (!restored.ok) {
-    return { skip: `stored B-Rep failed to load: ${String(restored.error.message ?? restored.error)}` };
-  }
-  let body = restored.value as unknown as BrepSolid;
-
-  const transform = cadBrepTransformForShape(shape);
-  if (transform?.length === 12) {
-    // Die zwoelf Zahlen sind eine 3x4-Matrix zeilenweise; brepjs nimmt sie als
-    // 4x4 mit der Schlusszeile [0,0,0,1].
-    const placed = brep.applyMatrix(body, [
-      [transform[0]!, transform[1]!, transform[2]!, transform[3]!],
-      [transform[4]!, transform[5]!, transform[6]!, transform[7]!],
-      [transform[8]!, transform[9]!, transform[10]!, transform[11]!],
-      [0, 0, 0, 1],
-    ]);
-    if (!placed.ok) {
-      return { skip: `placing the stored B-Rep failed: ${String(placed.error.message ?? placed.error)}` };
-    }
-    body = placed.value as unknown as BrepSolid;
-  }
-
-  return { solid: body };
+  // Placed with the kernel as the CAD worker places it: brepjs' applyMatrix always takes the
+  // general transform, and a body that was only moved went out with every face a B-spline.
+  return buildPlacedBody(brep, { transform: cadBrepTransformForShape(shape) }, (kernel) => kernel.fromBREP(stored), "stored B-Rep");
 }
 
 /**
@@ -329,49 +320,116 @@ function buildBakedBody(brep: Brep, shape: WorkplaneShape): BuildOutcome {
  * hier in die Weltlage gestellt und als B-Rep an brepjs uebergeben.
  */
 function buildProfileBody(brep: Brep, shape: WorkplaneShape): BuildOutcome {
-  const kernel = occtKernel();
   // Round shapes go out round, as they always have, whatever their side count.
   const part = cadModifierProfileForShape(asDesignedRound(shape), { designedRound: true });
-  if (!kernel || !part) return { skip: unsupportedReason() };
-  try {
-    const local = profileExtrusionSolid(kernel, part);
-    // As the CAD worker places it: a stretched placement (an oval dome or
-    // cone) needs the general transform - transform() would scale evenly.
-    const placed = !part.transform ? local : cadTransformRequiresGeneralTransform(part.transform) ? kernel.generalTransform(local, part.transform) : kernel.transform(local, part.transform);
-    const text = kernel.toBREP(placed);
+  // A stretched placement (an oval dome or cone) takes the general transform there.
+  return buildPlacedBody(brep, part, (kernel) => profileExtrusionSolid(kernel, part!));
+}
+
+/** Lets the kernel's handles go; a handle already released is no reason to lose the export. */
+function releaseKernelHandles(kernel: OcctKernel, handles: Array<ShapeHandle | null>) {
+  for (const handle of new Set(handles)) {
+    if (handle === null) continue;
     try {
-      if (placed !== local) kernel.release(local);
-      kernel.release(placed);
+      kernel.release(handle);
     } catch {
-      // A released handle is no reason to lose the export.
+      // Already gone.
     }
-    const restored = brep.fromBREP(text);
-    if (!restored.ok) return { skip: `exact body failed to load: ${String(restored.error.message ?? restored.error)}` };
-    return { solid: restored.value as unknown as BrepSolid };
+  }
+}
+
+/**
+ * A kernel whose WebAssembly memory broke is not tried on with the next body: the export stops with the error and
+ * the next one loads a fresh kernel. Any other error only leaves this body out.
+ */
+function throwIfKernelBroken(error: unknown) {
+  if (!isCadModifierWasmMemoryFault(error instanceof Error ? error.message : String(error ?? ""), error instanceof Error ? error.name : "")) return;
+  dropOcctKernel();
+  throw error;
+}
+
+/** Lets go of every handle made since `mark`; only a broken kernel stops the export there. */
+function releaseKernelSince(kernel: OcctKernel, mark: number) {
+  try {
+    kernel.releaseSince(mark);
   } catch (error) {
-    return { skip: `exact body could not be built: ${error instanceof Error ? error.message : String(error)}` };
+    throwIfKernelBroken(error);
   }
 }
 
 /** A part's exact body in its own frame, placed and handed over as the CAD worker does. */
-function buildPlacedBody(brep: Brep, part: { transform?: number[] } | null, build: (kernel: OcctKernel) => ShapeHandle): BuildOutcome {
+function buildPlacedBody(brep: Brep, part: { transform?: number[] } | null, build: (kernel: OcctKernel) => ShapeHandle, what = "exact body"): BuildOutcome {
   const kernel = occtKernel();
   if (!kernel || !part) return { skip: unsupportedReason() };
+  // The kernel is kept for the whole session, so a lost handle stays lost: everything the build makes on the way (a
+  // Hirth joint leaves some 600 faces, edges and wires, a screw boss a dozen) goes at the end, whether the build
+  // worked or not. The body leaves the kernel as BREP text and is read back only after that, as brepjs keeps its
+  // shapes in the same kernel and the release would take the read-back body along.
+  const mark = kernel.checkpoint();
+  let text: string;
   try {
     const local = build(kernel);
-    const placed = !part.transform ? local : cadTransformRequiresGeneralTransform(part.transform) ? kernel.generalTransform(local, part.transform) : kernel.transform(local, part.transform);
-    const text = kernel.toBREP(placed);
-    try {
-      if (placed !== local) kernel.release(local);
-      kernel.release(placed);
-    } catch {
-      // A released handle is no reason to lose the export.
-    }
+    const placed = applyCadTransform(kernel, local, part.transform);
+    text = kernel.toBREP(placed);
+  } catch (error) {
+    throwIfKernelBroken(error);
+    return { skip: `${what} could not be built: ${error instanceof Error ? error.message : String(error)}` };
+  } finally {
+    if (occtKernel() === kernel) releaseKernelSince(kernel, mark);
+  }
+  try {
     const restored = brep.fromBREP(text);
-    if (!restored.ok) return { skip: `exact body failed to load: ${String(restored.error.message ?? restored.error)}` };
+    if (!restored.ok) return { skip: `${what} failed to load: ${String(restored.error.message ?? restored.error)}` };
     return { solid: restored.value as unknown as BrepSolid };
   } catch (error) {
-    return { skip: `exact body could not be built: ${error instanceof Error ? error.message : String(error)}` };
+    throwIfKernelBroken(error);
+    return { skip: `${what} failed to load: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+/** All meshes of one export are made exact within this time, so a design full of scans still gets its file. */
+const EXACT_EXPORT_BUDGET_MS = 60_000;
+/** One mesh at most this long, so one hard mesh leaves time for the others. */
+const EXACT_EXPORT_MESH_BUDGET_MS = 20_000;
+/** A denser mesh is left out: Make exact in the editor takes up to 400,000 triangles with more time. */
+const EXACT_EXPORT_TRIANGLE_LIMIT = 200_000;
+const FREEFORM_REASON = "mostly free-form mesh";
+const MESH_NOT_EXACT_REASON = "mesh not made exact";
+
+export type ExactExportBudget = { until: number };
+
+/**
+ * An imported mesh (STL, OBJ, 3MF, the mesh of a cut) made exact for the file, as Make exact does in the editor: its
+ * planes, cylinders, cones, spheres and tori become real faces (lib/cadMeshExact.ts). A mesh that is mostly free-form
+ * stays out, as does one that does not close into a solid or would take longer than the export has left.
+ */
+function buildMeshMadeExact(brep: Brep, shape: WorkplaneShape, budget: ExactExportBudget): BuildOutcome {
+  const kernel = occtKernel();
+  if (!kernel) return { skip: `${MESH_NOT_EXACT_REASON}: the CAD kernel is not loaded` };
+  const left = budget.until - performance.now();
+  if (left < 2000) return { skip: `${MESH_NOT_EXACT_REASON}: no time left in this export` };
+  const mesh = meshForShape(shape);
+  if (mesh.faces.length > EXACT_EXPORT_TRIANGLE_LIMIT) return { skip: `${MESH_NOT_EXACT_REASON}: ${mesh.faces.length} triangles, more than ${EXACT_EXPORT_TRIANGLE_LIMIT}` };
+  const positions = new Float64Array(mesh.vertices.length * 3);
+  mesh.vertices.forEach((vertex, index) => positions.set(vertex, index * 3));
+  const indices = new Uint32Array(mesh.faces.length * 3);
+  mesh.faces.forEach((face, index) => indices.set(face, index * 3));
+  let solid: ShapeHandle | null = null;
+  try {
+    const exact = exactSolidFromMesh(kernel, positions, indices, { budgetMs: Math.min(EXACT_EXPORT_MESH_BUDGET_MS, left), refuseFreeform: true });
+    if (!exact) return { skip: `${MESH_NOT_EXACT_REASON}: its faces did not close into a solid` };
+    solid = exact.solid;
+    const text = kernel.toBREP(exact.solid);
+    const restored = brep.fromBREP(text);
+    if (!restored.ok) return { skip: `${MESH_NOT_EXACT_REASON}: ${String(restored.error.message ?? restored.error)}` };
+    return { solid: restored.value as unknown as BrepSolid };
+  } catch (error) {
+    throwIfKernelBroken(error);
+    const message = error instanceof Error ? error.message : String(error);
+    if (exactMeshFreeformShare(message) !== null) return { skip: FREEFORM_REASON };
+    return { skip: `${MESH_NOT_EXACT_REASON}: ${message}` };
+  } finally {
+    if (occtKernel() === kernel) releaseKernelHandles(kernel, [solid]);
   }
 }
 
@@ -389,7 +447,7 @@ function buildSpringBody(brep: Brep, shape: WorkplaneShape): BuildOutcome {
 
 /** A helical gear as its exact body, built and placed as the CAD worker does. */
 function buildHelicalGearBody(brep: Brep, shape: WorkplaneShape): BuildOutcome {
-  const part = cadModifierHelicalGearForShape(shape);
+  const part = cadModifierHelicalGearForShape(shape, { anySize: true });
   return buildPlacedBody(brep, part, (kernel) => helicalGearPartSolid(kernel, part!));
 }
 
@@ -399,7 +457,7 @@ function buildHirthBody(brep: Brep, shape: WorkplaneShape): BuildOutcome {
   return buildPlacedBody(brep, part, (kernel) => hirthPartSolid(kernel, part!));
 }
 
-/** A screw boss, snap-fit or rib as its exact body, built and placed as the CAD worker does. */
+/** A screw boss, snap-fit or rib as its exact body, built and placed as the CAD worker does; a boss set as a hole is its pocket. */
 function buildEnclosureBody(brep: Brep, shape: WorkplaneShape): BuildOutcome {
   const part = cadModifierEnclosureForShape(shape);
   return buildPlacedBody(brep, part, (kernel) => enclosurePartSolid(kernel, part!));
@@ -411,21 +469,62 @@ function buildGridfinityBody(brep: Brep, shape: WorkplaneShape): BuildOutcome {
   return buildPlacedBody(brep, part, (kernel) => gridfinityPartSolid(kernel, part!));
 }
 
-/** The hinge as the boxes, cylinders and tubes it is made of, fused: two bodies that turn against each other. */
+/**
+ * The hinge as the boxes, cylinders, tubes and cones it is made of, fused, its screw holes cut out: two bodies that turn
+ * against each other. Each knuckle of the cone hinge's B has its recesses cut first, before the cones in them are added,
+ * and each of the snap hinge's clips its opening, before the pin in it is.
+ */
 function buildHingeBody(brep: Brep, shape: WorkplaneShape): BuildOutcome {
   const solids: BrepSolid[] = [];
+  const holes: BrepSolid[] = [];
+  const knuckles = new Map<number, { solids: BrepSolid[]; holes: BrepSolid[] }>();
   for (const part of hingeWorldParts(shape)) {
     const source = stepSourceForShape(part);
     const built = source === "primitive" ? buildExactSolid(brep, part) : source === "profile" ? buildProfileBody(brep, part) : { skip: `its ${part.kind} part has no exact body` };
     if ("skip" in built) return built;
-    solids.push(built.solid);
+    const own = part.knuckle === undefined ? { solids, holes } : knuckles.get(part.knuckle) ?? { solids: [], holes: [] };
+    if (part.knuckle !== undefined) knuckles.set(part.knuckle, own);
+    (part.hole ? own.holes : own.solids).push(built.solid);
+  }
+  for (const knuckle of knuckles.values()) {
+    const joined = brep.fuseAll(knuckle.solids as Parameters<Brep["fuseAll"]>[0]);
+    if (!joined.ok) return { skip: "a knuckle of the hinge could not be joined" };
+    const cut = brep.cutAll(joined.value as BrepSolid, knuckle.holes);
+    if (!cut.ok) return { skip: "the hinge's recesses could not be cut" };
+    solids.push(cut.value as BrepSolid);
   }
   const fused = brep.fuseAll(solids as Parameters<Brep["fuseAll"]>[0]);
-  return fused.ok ? { solid: fused.value as BrepSolid } : { skip: "the hinge's parts could not be joined" };
+  if (!fused.ok) return { skip: "the hinge's parts could not be joined" };
+  if (holes.length === 0) return { solid: fused.value as BrepSolid };
+  const cut = brep.cutAll(fused.value as BrepSolid, holes);
+  return cut.ok ? { solid: cut.value as BrepSolid } : { skip: "the hinge's screw holes could not be cut" };
+}
+
+/**
+ * A raised text of several letters as its exact body (#1337): each letter (or each loose piece of a filled text) built
+ * from the font's own curves, as the edge tool gets them, and fused into one. A text of one letter already goes as a
+ * profile. Null when the text has no exact outline: a bevel, a rounded top edge, a taper or twist, or fonts that are not
+ * loaded - where the export runs, they are (exportShapesToStepOffThread keeps a text on the page).
+ */
+function buildTextBody(brep: Brep, shape: WorkplaneShape): BuildOutcome | null {
+  if (shape.kind !== "text") return null;
+  const glyphs = textGlyphProfiles(shape);
+  if (!glyphs?.length || glyphs.some((glyph) => !glyph.profile)) return null;
+  const solids: BrepSolid[] = [];
+  for (const { profile } of glyphs) {
+    const built = buildPlacedBody(brep, profile, (kernel) => profileExtrusionSolid(kernel, profile!), "letter");
+    if ("skip" in built) return built;
+    solids.push(built.solid);
+  }
+  if (solids.length === 1) return { solid: solids[0] };
+  const fused = brep.fuseAll(solids as Parameters<Brep["fuseAll"]>[0]);
+  return fused.ok ? { solid: fused.value as BrepSolid } : { skip: "the letters could not be joined" };
 }
 
 export function skipCodeFor(shape: WorkplaneShape, reason: string): SkipCode {
   if (reason.startsWith("hole subtraction")) return "holeCut";
+  if (reason.startsWith(FREEFORM_REASON)) return "freeform";
+  if (reason.startsWith(MESH_NOT_EXACT_REASON)) return "meshFailed";
   if (shape.hole) return "hole";
   if (/failed|could not/i.test(reason)) return "failed";
   if (Math.abs(shape.extrudeTwist ?? 0) > 1e-9) return "twist";
@@ -449,21 +548,25 @@ export type Aabb = { min: [number, number, number]; max: [number, number, number
 // Axis-aligned shapes get a tight box. Rotated shapes fall back to the box that
 // encloses the bounding sphere (rotation-invariant, never under-reports), trading
 // tightness for the guarantee that a real intersection is never missed.
+//
+// A drill point (Discussion #621) reaches past the frame by its tip: the box grows by it at the bottom (at the top
+// when the hole is mirrored upside down), and a turned one round a body with a tip at both ends, which holds it however
+// it is turned.
 export function worldAabb(shape: WorkplaneShape): Aabb {
   const w = shapeWidth(shape);
   const d = shapeDepth(shape);
   const h = shape.height;
+  const tip = shapeDrillPointLength(shape);
   const cx = shape.x;
   const cy = (shape.elevation ?? 0) + h / 2;
   const cz = shape.z;
   const rotated = (shape.rotationX ?? 0) !== 0 || (shape.rotationZ ?? 0) !== 0 || shapeYawDegrees(shape) !== 0;
-  const [hx, hy, hz] = rotated
-    ? (() => {
-        const r = 0.5 * Math.sqrt(w * w + h * h + d * d);
-        return [r, r, r];
-      })()
-    : [w / 2, h / 2, d / 2];
-  return { min: [cx - hx, cy - hy, cz - hz], max: [cx + hx, cy + hy, cz + hz] };
+  if (rotated) {
+    const r = 0.5 * Math.sqrt(w * w + (h + 2 * tip) ** 2 + d * d);
+    return { min: [cx - r, cy - r, cz - r], max: [cx + r, cy + r, cz + r] };
+  }
+  const below = shape.mirrorY ? 0 : tip;
+  return { min: [cx - w / 2, cy - h / 2 - below, cz - d / 2], max: [cx + w / 2, cy + h / 2 + tip - below, cz + d / 2] };
 }
 
 export function aabbsOverlap(a: Aabb, b: Aabb): boolean {
@@ -493,16 +596,32 @@ function isOpenableGroup(shape: WorkplaneShape) {
     && (shape.groupOperation === undefined || shape.groupOperation === "group");
 }
 
-/** The cutters among these shapes, a group of holes opened into the holes it holds. */
-function collectHoles(brep: Brep, shapes: WorkplaneShape[], skipped: SkippedShape[], holes: { box: Aabb; solid: BrepSolid }[]) {
+/**
+ * The cutters among these shapes. A group set as a hole cuts what the group is, as the editor builds it: a group of
+ * holes alone is opened into the holes it holds; a group with solids in it cuts its solids with its own holes taken out
+ * of them first (Discussion #1748: a box with a capsule hole, set as a hole, trims a filleted capsule to the capsule's
+ * outline - its box was left out and its capsule cut the body instead, leaving a thin ring).
+ */
+async function collectHoles(brep: Brep, shapes: WorkplaneShape[], skipped: SkippedShape[], holes: { box: Aabb; solid: BrepSolid }[], budget: ExactExportBudget) {
   for (const shape of shapes.filter((s) => s.hole)) {
     const source = stepSourceForShape(shape);
     if (source === "unsupported" && isOpenableGroup(shape)) {
-      collectHoles(brep, restoreGroupedChildren(shape).filter((child) => !child.hidden), skipped, holes);
+      const children = restoreGroupedChildren(shape).filter((child) => !child.hidden);
+      if (children.some((child) => !child.hole)) {
+        const inner = await buildScope(brep, children, skipped, budget);
+        holes.push(...inner.map((part) => ({ box: part.box, solid: part.solid })));
+      } else {
+        await collectHoles(brep, children, skipped, holes, budget);
+      }
+      continue;
+    }
+    const text = source === "unsupported" ? buildTextBody(brep, shape) : null;
+    if (text && "solid" in text) {
+      holes.push({ box: worldAabb(shape), solid: text.solid });
       continue;
     }
     if (source === "unsupported") {
-      skipped.push(describe(shape, `hole ${unsupportedReason()}; cut omitted`));
+      skipped.push(describe(shape, `hole ${text?.skip ?? unsupportedReason()}; cut omitted`));
       continue;
     }
     // Eine Aussparung wird hier nur aus dem gebaut, was ohne Warten geht; eine
@@ -517,9 +636,9 @@ function collectHoles(brep: Brep, shapes: WorkplaneShape[], skipped: SkippedShap
 }
 
 /** The solids of these shapes with the holes among them cut out; a group is a scope of its own. */
-async function buildScope(brep: Brep, shapes: WorkplaneShape[], skipped: SkippedShape[]): Promise<ScopePart[]> {
+async function buildScope(brep: Brep, shapes: WorkplaneShape[], skipped: SkippedShape[], budget: ExactExportBudget): Promise<ScopePart[]> {
   const holes: { box: Aabb; solid: BrepSolid }[] = [];
-  collectHoles(brep, shapes, skipped, holes);
+  await collectHoles(brep, shapes, skipped, holes, budget);
 
   const parts: ScopePart[] = [];
   for (const shape of shapes.filter((s) => !s.hole)) {
@@ -527,10 +646,15 @@ async function buildScope(brep: Brep, shapes: WorkplaneShape[], skipped: Skipped
     const source = stepSourceForShape(shape);
     if (source === "unsupported" && isOpenableGroup(shape)) {
       // Its holes were cut inside; the holes around it still reach its bodies below.
-      parts.push(...await buildScope(brep, restoreGroupedChildren(shape).filter((child) => !child.hidden), skipped));
+      const inner = await buildScope(brep, restoreGroupedChildren(shape).filter((child) => !child.hidden), skipped, budget);
+      // A group shown in one colour gives it to all its parts, as the editor draws it; with Multicolor they keep their own (#1305).
+      parts.push(...(groupShowsPartColors(shape) ? inner : inner.map((part) => ({ ...part, color: shape.color }))));
       continue;
     }
-    if (shape.kind === "hinge" && !shape.cadBrep && !shapeHasShapeDeform(shape)) {
+    const text = source === "unsupported" ? buildTextBody(brep, shape) : null;
+    if (text) {
+      built = text;
+    } else if (shape.kind === "hinge" && !shape.cadBrep && !shapeHasShapeDeform(shape)) {
       built = buildHingeBody(brep, shape);
     } else if (source === "imported") {
       built = await buildImportedBody(brep, shape);
@@ -552,6 +676,8 @@ async function buildScope(brep: Brep, shapes: WorkplaneShape[], skipped: Skipped
       built = buildHirthBody(brep, shape);
     } else if (source === "enclosure") {
       built = buildEnclosureBody(brep, shape);
+    } else if (shape.importedMesh && !shape.importedMesh.brepStep) {
+      built = buildMeshMadeExact(brep, shape, budget);
     } else {
       const reason = shape.kind === "mesh" ? "imported mesh has no B-Rep source; re-import as STEP to round-trip" : unsupportedReason();
       skipped.push(describe(shape, reason));
@@ -575,14 +701,12 @@ async function buildScope(brep: Brep, shapes: WorkplaneShape[], skipped: Skipped
 }
 
 /**
- * The kernel takes a colour as linear light and writes it to the file as sRGB, so a colour handed over as it is came out
- * paler in the file (#d12a2a as #ea7171). Handed over as linear light, unrounded (on the 0-255 scale the kernel divides
- * by 255), the file carries the colour as it shows here.
+ * The colour as the kernel takes it for the file: sRGB on the 0-255 scale, as it shows here. Up to occt-wasm 5.8 the
+ * kernel took it as linear light and turned it into sRGB on writing, so layerling handed it over linearised (else
+ * #d12a2a came out as #ea7171); since 5.9 it stores the colour as given, and the linearised one came out as #a30606.
  */
 export function stepColorForKernel(color: string): [number, number, number, number] {
   const hex = /^#?([0-9a-f]{6})$/i.exec(color)?.[1] ?? "ff0000";
-  // Port from layerling ae52c67d: since occt-wasm 5.9 the kernel stores the colour as given (sRGB on the 0-255 scale);
-  // linearised as it was for 5.8, #d12a2a came out as #a30606.
   const channel = (offset: number) => parseInt(hex.slice(offset, offset + 2), 16);
   return [channel(0), channel(2), channel(4), 255];
 }
@@ -591,7 +715,7 @@ export async function exportShapesToStep(shapes: WorkplaneShape[]): Promise<Step
   const brep = await loadBrepWithOcct();
 
   const skipped: SkippedShape[] = [];
-  const parts = (await buildScope(brep, shapes, skipped)).map((part) => ({ shape: toCadZUp(brep, part.solid), name: part.name, color: part.color }));
+  const parts = (await buildScope(brep, shapes, skipped, { until: performance.now() + EXACT_EXPORT_BUDGET_MS })).map((part) => ({ shape: toCadZUp(brep, part.solid), name: part.name, color: part.color }));
 
   if (parts.length === 0) {
     // Der Aufrufer uebersetzt diesen Fall; der Text hier ist nur fuer Protokolle.

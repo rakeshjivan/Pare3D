@@ -1,6 +1,13 @@
 import { formatLengthMm } from "@/lib/measurementUnits";
+import { POSITION_TYPED_LIMIT } from "@/lib/workplaneSettings";
 
-export type MoveDimensionAxis = "x" | "z";
+/** "lift" is the way up or down along the lift arrow (#979), shown as Z. */
+export type MoveDimensionAxis = "x" | "z" | "lift";
+
+/** The axis name the user sees: inside z is Y, counting towards the back (#182), and up is Z. */
+export function moveDimensionAxisName(axis: MoveDimensionAxis) {
+  return axis === "lift" ? "Z" : axis === "z" ? "Y" : "X";
+}
 
 export type MoveDimensionScreenPoint = {
   x: number;
@@ -40,12 +47,21 @@ type MoveDimensionWorldPoint = {
   z: number;
 };
 
+/** A lift with the arrow: from `start`, `delta` along `axis`; `side` is a point the label keeps away from. */
+export type MoveDimensionLift = {
+  start: MoveDimensionWorldPoint;
+  axis: MoveDimensionWorldPoint;
+  delta: number;
+  side: MoveDimensionWorldPoint;
+};
+
 type CreateMoveDimensionOverlayOptions = {
   originX: number;
   originZ: number;
   planeY: number;
   deltaX: number;
   deltaZ: number;
+  lift?: MoveDimensionLift | null;
   accuracy: number;
   width: number;
   height: number;
@@ -108,17 +124,50 @@ export function createMoveDimensionOverlay({
   accuracy,
   width,
   height,
+  lift,
   project,
 }: CreateMoveDimensionOverlayOptions): MoveDimensionOverlayData | null {
   const zeroThreshold = 0.5 * 10 ** -accuracy;
-  if (Math.abs(deltaX) < zeroThreshold && Math.abs(deltaZ) < zeroThreshold) {
-    return null;
-  }
-
   const safeScreenPoint = (point: MoveDimensionScreenPoint) => ({
     x: Number.isFinite(point.x) ? point.x : width / 2,
     y: Number.isFinite(point.y) ? point.y : height / 2,
   });
+
+  if (lift) {
+    if (Math.abs(lift.delta) < zeroThreshold) {
+      return null;
+    }
+    const origin = safeScreenPoint(project(lift.start));
+    const endpoint = safeScreenPoint(project({
+      x: lift.start.x + lift.axis.x * lift.delta,
+      y: lift.start.y + lift.axis.y * lift.delta,
+      z: lift.start.z + lift.axis.z * lift.delta,
+    }));
+    // The label sits on the side away from the body, so it does not cover what was lifted.
+    const label = dimensionLabelPosition(origin, endpoint, safeScreenPoint(project(lift.side)), true, width, height);
+    const start = dimensionLineStart(origin, endpoint);
+    return {
+      width,
+      height,
+      lines: [{
+        axis: "lift",
+        value: lift.delta,
+        label: formatMoveDimension(lift.delta, accuracy),
+        x1: start.x,
+        y1: start.y,
+        x2: endpoint.x,
+        y2: endpoint.y,
+        labelX: label.x,
+        labelY: label.y,
+      }],
+      guides: [],
+    };
+  }
+
+  if (Math.abs(deltaX) < zeroThreshold && Math.abs(deltaZ) < zeroThreshold) {
+    return null;
+  }
+
   const origin = safeScreenPoint(project({ x: originX, y: planeY, z: originZ }));
   const xEndpoint = safeScreenPoint(project({ x: originX + deltaX, y: planeY, z: originZ }));
   const zEndpoint = safeScreenPoint(project({ x: originX, y: planeY, z: originZ + deltaZ }));
@@ -180,4 +229,14 @@ export function createMoveDimensionOverlay({
   }
 
   return lines.length > 0 ? { width, height, lines, guides } : null;
+}
+
+/**
+ * How far a typed move goes: the number as typed, on every build plate and past a plate's edge, as dragging goes
+ * there too (Discussion #2002). Only the far limit of a typed position holds, so that no body gets out of reach.
+ */
+export function typedMoveDelta(value: number, starts: readonly number[]): number {
+  const minimum = Math.max(...starts.map((start) => -POSITION_TYPED_LIMIT - start));
+  const maximum = Math.min(...starts.map((start) => POSITION_TYPED_LIMIT - start));
+  return Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 }

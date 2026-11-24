@@ -56,6 +56,8 @@ export function normalizeNote(value: unknown): WorkplaneNote | null {
   const anchor = normalizeAnchor(raw.anchor);
   if (anchor) note.anchor = anchor;
   if (raw.collapsed) note.collapsed = true;
+  if (raw.forAi === true) note.forAi = true;
+  if (typeof raw.reply === "string" && raw.reply) note.reply = raw.reply.slice(0, NOTE_TEXT_LIMIT);
   return note;
 }
 
@@ -83,6 +85,9 @@ export function patchNote(notes: WorkplaneNote[], id: string, patch: Partial<Wor
     // `anchor: undefined` heisst „loese dich" und muss das Feld wirklich los
     // werden, sonst traegt die Notiz es nach dem Sichern wieder.
     if ("anchor" in patch && !patch.anchor) delete merged.anchor;
+    if (typeof patch.reply === "string") merged.reply = patch.reply.slice(0, NOTE_TEXT_LIMIT);
+    if (!merged.reply) delete merged.reply;
+    if (!merged.forAi) delete merged.forAi;
     return merged;
   });
 }
@@ -103,6 +108,8 @@ export function notesSignature(notes: WorkplaneNote[]) {
       `${note.x.toFixed(3)},${note.y.toFixed(3)},${note.z.toFixed(3)}`,
       note.collapsed ? "c" : "",
       note.kind === "point" ? "point" : "",
+      note.forAi ? "ai" : "",
+      note.reply ?? "",
     ].join("|"))
     .join("\n");
 }
@@ -156,7 +163,7 @@ export function shapeIdMapping(before: readonly WorkplaneShape[], after: readonl
 
 /**
  * Notes that come into a design with bodies from somewhere else (a custom
- * shape), made to fit it: each gets a fresh id - the package was saved from
+ * shape, an inserted design), made to fit it: each gets a fresh id - the package was saved from
  * some design and its note ids may well be ones this design already uses - and
  * its pin moves over to its body's new id. A note whose body did not come
  * along is let go, as `detachNotesFromMissingShapes` would. Each comes in

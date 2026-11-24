@@ -3,6 +3,13 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const isStaticExport = process.env.STATIC_EXPORT === "true";
+// Set by docker/Dockerfile only: a build by hand keeps working with `next start`, which refuses a standalone build.
+const isStandalone = process.env.LAYERLING_STANDALONE === "true";
+const buildCpus = Math.max(0, Math.floor(Number(process.env.LAYERLING_BUILD_CPUS)) || 0);
+// Set by whoever runs `npm run typecheck` (tsc, incremental, about 5 s) beside or before the build: the release script
+// and the CI. `next build` then leaves out its own check of the types, the largest step of the static export
+// (26 of 55 s, 06.11.2026). Left unset - a build by hand, the deploy scripts - it checks them as before.
+const typesCheckedElsewhere = process.env.LAYERLING_TYPES_CHECKED === "1";
 // Build 113: the browser version is served from a folder (GitHub Pages: /Pare3D); the Mac app from the top.
 const basePath = isStaticExport ? (process.env.PARE_BASE_PATH ?? "").replace(/\/+$/, "") : "";
 const extraAllowedDevOrigins = (process.env.LAYERLING_ALLOWED_DEV_ORIGINS ?? "")
@@ -49,9 +56,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true
   },
-  // brepjs (loaded lazily by the STEP exporter) ships an auto-init helper that
-  // tries optional kernel backends via guarded `import().catch()`. We only install
-  // and use occt-wasm, so silence the resolution warnings for the backends we omit.
+  ...(typesCheckedElsewhere ? { typescript: { ignoreBuildErrors: true } } : {}),
   // Next.js 16 builds with Turbopack by default and refuses a `webpack` hook
   // without a `turbopack` entry. The empty entry accepts Turbopack's defaults
   // there; Next.js 15 ignores it for webpack builds (#217).
@@ -64,11 +69,6 @@ const nextConfig: NextConfig = {
       config.cache.maxAge = 3 * 24 * 60 * 60 * 1000;
       if (!dev) config.cache.compression = "gzip";
     }
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      "brepkit-wasm": false,
-      "brepjs-opencascade": false,
-    };
     return config;
   },
   ...(isStaticExport
@@ -76,7 +76,12 @@ const nextConfig: NextConfig = {
         output: "export" as const,
         trailingSlash: true,
       }
-    : {}),
+    : isStandalone
+      ? { output: "standalone" as const }
+      : {}),
+  // How many workers the build may start; the release script leaves two threads free with it, so the machine
+  // stays usable while it builds. Left out, Next takes all cores but one.
+  ...(buildCpus ? { experimental: { cpus: buildCpus } } : {}),
 };
 
 export default nextConfig;

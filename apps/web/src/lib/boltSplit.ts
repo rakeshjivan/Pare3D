@@ -2,10 +2,7 @@ import type { ManifoldToplevel, Mat4 } from "manifold-3d";
 import { shapeToManifoldSolid } from "@/lib/editorBooleans";
 import { getManifoldRuntime, type ManifoldSolid } from "@/lib/editorMeshCore";
 import { numberLocale, t } from "@/lib/i18n";
-import { HINGE_PIN_GRIP } from "@/lib/lidTool";
-
-/** The share of the pin's play that grips a piece of filament (as layerling's lid hinge uses). */
-const HINGE_PIN_GRIP_SHARE = 0.5;
+import { HINGE_PIN_GRIP, HINGE_PIN_GRIP_SHARE } from "@/lib/lidTool";
 import { createLocalId } from "@/lib/localIds";
 import { splitShapeFromWorldPositions } from "@/lib/modelSplit";
 import { threadDriveRadius, threadSettings } from "@/lib/threadGeometry";

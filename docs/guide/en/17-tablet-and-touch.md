@@ -10,7 +10,7 @@ Pare 3D runs in the browser of a tablet, and as an app from its home screen. A f
 | You want to | On a tablet |
 | --- | --- |
 | Select a body | Tap it. |
-| Select several bodies | Hold a finger still for half a second, choose {{ui:contextMenu.selectMultiple}}, then tap one body after another. A tap on a selected body takes it out again. |
+| Select several bodies | Tap a body: a round button appears in the lower left. Tap it, and every further body you tap joins the selection; a tap on a selected body takes it out again. A tap on empty space changes nothing; a second tap on the button ends it and clears the selection. Or hold a finger still for half a second, choose {{ui:contextMenu.selectMultiple}}, then tap one body after another. |
 | Select all bodies | Hold a finger still on empty space for half a second, choose {{ui:contextMenu.selectAll}}. |
 | Open the menu of a right click | Hold a finger still on a body or on empty space for half a second. |
 | Move a body | Drag it. |
@@ -28,7 +28,7 @@ The same menu has {{ui:contextMenu.carry}}, the key [[C]] for a touch screen. Th
 
 ## Turning and zooming the view
 
-One finger on empty space turns the view, two fingers zoom and move it. A finger that starts on a body works on the body, not on the view. If you would rather have it turn the view, switch on {{ui:camera.touchRotate}} in the camera bar: one finger then turns the view instead of selecting, wherever it starts. That switch only shows on a device with a touch screen.
+One finger on empty space turns the view, two fingers zoom and move it. A finger that starts on a body works on the body, not on the view. If you would rather have it turn the view, switch on {{ui:camera.touchRotate}} in the view bar: one finger then turns the view instead of selecting, wherever it starts. That switch only shows on a device with a touch screen.
 
 The view cube in the top left turns the view when you drag it, and a tap on one of its sides, corners or edges jumps to that view. See [View and workplane](chapter:view-and-workplane).
 
@@ -36,14 +36,18 @@ The view cube in the top left turns the view when you drag it, and a tap on one 
 
 A fingertip covers what it aims at. Pare 3D lets a finger reach a little further to handles, points, lines and edges than a mouse pointer does, but a stylus is finer. This holds for a pen the tablet knows as a pen, such as an Apple Pencil or an S Pen. A plain stylus with a rubber tip counts as a finger for the screen and is not finer than one, so work with it as with a finger. An Apple Pencil that hovers above the screen on an iPad also shows the name of a control after a moment, in a small bubble, as the mouse pointer does with a tooltip.
 
+Around a selection, the size handles, the turn arrows and the arrows that move it lie close together, so a finger easily catches the wrong one. The button with the pointing hand in the view bar chooses what a finger can do: {{ui:camera.touchHandles.all}}, {{ui:camera.touchHandles.move}}, {{ui:camera.touchHandles.size}} or {{ui:camera.touchHandles.turn}}, one tap to the next. The other handles are hidden; set to the size or to turning, a finger on the body only selects it and no longer moves it. The browser keeps the choice. Like {{ui:camera.touchRotate}}, the button only shows on a device with a touch screen.
+
+In sketch mode, {{ui:sketch.freehand}} draws with the pen or a finger as on paper; when you lift it, the line becomes sketch points you can edit, see [Sketches](chapter:sketches).
+
 If bodies slip when children or hurried hands touch them, switch on {{ui:workspace.selectBeforeMoving}} in the settings: a body then has to be selected first, and only the next drag moves it.
 
 ## On an iPad or iPhone
 
 - **Install it as an app.** In Safari, tap the Share icon and choose "Add to Home Screen". The app opens in a window of its own without the address bar, and it works without a connection, see [Offline and install](chapter:offline-and-install).
-- **Your designs live in the browser.** There is no account, and nothing is uploaded. Safari has a rule of its own against tracking: it deletes what a website stored after seven days in which you did not visit it in Safari. A web app added to the Home Screen is exempt from that rule, as WebKit documents it. That is one more reason to use the app from the Home Screen, and to back up important work: {{ui:dashboard.backupAll}} on the start page packs all designs into one file.
+- **Your designs live in the browser** (unless you host layerling yourself and set up a server folder). There is no account, and nothing is uploaded. Safari has a rule of its own against tracking: it deletes what a website stored after seven days in which you did not visit it in Safari. A web app added to the Home Screen is exempt from that rule, as WebKit documents it. That is one more reason to use the app from the Home Screen, and to back up important work: {{ui:dashboard.backupAll}} on the start page packs all designs into one file.
 - **Files.** Safari lets a page write into a file only through a download, so {{ui:editor.export}} puts the file into the Downloads of the Files app, and [[Ctrl]]+[[S]] on a keyboard downloads it again; see [Files and saving](chapter:files-and-saving).
-- **No keyboard needed.** Every tool has a button in the ribbon, and a number field opens the on-screen keyboard. A keyboard on the iPad adds the [keyboard shortcuts](chapter:shortcuts).
+- **No keyboard needed.** Every tool has a button in the ribbon, and a number field opens the on-screen keyboard. A keyboard on the iPad adds the [keyboard shortcuts](chapter:shortcuts). A value box beside a body opens its number field with the second tap: the first tap only marks it, so a finger that lands on it by accident does not raise the keyboard.
 
 ## Workshops with children
 

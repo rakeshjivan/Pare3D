@@ -10,8 +10,9 @@ import { GUIDE_SEARCH_CORE, plainText, searchEntries } from "../../scripts/build
 type Entry = { c: string; h: string; u: string; t: string };
 type Hit = { entry: Entry; score: number };
 
-const core = new Function(`${GUIDE_SEARCH_CORE}; return { fold: guideFold, prepare: guidePrepare, search: guideSearch };`)() as {
+const core = new Function(`${GUIDE_SEARCH_CORE}; return { fold: guideFold, prepare: guidePrepare, search: guideSearch, ranges: guideRanges };`)() as {
   fold: (text: string) => string;
+  ranges: (text: string, query: string, umlauts?: boolean) => { at: number; len: number }[];
   prepare: (entries: Entry[]) => unknown;
   search: (prepared: unknown, query: string, limit?: number, umlauts?: boolean) => Hit[];
 };
@@ -131,5 +132,92 @@ describe("the matching", () => {
 
   it("limits the number of results", () => {
     expect(core.search(prepared, "e", 2)).toHaveLength(2);
+  });
+});
+
+describe("the words marked on the page a result leads to (#1059)", () => {
+  const marked = (text: string, query: string, umlauts = false) =>
+    core.ranges(core.fold(text), query, umlauts).map((r) => text.slice(r.at, r.at + r.len));
+
+  it("marks every place a word stands, whatever its case or accents", () => {
+    expect(marked("Mirror flips; a mirrored copy is a MIRROR too.", "mirror")).toEqual(["Mirror", "mirror", "MIRROR"]);
+    expect(marked("Café and cafe", "cafe")).toEqual(["Café", "cafe"]);
+  });
+
+  it("marks each word of the query and joins places that touch", () => {
+    expect(marked("Align lays bodies out along one edge.", "edge align")).toEqual(["Align", "edge"]);
+    expect(marked("fillet", "fil let")).toEqual(["fillet"]);
+  });
+
+  it("leaves out single letters when the query has longer words", () => {
+    expect(marked("a hole in a wall", "a hole")).toEqual(["hole"]);
+    expect(marked("x and y", "x")).toEqual(["x"]);
+  });
+
+  it("finds the umlaut by its two letters and the sharp s by ss", () => {
+    expect(marked("Ändere die Größe", "aendere grosse", true)).toEqual(["Ändere", "Größe"]);
+  });
+
+  it("marks nothing for an empty query or a word that is not there", () => {
+    expect(marked("Mirror", "")).toEqual([]);
+    expect(marked("Mirror", "align")).toEqual([]);
+  });
+});
+
+describe("an exact phrase in quotation marks (#1841)", () => {
+  const text = core.prepare([
+    { c: "Text", h: "Text on a circular arc", u: "/guide/text.html#arc", t: "Bend the line: the text follows a circular arc. Größe and Maßband stay as typed." },
+    { c: "Text", h: "Search", u: "/guide/text.html#search", t: "The search box finds a font. On a circle the arc of the text closes; circular it is not." },
+    { c: "Holes", h: "Rack", u: "/guide/holes.html#rack", t: 'A 19" rack panel has four slots.' },
+  ]);
+  const urls = (query: string, umlauts = false) => core.search(text, query, 8, umlauts).map((hit) => hit.entry.u);
+  const marked = (sentence: string, query: string) => core.ranges(core.fold(sentence), query).map((r) => sentence.slice(r.at, r.at + r.len));
+
+  it("wants the words next to each other and in this order", () => {
+    expect(urls("circular arc")).toEqual(["/guide/text.html#arc", "/guide/text.html#search"]);
+    expect(urls('"circular arc"')).toEqual(["/guide/text.html#arc"]);
+    expect(urls('"arc circular"')).toEqual([]);
+    expect(urls('"CIRCULAR   Arc"')).toEqual(["/guide/text.html#arc"]);
+  });
+
+  it("takes a quoted word whole, not as a part of a longer one", () => {
+    expect(urls("sear")).toEqual(["/guide/text.html#search"]);
+    expect(urls('"sear"')).toEqual([]);
+    expect(urls('"search"')).toEqual(["/guide/text.html#search"]);
+    expect(urls('"text follows"')).toEqual(["/guide/text.html#arc"]);
+    expect(urls('"ext follows"')).toEqual([]);
+    expect(urls('"text follow"')).toEqual([]);
+  });
+
+  it("mixes a phrase with plain words, all of which must be there", () => {
+    expect(urls('"circular arc" bend')).toEqual(["/guide/text.html#arc"]);
+    expect(urls('font "the arc"')).toEqual(["/guide/text.html#search"]);
+    expect(urls('"circular arc" font')).toEqual([]);
+  });
+
+  it("reads curly and angled quotation marks like straight ones", () => {
+    expect(urls("“circular arc”")).toEqual(["/guide/text.html#arc"]);
+    expect(urls("„circular arc“")).toEqual(["/guide/text.html#arc"]);
+    expect(urls("«circular arc»")).toEqual(["/guide/text.html#arc"]);
+    expect(urls("「circular arc」")).toEqual(["/guide/text.html#arc"]);
+  });
+
+  it("still folds case, accents, the sharp s and the umlauts inside a phrase", () => {
+    expect(urls('"grosse and massband"')).toEqual(["/guide/text.html#arc"]);
+    expect(urls('"groesse and massband"', true)).toEqual([]);
+    expect(urls('"groeße and maßband"', true)).toEqual(["/guide/text.html#arc"]);
+  });
+
+  it("takes a mark without a partner for a space: an inch sign, a phrase still being typed", () => {
+    expect(urls('19" rack')).toEqual(["/guide/holes.html#rack"]);
+    expect(urls('"circular ar')).toEqual(["/guide/text.html#arc", "/guide/text.html#search"]);
+    expect(urls('""')).toEqual([]);
+    expect(urls('" "')).toEqual([]);
+  });
+
+  it("marks the phrase as one piece on the page, and only where it stands whole", () => {
+    expect(marked("A circular arc; an arc that is circular. Circular arcs.", '"circular arc"')).toEqual(["circular arc"]);
+    expect(marked("Search the arc, ARC by arc.", '"arc"')).toEqual(["arc", "ARC", "arc"]);
+    expect(marked("Bend the text on an arc.", '"an arc" bend')).toEqual(["Bend", "an arc"]);
   });
 });

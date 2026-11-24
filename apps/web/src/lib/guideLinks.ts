@@ -39,10 +39,26 @@ export const GUIDE_SECTIONS = {
   sectionView: { chapter: "view", en: "looking-inside-the-section-view" },
   viewCube: { chapter: "view", en: "the-view-cube" },
   cameraBar: { chapter: "view", en: "the-camera-bar" },
+  detailLevel: { chapter: "view", en: "detail-level" },
+  buildPlates: { chapter: "view", en: "build-plates" },
   gridAndSnapping: { chapter: "view", en: "grid-and-snapping" },
+  // The tabs of the settings window. Languages whose chapter explains the window in one go, under
+  // "Grid and snapping", land there.
+  settingsSearch: { chapter: "view", en: "the-settings-window" },
+  settingsAppearance: { chapter: "view", en: "appearance-theme-toolbar-and-view-cube" },
+  // Controls: the mouse and the camera.
+  settingsControls: { chapter: "view", en: "appearance-selecting-and-moving" },
+  // Appearance: the view - start view, scrollbars, view bar, the message after each step (#1708).
+  settingsView: { chapter: "view", en: "appearance-the-view" },
+  ribbonButtons: { chapter: "view", en: "appearance-theme-toolbar-and-view-cube" },
+  settingsMeasurement: { chapter: "view", en: "measurement-units-scale-and-snap-steps" },
+  settingsWorkplane: { chapter: "view", en: "workplane-plate-and-printer" },
   colorCard: { chapter: "shapes", en: "choosing-colours" },
   shapeSettings: { chapter: "shapes", en: "the-shape-s-settings" },
   wrapCylinder: { chapter: "shapes", en: "wrapping-around-a-cylinder" },
+  paint: { chapter: "shapes", en: "painting-in-several-colours" },
+  surfaceTexture: { chapter: "shapes", en: "a-surface-texture" },
+  stencilBridges: { chapter: "text", en: "stencils-bridges-for-the-middle-of-letters" },
   textFill: { chapter: "text", en: "outline-silhouette-and-wider" },
   textLayers: { chapter: "text", en: "layers-and-name-tags" },
   iconTag: { chapter: "text", en: "icon-tags" },
@@ -51,49 +67,61 @@ export const GUIDE_SECTIONS = {
   objectList: { chapter: "select", en: "the-object-list" },
   pattern: { chapter: "select", en: "patterns-row-grid-and-circle" },
   holePattern: { chapter: "select", en: "hole-pattern-on-a-face" },
-  supportRib: { chapter: "printing", en: "support-ribs-for-a-tilted-part" },
+  threadInsert: { chapter: "select", en: "hole-for-a-thread-insert" },
+  magnetPocket: { chapter: "select", en: "magnet-pocket" },
   faceTool: { chapter: "select", en: "pushing-a-face-out-or-in" },
+  alignSpread: { chapter: "select", en: "equal-gaps" },
   scaleByPercent: { chapter: "select", en: "scaling-by-percent" },
   selectionProperties: { chapter: "select", en: "changing-several-parts-at-once" },
   historyView: { chapter: "select", en: "looking-back-the-history-view" },
   grouping: { chapter: "solids", en: "grouping" },
+  groupResize: { chapter: "solids", en: "resizing-a-group-keeping-holes-and-small-parts" },
   bundling: { chapter: "solids", en: "bundling" },
   intersection: { chapter: "solids", en: "intersection" },
   splitting: { chapter: "solids", en: "splitting" },
   edgeTreatment: { chapter: "edges", en: "chamfering-and-filleting-edges" },
   hollowing: { chapter: "edges", en: "hollowing-bodies" },
-  offset: { chapter: "edges", en: "offsetting-bodies" },
+  lid: { chapter: "edges", en: "a-lid-for-an-open-body" },
+  cableChannel: { chapter: "edges", en: "a-cable-channel-through-a-body" },
+  mold: { chapter: "edges", en: "molds-and-dies" },
   cutOut: { chapter: "solids", en: "cutting-one-body-out-of-another" },
   punch: { chapter: "solids", en: "punching-an-outline-through-a-body" },
-  buildPlates: { chapter: "view", en: "build-plates" },
-  clearanceCheck: { chapter: "printing", en: "checking-clearance" },
-  flexi: { chapter: "threads", en: "flexi-joints" },
-  lid: { chapter: "edges", en: "a-lid-for-an-open-body" },
-  vase: { chapter: "shapes", en: "a-vase" },
-  ports: { chapter: "threads", en: "port-openings" },
+  offset: { chapter: "edges", en: "offsetting-bodies" },
   deleteFace: { chapter: "edges", en: "deleting-faces" },
   threads: { chapter: "threads", en: "threads" },
   gears: { chapter: "threads", en: "gears" },
   springs: { chapter: "threads", en: "springs" },
   bentTubes: { chapter: "threads", en: "bent-tubes" },
   loft: { chapter: "threads", en: "loft" },
+  vase: { chapter: "shapes", en: "a-vase" },
   gridfinity: { chapter: "threads", en: "gridfinity" },
   hinge: { chapter: "threads", en: "hinge" },
+  flexi: { chapter: "threads", en: "flexi-joints" },
   knurl: { chapter: "threads", en: "knurling" },
   dovetail: { chapter: "threads", en: "dovetail" },
   screwBoss: { chapter: "threads", en: "screw-boss" },
   snapFit: { chapter: "threads", en: "snap-fit" },
   ribs: { chapter: "threads", en: "ribs" },
   teardrop: { chapter: "threads", en: "teardrop-hole" },
+  ports: { chapter: "threads", en: "port-openings" },
+  sbcBoard: { chapter: "threads", en: "sbc-boards" },
   screwHoles: { chapter: "threads", en: "counterbore-and-countersink" },
   ruler: { chapter: "measuring", en: "the-ruler" },
   printer: { chapter: "printing", en: "choosing-your-printer" },
   designFolders: { chapter: "files", en: "folders-for-your-designs" },
   backingUp: { chapter: "files", en: "backing-up-and-passing-on" },
+  yourBackup: { chapter: "files", en: "your-designs-your-backup" },
   fileBackups: { chapter: "files", en: "earlier-versions" },
   exporting: { chapter: "files", en: "exporting" },
+  attachments: { chapter: "files", en: "attachments" },
   importing: { chapter: "files", en: "importing" },
+  largeMeshes: { chapter: "files", en: "large-meshes" },
   simplifyMesh: { chapter: "files", en: "simplifying-an-imported-mesh" },
+  clearanceCheck: { chapter: "printing", en: "checking-clearance" },
+  supportRib: { chapter: "printing", en: "support-ribs-for-a-tilted-part" },
+  layerCheck: { chapter: "printing", en: "print-analysis-and-layer-view" },
+  printCheck: { chapter: "printing", en: "checking-the-print" },
+  protractor: { chapter: "measuring", en: "the-protractor" },
   tapeMeasure: { chapter: "measuring", en: "the-tape-measure" },
   notes: { chapter: "measuring", en: "notes" },
   sketchCorners: { chapter: "sketches", en: "rounding-or-chamfering-corners" },
@@ -109,32 +137,28 @@ export const GUIDE_SECTIONS = {
   selecting: { chapter: "select", en: "selecting" },
   layFlat: { chapter: "select", en: "laying-flat-on-a-face" },
   referencePoints: { chapter: "measuring", en: "reference-points" },
+  referenceImage: { chapter: "measuring", en: "reference-images" },
   addingText: { chapter: "text", en: "adding-text" },
   sketchMirror: { chapter: "sketches", en: "mirroring" },
   sketchCurve: { chapter: "sketches", en: "curving-a-straight-side" },
-  // Fork (build 26): Pare 3D's own tools.
+  commandSearch: { chapter: "shortcuts", en: "command-search" },
+  customKeys: { chapter: "shortcuts", en: "your-own-keys" },
+  interactiveHelp: { chapter: "shortcuts", en: "interactive-help" },
+  whatsNew: { chapter: "start", en: "new-since-your-last-visit" },
+  focusMode: { chapter: "start", en: "the-editor-at-a-glance" },
   blend: { chapter: "solids", en: "blend" },
   readyParts: { chapter: "shapes", en: "ready-made-parts" },
-  // Fork (build 33).
   hull: { chapter: "solids", en: "hull-wrapping-parts-in-one-body" },
   fitCheck: { chapter: "printing", en: "checking-clearance" },
   meshRound: { chapter: "files", en: "rounding-a-mesh" },
   meshSculpt: { chapter: "files", en: "sculpting-a-mesh" },
-  // Fork (build 55).
   texture: { chapter: "files", en: "surface-textures" },
   surfaceText: { chapter: "text", en: "text-on-any-surface" },
   parameters: { chapter: "measuring", en: "parameters-named-sizes" },
   draft: { chapter: "edges", en: "draft-angle" },
   makeFromPhoto: { chapter: "shapes", en: "making-from-a-photo-or-a-pattern" },
   spaceOut: { chapter: "select", en: "spacing-parts-out" },
-  printCheck: { chapter: "printing", en: "ready-to-print" },
   printFit: { chapter: "printing", en: "holes-that-fit" },
-  commandSearch: { chapter: "shortcuts", en: "command-search" },
-  interactiveHelp: { chapter: "shortcuts", en: "interactive-help" },
-  whatsNew: { chapter: "start", en: "new-since-your-last-visit" },
-  threadInsert: { chapter: "select", en: "hole-for-a-thread-insert" },
-  magnetPocket: { chapter: "select", en: "magnet-pocket" },
-  layerCheck: { chapter: "printing", en: "print-analysis-and-layer-view" },
 } as const satisfies Record<string, { chapter: GuideChapter; en: string } & Partial<Record<Language, string>>>;
 
 export type GuideSection = keyof typeof GUIDE_SECTIONS;
@@ -169,6 +193,8 @@ type GuideShape = {
   layeredText?: boolean;
   layeredIcon?: boolean;
   qrCode?: unknown;
+  sbcBoard?: unknown;
+  imagePlate?: unknown;
 };
 
 export function guideSectionForShape(shape: GuideShape): GuideSection | undefined {
@@ -178,9 +204,14 @@ export function guideSectionForShape(shape: GuideShape): GuideSection | undefine
   if (shape.layeredIcon && shape.groupedShapes?.length) return "iconTag";
   // A QR code (#553), alone or on its plate, is explained with the texts and tags.
   if (shape.qrCode) return "qrCode";
+  // An SBC board (#1098) is a group, but it is explained next to the port openings.
+  if (shape.sbcBoard) return "sbcBoard";
+  // A reference image (#680) is explained with the other measuring aids.
+  if (shape.imagePlate) return "referenceImage";
   if (shape.groupedShapes?.length) {
     if (shape.groupOperation === "bundle") return "bundling";
-    if (shape.groupOperation === "intersection" || shape.groupOperation === "loft") return "intersection";
+    // A loft between two sketches is explained next to the hull and the cookie cutter.
+    if (shape.groupOperation === "intersection" || shape.groupOperation === "hull" || shape.groupOperation === "loft") return "intersection";
     return "grouping";
   }
   // A body made from a sketch, or a file brought in, is explained where it was made.
@@ -197,6 +228,7 @@ export function guideSectionForShape(shape: GuideShape): GuideSection | undefine
       return "threads";
     case "gear":
     case "hirth":
+    case "pulley":
       return "gears";
     case "spring":
       return "springs";
@@ -230,6 +262,7 @@ export function guideSectionForShape(shape: GuideShape): GuideSection | undefine
     case "counterbore":
     case "countersink":
     case "doubleCountersink":
+    case "finishingWasher":
       return "screwHoles";
     case "ruler":
       return "ruler";
@@ -251,6 +284,7 @@ export function guideChapterForShape(shape: GuideShape): GuideChapter {
     case "spring":
     case "gear":
     case "hirth":
+    case "pulley":
     case "bentTube":
     case "loft":
     case "gridfinity":
@@ -265,6 +299,7 @@ export function guideChapterForShape(shape: GuideShape): GuideChapter {
     case "counterbore":
     case "countersink":
     case "doubleCountersink":
+    case "finishingWasher":
       return "threads";
     case "ruler":
       return "measuring";

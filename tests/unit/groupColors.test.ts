@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canToggleGroupColors, groupShowsPartColors } from "@/lib/groupColors";
+import { canToggleGroupColors, colorForParts, groupDisplayMergeable, groupShowsPartColors } from "@/lib/groupColors";
 import type { WorkplaneShape } from "@/types/layerling";
 
 function shape(overrides: Partial<WorkplaneShape> = {}): WorkplaneShape {
@@ -47,16 +47,52 @@ describe("groupShowsPartColors", () => {
     expect(groupShowsPartColors(shape({ kind: "mesh", groupedShapes: parts, importedMesh: cutMesh, multicolor: true }))).toBe(true);
   });
 
-  it("always shows a bundle in its parts' colours", () => {
-    expect(groupShowsPartColors(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "bundle", multicolor: false }))).toBe(true);
+  it("shows a bundle in its parts' colours until Multicolor is switched off", () => {
+    expect(groupShowsPartColors(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "bundle" }))).toBe(true);
+    expect(groupShowsPartColors(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "bundle", multicolor: true }))).toBe(true);
+    expect(groupShowsPartColors(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "bundle", multicolor: false }))).toBe(false);
   });
 });
 
 describe("canToggleGroupColors", () => {
-  it("offers the switch on groups only, not on bundles or holes", () => {
+  it("offers the switch on groups and bundles, not on holes or hulls", () => {
     expect(canToggleGroupColors(shape())).toBe(false);
     expect(canToggleGroupColors(shape({ kind: "mesh", groupedShapes: parts }))).toBe(true);
-    expect(canToggleGroupColors(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "bundle" }))).toBe(false);
+    expect(canToggleGroupColors(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "bundle" }))).toBe(true);
+    expect(canToggleGroupColors(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "hull" }))).toBe(false);
     expect(canToggleGroupColors(shape({ kind: "mesh", groupedShapes: parts, hole: true }))).toBe(false);
+  });
+});
+
+describe("colorForParts", () => {
+  it("keeps the parts of a group or bundle in their own colours, so Multicolor can bring them back", () => {
+    expect(colorForParts(shape({ kind: "mesh", groupedShapes: parts }), "#800080")).toBeUndefined();
+    expect(colorForParts(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "bundle" }), "#800080")).toBeUndefined();
+  });
+
+  it("hands the colour down for a single shape and for a hull", () => {
+    expect(colorForParts(shape(), "#800080")).toBe("#800080");
+    expect(colorForParts(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "hull" }), "#800080")).toBe("#800080");
+  });
+});
+
+describe("groupDisplayMergeable", () => {
+  it("merges a plain group of plain solids", () => {
+    expect(groupDisplayMergeable(shape({ kind: "mesh", groupedShapes: parts }))).toBe(true);
+    expect(groupDisplayMergeable(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "group" }))).toBe(true);
+  });
+
+  it("leaves bundles, hulls, cut groups, holes and nested groups as their parts", () => {
+    expect(groupDisplayMergeable(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "bundle" }))).toBe(false);
+    expect(groupDisplayMergeable(shape({ kind: "mesh", groupedShapes: parts, groupOperation: "hull" }))).toBe(false);
+    expect(groupDisplayMergeable(shape({ kind: "mesh", groupedShapes: parts, importedMesh: cutMesh }))).toBe(false);
+    expect(groupDisplayMergeable(shape({ kind: "mesh", groupedShapes: [parts[0], { ...parts[1], hole: true }] }))).toBe(false);
+    expect(groupDisplayMergeable(shape({ kind: "mesh", groupedShapes: [parts[0], shape({ id: "c", kind: "mesh", groupedShapes: parts })] }))).toBe(false);
+  });
+
+  it("leaves a tapered group as its parts, and its colours as they were (#1029)", () => {
+    const tapered = shape({ kind: "mesh", groupedShapes: parts, taperTopWidth: 10 } as Partial<WorkplaneShape>);
+    expect(groupDisplayMergeable(tapered)).toBe(false);
+    expect(groupShowsPartColors(tapered)).toBe(true);
   });
 });

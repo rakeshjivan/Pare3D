@@ -32,6 +32,9 @@ function communityUrl(language: Language) {
   return LANGUAGE_INFO[language].communityUrl;
 }
 
+/** The Layerling User Group on Facebook, for every language: many users meet there, not everyone is on GitHub. */
+export const FACEBOOK_GROUP_URL = "https://www.facebook.com/groups/1652302960025098/";
+
 // Whoever operates a layerling installation may be required to publish a legal
 // notice - in Germany every business site needs an Impressum. The pages differ
 // per operator and are not part of this project, so they are linked through
@@ -101,12 +104,18 @@ export function AppFooter({
   version,
   updateInfo,
   onBugReport,
+  onShowWelcome,
+  onShowAnnouncement,
 }: {
   variant?: "dashboard" | "editor";
   version: string;
   updateInfo?: AppUpdateInfo | null;
   /** Im Editor: den Entwurf als Fehlerbericht speichern. */
   onBugReport?: () => void;
+  /** On the start page once the welcome guide was closed: the way to bring it back. */
+  onShowWelcome?: () => void;
+  /** On the start page while an announcement runs that was closed here: the way to read it again. */
+  onShowAnnouncement?: () => void;
 }) {
   const language = useLanguage();
   const sponsor = supportLink(SUPPORT_SETTINGS, language);

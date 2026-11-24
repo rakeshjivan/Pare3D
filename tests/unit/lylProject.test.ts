@@ -10,6 +10,7 @@ import {
   inspectLylProjectPackage,
   LYL_FORMAT_VERSION,
   LYL_LIMITS,
+  LYL_NEWEST_READABLE_FORMAT_VERSION,
   LYL_SCHEMA_ID,
   type LylProjectDocumentV1,
   type LylProjectExportInput,
@@ -149,11 +150,46 @@ describe("layerling .lyl project packages", () => {
     await expect(importLylProject(broken)).rejects.toThrow(/textEdge/);
   });
 
+  it("keeps a body's paint through saving and opening, and refuses a stroke that is none", async () => {
+    const paint = [
+      { mode: "fill" as const, color: "#f2cf10", size: [20, 20, 20] as [number, number, number], point: [0, 20, 0] as [number, number, number], normal: [0, 1, 0] as [number, number, number], angle: 30 },
+      { mode: "circle" as const, size: [20, 20, 20] as [number, number, number], point: [0, 10, 10] as [number, number, number], normal: [0, 0, 1] as [number, number, number], diameter: 6 },
+      { mode: "lasso" as const, color: "#2f9e44", size: [20, 20, 20] as [number, number, number], origin: [0, 10, 80] as [number, number, number], right: [1, 0, 0] as [number, number, number], up: [0, 1, 0] as [number, number, number], forward: [0, 0, -1] as [number, number, number], perspective: true, outline: [[0, 0], [0.1, 0], [0, 0.1]] as Array<[number, number]> },
+    ];
+    const painted = shape("box", "painted", { paint });
+    const bytes = await exportLylProject(input([painted]));
+    const restored = await importLylProject(bytes);
+    expect(restored.shapes[0].paint).toEqual(paint);
+    const broken = mutateProject(bytes, (document) => {
+      document.states.forEach((state) => state.nodes.forEach((node) => {
+        const definition = node.definition as Record<string, unknown>;
+        if (definition.paint) definition.paint = [{ mode: "spray", size: [1, 1, 1] }];
+      }));
+    });
+    await expect(importLylProject(broken)).rejects.toThrow(/paint/);
+  });
+
   it("keeps a group's Multicolor choice through saving and opening", async () => {
     const group = shape("box", "group-1", { multicolor: false });
     const other = shape("box", "group-2", { multicolor: true });
     const restored = await importLylProject(await exportLylProject(input([group, other])));
     expect(restored.shapes.map((entry) => entry.multicolor)).toEqual([false, true]);
+  });
+
+  it("keeps what a group does with its parts when it is resized, and refuses another word (#526)", async () => {
+    const keeping = shape("box", "group-1", { groupResize: "keepParts" });
+    const stretching = shape("box", "group-2");
+    const bytes = await exportLylProject(input([keeping, stretching]));
+    const restored = await importLylProject(bytes);
+    expect(restored.shapes.map((entry) => entry.groupResize)).toEqual(["keepParts", undefined]);
+    const broken = mutateProject(bytes, (document) => {
+      expect(JSON.stringify(document)).toContain("keepParts");
+      document.states.forEach((state) => state.nodes.forEach((node) => {
+        const definition = node.definition as Record<string, unknown>;
+        if (definition.groupResize) definition.groupResize = "sideways";
+      }));
+    });
+    await expect(importLylProject(broken)).rejects.toThrow(/groupResize/);
   });
 
   it("loads an old cylinder with mismatched width and depth as circular instead of refusing it", async () => {
@@ -236,6 +272,29 @@ describe("layerling .lyl project packages", () => {
     expect(restored.shapes[0].sketchProfile?.inset).toEqual({ distance: 3, radius: 1.5 });
     const broken = { ...pad, sketchProfile: { ...pad.sketchProfile!, inset: { distance: -1, radius: 0 } } };
     await expect(importLylProject(await exportLylProject(input([broken])))).rejects.toThrow(/inset/);
+  });
+
+  it("keeps the side of a swept section that runs along the path, and refuses another word (#732)", async () => {
+    const sweep = shape("mesh", "rail", {
+      name: "Sketch sweep",
+      sketchOperation: "sweep",
+      sketchProfile: {
+        points: [{ id: "p1", x: 0, z: 0 }, { id: "p2", x: 10, z: 0 }, { id: "p3", x: 10, z: 6 }],
+        segments: [
+          { id: "s1", startId: "p1", endId: "p2", kind: "line" },
+          { id: "s2", startId: "p2", endId: "p3", kind: "line" },
+          { id: "s3", startId: "p3", endId: "p1", kind: "line" },
+        ],
+        sweepAnchor: "left",
+      },
+      importedMesh: { positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], baseWidth: 10, baseDepth: 6, baseHeight: 3, triangleCount: 1, sourceFormat: "json" },
+    });
+    const restored = await importLylProject(await exportLylProject(input([sweep])));
+    expect(restored.shapes[0].sketchProfile?.sweepAnchor).toBe("left");
+    const middle = { ...sweep, sketchProfile: { ...sweep.sketchProfile!, sweepAnchor: "center" as const } };
+    expect((await importLylProject(await exportLylProject(input([middle])))).shapes[0].sketchProfile?.sweepAnchor).toBeUndefined();
+    const broken = { ...sweep, sketchProfile: { ...sweep.sketchProfile!, sweepAnchor: "top" as never } };
+    await expect(importLylProject(await exportLylProject(input([broken])))).rejects.toThrow(/sweepAnchor/);
   });
 
   it("preserves nested groups, holes, intersection metadata, edge history, B-Rep, and undo/redo", async () => {
@@ -609,7 +668,7 @@ describe("layerling .lyl project packages", () => {
   it("rejects unsupported future versions before restoring any state", async () => {
     const exported = await exportLylProject(input([shape("box")]));
     const future = mutateProject(exported, (document) => {
-      (document as { formatVersion: number }).formatVersion = LYL_FORMAT_VERSION + 1;
+      (document as { formatVersion: number }).formatVersion = LYL_NEWEST_READABLE_FORMAT_VERSION + 1;
     });
 
     await expect(importLylProject(future)).rejects.toThrow("requires a newer layerling version");

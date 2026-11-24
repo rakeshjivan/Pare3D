@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMoveDimensionOverlay, formatMoveDimension } from "@/lib/moveDimensionLines";
+import { createMoveDimensionOverlay, formatMoveDimension, typedMoveDelta } from "@/lib/moveDimensionLines";
 
 describe("move dimension lines", () => {
   const project = ({ x, z }: { x: number; y: number; z: number }) => ({ x: 400 + x * 4, y: 300 + z * 4 });
@@ -84,4 +84,42 @@ describe("move dimension lines", () => {
     expect(below?.labelY).toBeGreaterThan(300);
   });
 
+  it("measures a lift up the corner, with the label on the side away from the body (#979)", () => {
+    // Seen from the front: x to the right, up is up on the screen.
+    const front = ({ x, y }: { x: number; y: number; z: number }) => ({ x: 400 + x * 4, y: 300 - y * 4 });
+    const lift = (delta: number) => createMoveDimensionOverlay({
+      originX: -10,
+      originZ: 0,
+      planeY: 2,
+      deltaX: 0,
+      deltaZ: 0,
+      lift: { start: { x: -10, y: 2, z: 0 }, axis: { x: 0, y: 1, z: 0 }, delta, side: { x: 0, y: 2, z: 0 } },
+      accuracy: 2,
+      width: 800,
+      height: 600,
+      project: front,
+    });
+
+    const up = lift(15)?.lines;
+    expect(up).toHaveLength(1);
+    expect(up?.[0]).toMatchObject({ axis: "lift", label: "15.00", value: 15, x2: 360, y2: 232 });
+    expect(up?.[0].labelX).toBeLessThan(360);
+    expect(lift(-2)?.lines[0]).toMatchObject({ axis: "lift", label: "-2.00" });
+    expect(lift(0.001)).toBeNull();
+  });
+
+});
+
+describe("a typed move (Discussion #2002)", () => {
+  it("goes as far as typed, also on a further build plate and past an edge", () => {
+    expect(typedMoveDelta(2.4, [0])).toBe(2.4);
+    expect(typedMoveDelta(2.4, [232])).toBe(2.4);
+    expect(typedMoveDelta(-5, [660, 700])).toBe(-5);
+    expect(typedMoveDelta(150, [90])).toBe(150);
+  });
+
+  it("stops at the far limit of a typed position, for the body that is nearest to it", () => {
+    expect(typedMoveDelta(1e9, [0, 40])).toBe(99_960);
+    expect(typedMoveDelta(-1e9, [0, 40])).toBe(-100_000);
+  });
 });

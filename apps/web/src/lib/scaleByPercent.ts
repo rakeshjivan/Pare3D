@@ -5,7 +5,8 @@ import { cleanNearZero, resizedShapeSize, shapeDepth, shapeHasTaper, shapeTaperD
 import type { WorkplaneShape } from "@/types/layerling";
 
 const MIN_SIZE = 0.01;
-export const SCALE_PERCENT_MIN = 1;
+/** As small as 1:10,000 of the size, for model scales such as Z (1:220) and below. */
+export const SCALE_PERCENT_MIN = 0.01;
 export const SCALE_PERCENT_MAX = 1000;
 
 /**
@@ -57,6 +58,11 @@ export function worldBoxOfShapes(shapes: readonly WorkplaneShape[]) {
   const box = new THREE.Box3();
   shapes.forEach((shape) => worldCorners(shape).forEach((corner) => box.expandByPoint(corner)));
   return box;
+}
+
+/** 100 % changes nothing, so the window does not apply it; 100.4 % is a change (#817). */
+export function isUnchangedPercent(percent: number) {
+  return Math.abs(percent - 100) < 1e-9;
 }
 
 export type ScaleByPercentResult =

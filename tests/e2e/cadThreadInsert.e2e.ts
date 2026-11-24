@@ -74,8 +74,7 @@ describe("a thread insert hole in an exact body (#1828)", () => {
     const group = groupedShape([box, hole]);
     if (!group) throw new Error("no group");
 
-    const parts = restoreGroupedChildrenForEdges(group).map((shape) => {
-      const scope: number[] = [];
+    const parts = restoreGroupedChildrenForEdges(group).map(({ shape, scope }) => {
       const primitive = cadModifierPrimitiveForBakedShape(shape) ?? cadModifierPrimitiveForAnalyticShape(shape);
       if (!primitive) throw new Error(`no exact part for ${shape.kind}`);
       return { primitive, hole: Boolean(shape.hole), ...(scope.length ? { scope } : {}) } as CadModifierMeshPart;

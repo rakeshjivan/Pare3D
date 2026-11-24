@@ -9,6 +9,7 @@ import {
   type GuidePrepared,
   type GuideSearchEntry,
 } from "@/lib/guideSearchCore";
+import { hoverTitleOf } from "@/lib/penHoverTip";
 
 /**
  * Interactive Help: from an element of the program to the part of the user guide that is about it.
@@ -71,7 +72,8 @@ export function helpNameOf(element: Element): string {
     const named = clean(text);
     if (named) return named;
   }
-  const title = clean(element.getAttribute("title"));
+  // The installed app holds a title back while its own bubble shows it (#1013).
+  const title = clean(hoverTitleOf(element));
   if (title) return title;
   // The label around a slider holds its name, its value and its unit ("Length 30.00 mm"): ask about the name.
   const sliderName = element.matches("input, select, textarea") ? element.closest("label")?.querySelector(".range-property-name") : null;
@@ -128,7 +130,7 @@ export function panelGuideHref(element: Element): string | null {
 const GENERIC_PANEL_KEYS = [
   "common.cancel", "common.delete", "common.rename", "panel.close", "edge.apply", "edge.clear", "edge.cancelChamfer", "edge.cancelFillet",
   "split.apply", "split.cancelAria", "deleteFace.apply", "deleteFace.cancel", "shell.apply", "shell.cancel", "holePattern.apply", "holePattern.cancel",
-  "holePattern.repick", "threadInsert.apply", "threadInsert.cancel", "threadInsert.repick", "array.apply", "array.cancel", "faceTool.apply", "faceTool.cancel", "faceTool.repick", "simplify.apply", "mate.apply",
+  "holePattern.repick", "threadInsert.apply", "threadInsert.cancel", "threadInsert.repick", "magnetPocket.apply", "magnetPocket.cancel", "array.apply", "array.cancel", "faceTool.apply", "faceTool.cancel", "faceTool.repick", "simplify.apply", "mate.apply",
   "mate.cancel", "scalePercent.apply",
 ] as const;
 
@@ -150,7 +152,7 @@ function panelTitleFor(node: Element, name: string): string {
 }
 
 /** The target for a whole part of the program that the guide has a section about, whatever its parts are called. */
-const SECTION_NAMES: Record<string, string> = { addShape: "editor.addShape", objectList: "outliner.title", viewCube: "view.cube", cameraBar: "camera.controls", exporting: "panel.export", colorCard: "inspector.shapeColor", shapeSettings: "inspector.properties", rotating: "inspector.rotation" };
+const SECTION_NAMES: Record<string, string> = { addShape: "editor.addShape", objectList: "outliner.title", viewCube: "view.cube", cameraBar: "camera.controls", exporting: "panel.export", colorCard: "inspector.shapeColor", shapeSettings: "inspector.properties", rotating: "inspector.rotation", groupResize: "inspector.groupResize" };
 
 function sectionTarget(element: Element, section: string): HelpTarget {
   const key = SECTION_NAMES[section];

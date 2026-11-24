@@ -4,7 +4,7 @@ import { useState } from "react";
 import { t } from "@/lib/i18n";
 import { MmField } from "@/components/ReadyPartsSection";
 import { EnclosurePartIcon, FitTestPartIcon } from "@/components/readyPartIcons";
-import { FIT_TEST_CLEARANCES, fitTestParts, readMyPrintFit, saveMyPrintFit } from "@/lib/fitTest";
+import { FIT_TEST_CLEARANCES, fitTestParts, readMyPrintFit, saveMyPrintFit } from "@/lib/pareFitTest";
 import { DEFAULT_ENCLOSURE, enclosureParts, normalizeEnclosure, PORT_SIZES, type EnclosureOptions, type EnclosurePort, type EnclosureSide, type PortPreset } from "@/lib/enclosure";
 import { METRIC_SIZES, type MetricSize, type ReadyPart } from "@/lib/readyParts";
 

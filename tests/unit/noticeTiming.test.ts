@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOTICE_LINGER_MS, NOTICE_PATIENT_MS, noticeDurationMs } from "@/lib/noticeTiming";
+import { NOTICE_CHANGE_WINDOW_MS, NOTICE_LINGER_MS, NOTICE_PATIENT_MS, noticeDurationMs, noticeReportsLastChange, showsNotice } from "@/lib/noticeTiming";
 import { DEFAULT_WORKPLANE_WORKSPACE, snapGridForUnits, workspaceForUnits } from "@/lib/workplaneSettings";
 
 describe("how long a message of the status line stays (#422)", () => {
@@ -18,6 +18,20 @@ describe("how long a message of the status line stays (#422)", () => {
   it("never keeps a message longer than the patient time, and a patient one at least that long", () => {
     expect(noticeDurationMs("x".repeat(5000))).toBe(NOTICE_PATIENT_MS);
     expect(noticeDurationMs("Short but patient", true)).toBe(NOTICE_PATIENT_MS);
+  });
+});
+
+describe("the message after each step can be switched off (Discussion #1708)", () => {
+  it("shows every message while the setting is on", () => {
+    expect(showsNotice(true, true, true)).toBe(true);
+    expect(showsNotice(true, false, false)).toBe(true);
+  });
+
+  it("leaves out only an ordinary message that reports the step just taken", () => {
+    expect(showsNotice(false, true, true)).toBe(false);
+    // One that waits for something, warns or carries its own button still shows, and so does one about something else.
+    expect(showsNotice(false, false, true)).toBe(true);
+    expect(showsNotice(false, true, false)).toBe(true);
   });
 });
 
@@ -54,5 +68,21 @@ describe("the unit switch beside the snap grid (#422)", () => {
   it("gives the snap step one the unit system offers", () => {
     expect(snapGridForUnits("Imperial", "1.0 mm")).toBe("1/8 in");
     expect(snapGridForUnits("Metric (Default)", "1/8 in")).toBe("1.0 mm");
+  });
+});
+
+describe("a message that reports the step just taken offers Undo", () => {
+  const change = { at: 5000, index: 3 };
+  it("offers it for a message right before or after the step", () => {
+    expect(noticeReportsLastChange(5200, change, 3)).toBe(true);
+    expect(noticeReportsLastChange(4900, change, 3)).toBe(true);
+  });
+  it("not for a message long after it, nor once the step is undone or followed by another", () => {
+    expect(noticeReportsLastChange(5000 + NOTICE_CHANGE_WINDOW_MS + 1, change, 3)).toBe(false);
+    expect(noticeReportsLastChange(5100, change, 2)).toBe(false);
+    expect(noticeReportsLastChange(5100, null, 3)).toBe(false);
+  });
+  it("not for the first entry, which there is nothing before", () => {
+    expect(noticeReportsLastChange(5000, { at: 5000, index: 0 }, 0)).toBe(false);
   });
 });

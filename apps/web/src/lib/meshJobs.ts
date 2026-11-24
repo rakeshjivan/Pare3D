@@ -1,24 +1,21 @@
 /**
  * Fork (build 35): runs heavy mesh work in a worker (workers/meshJobs.worker.ts). Where a worker
  * cannot start - an old browser, the tests - the same work runs here as before.
- * Pare 3D is CAD only: Round a mesh, Remesh, surface textures and the fit check.
+ * Pare 3D is CAD only: Round a mesh, Remesh and the fit check.
  */
 import { BASE_PATH } from "@/lib/basePath";
 import type { MeshRoundMode, MeshRoundResult } from "@/lib/meshRound";
 import type { FitReport } from "@/lib/partTools";
 import type { WorkplaneShape } from "@/types/layerling";
-import type { SurfaceTextureOptions, SurfaceTextureResult } from "@/lib/surfaceTexture";
 import type { RemeshOptions, RemeshResult } from "@/lib/meshRemesh";
 
 export type MeshJobRequest =
   | { id: number; base: string; kind: "round"; positions: Float32Array; radius: number; mode: MeshRoundMode }
   | { id: number; base: string; kind: "fit"; shapes: WorkplaneShape[]; clearance: number }
-  | { id: number; base: string; kind: "texture"; positions: Float32Array; options: SurfaceTextureOptions }
   | { id: number; base: string; kind: "remesh"; positions: Float32Array; options: RemeshOptions };
 export type MeshJobResponse =
   | { id: number; ok: true; kind?: "round"; result: { positions: Float32Array; voxel: number; coarse: boolean } }
   | { id: number; ok: true; kind: "fit"; report: FitReport }
-  | { id: number; ok: true; kind: "texture"; texture: SurfaceTextureResult }
   | { id: number; ok: true; kind: "remesh"; remesh: { positions: Float32Array; voxel: number; coarse: boolean; triangles: number } }
   | { id: number; ok: false; error: string };
 
@@ -39,7 +36,6 @@ function meshWorker(): Worker | null {
       pending.delete(reply.id);
       if (!reply.ok) waiting.reject(new Error(reply.error));
       else if (reply.kind === "fit") waiting.resolve(reply.report);
-      else if (reply.kind === "texture") waiting.resolve(reply.texture);
       else if (reply.kind === "remesh") waiting.resolve({ ...reply.remesh, positions: Array.from(reply.remesh.positions) });
       else waiting.resolve({ positions: Array.from(reply.result.positions), voxel: reply.result.voxel, coarse: reply.result.coarse });
     };
@@ -124,25 +120,6 @@ export async function remeshInBackground(positions: ArrayLike<number>, options: 
   }
 }
 
-/** Fork (build 55): a surface texture on a part (world positions), in the worker when one runs. */
-export async function textureMeshInBackground(positions: ArrayLike<number>, options: SurfaceTextureOptions): Promise<SurfaceTextureResult> {
-  const here = async () => (await import("@/lib/surfaceTexture")).textureMeshPositions(positions, options);
-  const target = meshWorker();
-  if (!target) return here();
-  const id = nextId;
-  nextId += 1;
-  const data = Float32Array.from(positions as ArrayLike<number>);
-  try {
-    return await new Promise<SurfaceTextureResult>((resolve, reject) => {
-      pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
-      const request: MeshJobRequest = { id, base: new URL(BASE_PATH ? `${BASE_PATH}/` : ".", window.location.href).href, kind: "texture", positions: data, options };
-      target.postMessage(request, [data.buffer]);
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message === "worker-unavailable") return here();
-    throw error;
-  }
-}
 
 /** Fit check (build 37) in the worker when one runs, so a big assembly keeps the window working. */
 export async function checkFitInBackground(shapes: readonly WorkplaneShape[], clearance: number): Promise<FitReport> {

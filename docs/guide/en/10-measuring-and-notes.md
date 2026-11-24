@@ -46,6 +46,15 @@ With the midpoint, the green numbers count to the middle of the body, in height 
 
 Both the tape measure and the framing square stay where they are while you sketch and come back to the 3D view. They are not saved with the design and not in the history, and they go when you reload the page.
 
+## The protractor
+
+Click {{ui:camera.protractor}} in the view bar to measure an angle. A row of buttons opens beside it, and until you click the button again or press [[Esc]], a click in the view measures with the protractor. Like the tape measure, it snaps to the corners and edges of bodies; beside the bodies it sets a point on the plate.
+
+- {{ui:camera.protractorPoints}}: click the corner of the angle first, then a point on each side. While you place the last point, the angle shows already; after the third click it stays, with an arc between the sides. It is the angle at the corner, from 0° to 180°. Seen straight from the top, the front or a side, it measures the angle as it shows there: a top corner and the bottom corner right below it are the same spot. In a tilted view it is the angle in space.
+- {{ui:camera.protractorFaces}}: click two flat faces. A short blue line on each shows which way it faces, and the label gives both angles the faces make, the smaller first: a 45° chamfer against the top reads 45° · 135°, two sides of a box just 90°. A curved face has no single direction, so the protractor asks for a flat one.
+
+The next click after a finished angle starts a new one, and {{ui:camera.protractorClear}} removes it. The angle follows the bodies when they move or turn. Nothing of it is saved or goes into the history: it is gone when you put the protractor away.
+
 ## Distances to the origin and while moving
 
 In the settings under {{ui:workspace.appearance}} there are two switches for live dimensions:
@@ -78,6 +87,18 @@ A reference point is a bare mark in space, like a pencil mark or a layout point 
 - When you drag a shape, its edges and its centre snap to a point, like they snap to other shapes ({{ui:workspace.objectSnap}}). The framing square snaps to points too.
 - Points are saved in the design, appear in no export, and are shown or hidden together with the notes by {{ui:visibility.notes}} ([[Shift]]+[[N]]).
 - An AI can mark, list and remove them with `layerling_add_reference_points`, `layerling_list_reference_points` and `layerling_remove_reference_points`.
+
+## Reference images
+
+A reference image is a picture to line parts up on: lay a photo of a circuit board on the floor of its case, and place the standoffs, holes and connector cut-outs right on it. It is a guide, not a body: it is never printed, never exported (STL, 3MF, OBJ, STEP, SVG), never part of a group, a bundle or a cut, and the print estimate leaves it out.
+
+- Open {{ui:editor.import}} and choose {{ui:import.referenceImage}}, then a PNG, JPG, WebP, GIF or BMP picture. It lands on the workplane - on the plate, or on the face you set the workplane on - with its longer side 100 mm, half see-through.
+- Move, turn and resize it with its handles like any shape. A body in front of it is picked first, so working on top of it does not grab the picture.
+- {{ui:referenceImage.seeThrough}} in its settings fades it from solid to barely there.
+- {{ui:referenceImage.calibrate}} gives it its true size, as in the sketch: click two points on the picture whose real distance you know - two mounting holes of the board, say - and type that distance in {{ui:referenceImage.distance}}. The picture keeps its proportions and its middle.
+- Lock it with the lock in the header of its settings, and it stays put: clicks then go through it to the plate. Pick it in the object list to unlock it.
+- The picture is saved once in the design file, however often it is copied or undone. A large picture makes the file larger by as much; the message when you add it says how large it is.
+- An AI adds, moves, calibrates, fades and locks one with `layerling_reference_image`. With `trace` it traces the picture into a sketch body standing on it, as the sketch's {{ui:sketch.traceImage}} does.
 
 ## Parameters: named sizes
 

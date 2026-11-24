@@ -1,26 +1,28 @@
 import { BASE_PATH } from "@/lib/basePath";
-import { buildsDiffer, BUILD_ID, isBuildMessage, reportWorkerBuild } from "@/lib/buildStamp";
-import { buildGroupedShapeFromSelection, exportSolidVolume, splitShapeIfCrossed, splitShapesByPlane, type ExportSolidVolume, type GroupBuildResult, type SplitShapesOutcome } from "@/lib/editorBooleans";
-import { packValue, packedTransfer, unpackValue } from "@/lib/geometryTransfer";
 import { exportMeshesTo3mfAsync, type ThreeMfExportMesh } from "@/lib/threemfExport";
 import { flattenThreeMfMeshes } from "@/lib/threemfFlat";
-import { articulateShapes, type FlexiOptions, type FlexiShapesResult } from "@/lib/flexiJoints";
-import { lidForShapes, type LidOptions, type LidShapeResult } from "@/lib/lidTool";
-import { checkClearance, type ClearanceOptions, type ClearanceResult } from "@/lib/clearanceCheck";
-import { checkLayers, type LayerCheckOptions, type LayerCheckResult } from "@/lib/layerCheck";
 import { splitBoltForShape, type BoltSplitOptions, type BoltSplitShapeResult } from "@/lib/boltSplit";
+import { buildsDiffer, BUILD_ID, isBuildMessage, reportWorkerBuild } from "@/lib/buildStamp";
+import { checkClearance, type ClearanceOptions, type ClearanceResult } from "@/lib/clearanceCheck";
+import { buildGroupedShapeFromSelection, exportSolidVolume, faceReadJoins, faceReadPositions, previewSplitConnectors, splitShapeIfCrossed, splitShapesByPlane, type ExportSolidVolume, type RebuildStretchedGroup, type GroupBuildResult, type SplitConnectorPreview, type SplitShapesOutcome } from "@/lib/editorBooleans";
+import { packValue, packedTransfer, unpackValue } from "@/lib/geometryTransfer";
+import { articulateShapes, type FlexiOptions, type FlexiShapesResult } from "@/lib/flexiJoints";
+import { lidForShapes, lidTopForShapes, type LidOptions, type LidShapeResult } from "@/lib/lidTool";
+import { analyseMoldForShapes, moldForShapes, type MoldAnalysisResult, type MoldOptions, type MoldShapeResult } from "@/lib/moldTool";
+import { checkPrint, type PrintCheckOptions, type PrintCheckResult } from "@/lib/printCheck";
+import { checkLayers, type LayerCheckOptions, type LayerCheckResult } from "@/lib/layerCheck";
 import { resultMeshes, type GeometryTask, type GeometryWorkerRequest, type GeometryWorkerResponse } from "@/lib/geometryWorkerTypes";
 import { gridfinityHasLabelText } from "@/lib/gridfinityGeometry";
 import { rememberPreparedDisplay } from "@/lib/importedMeshDisplay";
 import { getLanguage, t } from "@/lib/i18n";
 import type { ModelSplitPlane } from "@/lib/modelSplit";
-import { simplifyTrianglePositions, type SimplifiedMesh } from "@/lib/meshSimplify";
+import type { SplitConnectorOptions } from "@/lib/splitConnectors";
+import { simplifyTrianglePositions, type SimplifiedMesh, type SimplifyOptions } from "@/lib/meshSimplify";
 import { importedShapesFromObj, type ObjImportResult } from "@/lib/objImport";
-import { importedShapeFromStl } from "@/lib/stlImport";
+import { importedShapeFromStl, type MeshPlacement, type StlReadOptions } from "@/lib/stlImport";
 import { importedShapesFromStepFile, type StepFileImport } from "@/lib/stepFileImport";
 import type { StepExportResult } from "@/lib/stepExport";
 import type { WorkplaneShape } from "@/types/layerling";
-import type { CutConnectorOptions } from "@/lib/cutConnectors";
 
 /**
  * Grouping, cutting and splitting in workers/geometry.worker.ts, so the editor does not freeze
@@ -60,9 +62,11 @@ let crashes = 0;
 let requestCounter = 0;
 const pending = new Map<number, Pending>();
 const busyListeners = new Set<(busy: boolean) => void>();
+/** Clicks waiting for a read begun without "Calculating"; while one waits, it is shown. */
+let busyWaits = 0;
 
 function notifyBusy() {
-  const busy = Array.from(pending.values()).some((entry) => !entry.quiet);
+  const busy = busyWaits > 0 || Array.from(pending.values()).some((entry) => !entry.quiet);
   busyListeners.forEach((listener) => listener(busy));
 }
 
@@ -263,35 +267,61 @@ export function buildGroupedShapeOffThread(selected: WorkplaneShape[], triangleL
 
 type SplitPlane = Pick<ModelSplitPlane, "axis" | "normal" | "position">;
 
-function splitShapeOffThread(shape: WorkplaneShape, plane: SplitPlane, signal?: AbortSignal) {
-  const onPage = () => splitShapeIfCrossed(shape, plane);
+function splitShapeOffThread(shape: WorkplaneShape, plane: SplitPlane, connectors: SplitConnectorOptions | undefined, stretch: number | undefined, signal?: AbortSignal) {
+  const onPage = () => splitShapeIfCrossed(shape, plane, connectors, stretch);
   if (containsText([shape])) return onPage();
-  return runGeometryTask<Awaited<ReturnType<typeof splitShapeIfCrossed>>>("split", { shape, plane }, onPage, () => ({ parts: null, error: t("status.computeTimedOut") }), signal);
+  return runGeometryTask<Awaited<ReturnType<typeof splitShapeIfCrossed>>>("split", { shape, plane, ...(connectors ? { connectors } : {}), ...(stretch !== undefined ? { stretch } : {}) }, onPage, () => ({ parts: null, error: t("status.computeTimedOut") }), signal);
 }
 
-/** splitShapesByPlane (lib/editorBooleans.ts) with each cut made off the page. */
-export function splitShapesByPlaneOffThread(targets: readonly WorkplaneShape[], plane: SplitPlane, stillCurrent: () => boolean, signal?: AbortSignal, connectors?: CutConnectorOptions, manualPoints: readonly [number, number, number][] = []): Promise<SplitShapesOutcome> {
-  // Fork: a cut with connectors (pins and holes) stays on the page; a plain cut goes to the worker.
-  return splitShapesByPlane(targets, plane, stillCurrent, connectors, manualPoints, (shape, shapePlane) => splitShapeOffThread(shape, shapePlane, signal));
+/**
+ * splitShapesByPlane (lib/editorBooleans.ts) with each cut made off the page, with connectors when they are asked for - or,
+ * with `stretch`, each body made that much longer at the plane (Discussions #506, #1569); a group with `rebuildGroup` part by part, so it stays a group (Discussion #1707).
+ */
+export function splitShapesByPlaneOffThread(targets: readonly WorkplaneShape[], plane: SplitPlane, stillCurrent: () => boolean, signal?: AbortSignal, connectors?: SplitConnectorOptions, stretch?: number, rebuildGroup?: RebuildStretchedGroup): Promise<SplitShapesOutcome> {
+  return splitShapesByPlane(targets, plane, stillCurrent, (shape, shapePlane, asked, length) => splitShapeOffThread(shape, shapePlane, asked, length, signal), connectors, stretch, rebuildGroup);
+}
+
+/**
+ * previewSplitConnectors (lib/editorBooleans.ts) off the page, quietly: where the Split panel's connectors would go, while
+ * the plane is moved. A preview the signal calls off (the plane moved on) never answers.
+ */
+export function previewSplitConnectorsOffThread(targets: readonly WorkplaneShape[], plane: SplitPlane, connectors: SplitConnectorOptions, signal?: AbortSignal): Promise<SplitConnectorPreview> {
+  const onPage = () => previewSplitConnectors([...targets], plane, connectors);
+  if (containsText([...targets])) return onPage();
+  return runGeometryTask<SplitConnectorPreview>("splitConnectors", { targets: [...targets], plane, connectors }, onPage, () => {
+    throw new Error(t("status.computeTimedOut"));
+  }, signal, true);
 }
 
 /** articulateShapes (lib/flexiJoints.ts) off the page: the links of a flexi body. */
+export function articulateShapesOffThread(targets: readonly WorkplaneShape[], options: FlexiOptions, signal?: AbortSignal): Promise<FlexiShapesResult> {
+  const onPage = () => articulateShapes([...targets], options);
+  if (containsText([...targets])) return onPage();
+  return runGeometryTask<FlexiShapesResult>("flexi", { targets: [...targets], options }, onPage, () => ({ links: null, error: t("status.computeTimedOut") }), signal);
+}
+
 /**
  * checkClearance (lib/clearanceCheck.ts) off the page: overlaps, touching parts and the narrowest gaps. A check the
  * signal calls off (a new one started) never answers.
  */
 export function checkClearanceOffThread(source: readonly WorkplaneShape[], options: Partial<ClearanceOptions>, signal?: AbortSignal): Promise<ClearanceResult> {
-  const onPage = async () => checkClearance([...source], options);
+  const onPage = () => checkClearance([...source], options);
   if (containsText([...source])) return onPage();
   return runGeometryTask<ClearanceResult>("clearance", { source: [...source], options }, onPage, () => {
     throw new Error(t("status.computeTimedOut"));
   }, signal);
 }
 
-export function articulateShapesOffThread(targets: readonly WorkplaneShape[], options: FlexiOptions, signal?: AbortSignal): Promise<FlexiShapesResult> {
-  const onPage = () => articulateShapes([...targets], options);
-  if (containsText([...targets])) return onPage();
-  return runGeometryTask<FlexiShapesResult>("flexi", { targets: [...targets], options }, onPage, () => ({ links: null, error: t("status.computeTimedOut") }), signal);
+/**
+ * checkPrint (lib/printCheck.ts) off the page: the walls of a 200,000-triangle body take a ray each, about a second in
+ * the worker. A check the signal calls off (a new one started) never answers; text is checked on the page.
+ */
+export function checkPrintOffThread(source: readonly WorkplaneShape[], options: Partial<PrintCheckOptions>, signal?: AbortSignal): Promise<PrintCheckResult> {
+  const onPage = () => checkPrint([...source], options);
+  if (containsText([...source])) return onPage();
+  return runGeometryTask<PrintCheckResult>("printCheck", { source: [...source], options }, onPage, () => {
+    throw new Error(t("status.computeTimedOut"));
+  }, signal);
 }
 
 /**
@@ -307,6 +337,19 @@ export function checkLayersOffThread(source: readonly WorkplaneShape[], options:
   }, signal, false, progress);
 }
 
+/** splitBoltForShape (lib/boltSplit.ts) off the page: a screw or rod cut lengthwise and laid flat for printing. */
+export function splitBoltOffThread(shape: WorkplaneShape, options: Partial<BoltSplitOptions>, signal?: AbortSignal): Promise<BoltSplitShapeResult> {
+  const onPage = () => splitBoltForShape(shape, options);
+  return runGeometryTask<BoltSplitShapeResult>("boltSplit", { shape, options }, onPage, () => ({ parts: null, error: t("status.computeTimedOut") }), signal);
+}
+
+/** analyseMoldForShapes (lib/moldTool.ts) off the page, quietly: the mold panel's live check. Called off, it never answers. */
+export function analyseMoldOffThread(targets: readonly WorkplaneShape[], options: MoldOptions, signal?: AbortSignal): Promise<MoldAnalysisResult> {
+  const onPage = () => analyseMoldForShapes([...targets], options);
+  if (containsText([...targets])) return onPage();
+  return runGeometryTask<MoldAnalysisResult>("moldCheck", { targets: [...targets], options }, onPage, () => ({ analysis: null, error: t("status.computeTimedOut") }), signal, true);
+}
+
 /** lidForShapes (lib/lidTool.ts) off the page: the lid for a body open at the top (#1009). */
 export function lidForShapesOffThread(targets: readonly WorkplaneShape[], options: LidOptions, signal?: AbortSignal): Promise<LidShapeResult> {
   const onPage = () => lidForShapes([...targets], options);
@@ -314,13 +357,31 @@ export function lidForShapesOffThread(targets: readonly WorkplaneShape[], option
   return runGeometryTask<LidShapeResult>("lid", { targets: [...targets], options }, onPage, () => ({ lid: null, error: t("status.computeTimedOut") }), signal);
 }
 
+/** moldForShapes (lib/moldTool.ts) off the page: the mold or die for a master. */
+export function moldForShapesOffThread(targets: readonly WorkplaneShape[], options: MoldOptions, signal?: AbortSignal): Promise<MoldShapeResult> {
+  const onPage = () => moldForShapes([...targets], options);
+  if (containsText([...targets])) return onPage();
+  return runGeometryTask<MoldShapeResult>("mold", { targets: [...targets], options }, onPage, () => ({ parts: null, error: t("status.computeTimedOut") }), signal);
+}
+
+/**
+ * lidTopForShapes (lib/lidTool.ts) off the page: the body's top as a standard's screw lid measures it, which the lid
+ * panel shows while it is open (issue #1482). Quiet, as the warm-up is: the panel says it is measuring. A measurement the
+ * signal calls off (the body changed) never answers; one that times out is no measurement.
+ */
+export function lidTopOffThread(targets: readonly WorkplaneShape[], signal?: AbortSignal): ReturnType<typeof lidTopForShapes> {
+  const onPage = () => lidTopForShapes([...targets]);
+  if (containsText([...targets])) return onPage();
+  return runGeometryTask("lidTop", { targets: [...targets] }, onPage, () => null, signal, true);
+}
+
 /**
  * An STL file read off the page (importedShapeFromStl in lib/stlImport.ts): reading a 300,000-triangle
  * file held the page for over a second. The import window shows its own progress, so this says
  * nothing of its own.
  */
-export function importedShapeFromStlOffThread(fileName: string, buffer: ArrayBuffer): Promise<WorkplaneShape> {
-  return runGeometryTask("stl", { fileName, buffer }, async () => importedShapeFromStl(fileName, buffer), () => {
+export function importedShapeFromStlOffThread(fileName: string, buffer: ArrayBuffer, options: StlReadOptions = {}): Promise<WorkplaneShape> {
+  return runGeometryTask("stl", { fileName, buffer, options }, async () => importedShapeFromStl(fileName, buffer, options), () => {
     throw new Error(t("status.computeTimedOut"));
   }, undefined, true);
 }
@@ -331,16 +392,22 @@ export function importedShapeFromStlOffThread(fileName: string, buffer: ArrayBuf
  */
 export function importedShapesFromStepOffThread(fileName: string, buffer: ArrayBuffer): Promise<StepFileImport> {
   return runGeometryTask("step", { fileName, buffer }, async () => importedShapesFromStepFile(fileName, buffer), () => {
-    throw new Error(t("status.computeTimedOut"));
+    // A file the kernel gets stuck on (a damaged one, #286) says so, not "fewer or simpler objects".
+    throw new Error(t("status.importStepTimedOut", { minutes: Math.round(GEOMETRY_WORKER_TIMEOUT_MS / 60_000) }));
   }, undefined, true);
 }
 
 /**
  * A STEP file written off the page (exportShapesToStep in lib/stepExport.ts): reading every part back into the kernel
  * and writing the file held the page for about 3 s at 390 parts. A design with nothing STEP can carry still rejects
- * with a StepExportEmptyError by name.
+ * with a StepExportEmptyError by name. A design with text in it is written on the page, as every other task with text:
+ * the fonts are loaded there, and the worker stopped such an export with "fonts are not loaded" (#1337).
  */
 export async function exportShapesToStepOffThread(shapes: readonly WorkplaneShape[]): Promise<StepExportResult> {
+  if (containsText(shapes)) {
+    const { exportShapesToStep } = await import("@/lib/stepExport");
+    return exportShapesToStep([...shapes]);
+  }
   const result = await runGeometryTask<{ text: string; exportedCount: number; skipped: StepExportResult["skipped"] }>("stepExport", { shapes: [...shapes] }, async () => {
     const { exportShapesToStep } = await import("@/lib/stepExport");
     const { blob, exportedCount, skipped } = await exportShapesToStep([...shapes]);
@@ -352,8 +419,8 @@ export async function exportShapesToStepOffThread(shapes: readonly WorkplaneShap
 }
 
 /** An OBJ file read off the page (importedShapesFromObj in lib/objImport.ts). */
-export function importedShapesFromObjOffThread(fileName: string, text: string, mtlSources: readonly string[]): Promise<ObjImportResult> {
-  return runGeometryTask("obj", { fileName, text, mtlSources: [...mtlSources] }, async () => importedShapesFromObj(fileName, text, mtlSources), () => {
+export function importedShapesFromObjOffThread(fileName: string, text: string, mtlSources: readonly string[], placement: MeshPlacement = {}): Promise<ObjImportResult> {
+  return runGeometryTask("obj", { fileName, text, mtlSources: [...mtlSources], placement }, async () => importedShapesFromObj(fileName, text, mtlSources, placement), () => {
     throw new Error(t("status.computeTimedOut"));
   }, undefined, true);
 }
@@ -376,10 +443,131 @@ export function exportSolidVolumeOffThread(source: readonly WorkplaneShape[]): P
  * page for a 300,000-triangle import, at every rest of the slider. A new value calls off the one
  * before through `signal`. The panel shows its own progress.
  */
-export function simplifyTrianglePositionsOffThread(positions: ArrayLike<number>, target: number, signal?: AbortSignal): Promise<SimplifiedMesh> {
-  return runGeometryTask("simplify", { positions: Array.isArray(positions) ? positions : Array.from(positions), target }, () => simplifyTrianglePositions(positions, target), () => {
+export function simplifyTrianglePositionsOffThread(positions: ArrayLike<number>, target: number, signal?: AbortSignal, options: SimplifyOptions = {}): Promise<SimplifiedMesh> {
+  return runGeometryTask("simplify", { positions: Array.isArray(positions) ? positions : Array.from(positions), target, options }, () => simplifyTrianglePositions(positions, target, options), () => {
     throw new Error(t("status.computeTimedOut"));
   }, signal, true);
+}
+
+/** Whether a face read of `shape` runs in the worker: its parts are joined, and none of them is text. */
+export function faceReadInWorker(shape: WorkplaneShape) {
+  return !containsText([shape]) && faceReadJoins(shape);
+}
+
+/**
+ * The face tools' read of a body (faceReadPositions in lib/editorBooleans.ts) off the page when its
+ * parts are joined: for four overlapping 512-sided cylinders the join held the page for half a
+ * second. A body that is not joined is read on the page, quicker than sending it away; text stays
+ * on the page. `quiet`: read ahead, as the Face tool and the hole pattern open, without "Calculating";
+ * without the worker it fails rather than hold the page, and the click reads.
+ */
+export function faceReadPositionsOffThread(shape: WorkplaneShape, signal?: AbortSignal, quiet = false): Promise<Float64Array> {
+  const onPage = () => faceReadPositions(shape);
+  if (!faceReadInWorker(shape)) return onPage();
+  return runGeometryTask("face", { shape }, quiet ? () => Promise.reject(new Error("no geometry worker")) : onPage, () => {
+    throw new Error(t("status.computeTimedOut"));
+  }, signal, quiet);
+}
+
+/**
+ * Calls a face read off. When it was all the worker had to do, that stops the warm worker, so it is
+ * warmed again and the next cut does not wait for a new one; not as the editor closes.
+ */
+export function callOffFaceRead(abort: AbortController | null | undefined, closing = false) {
+  if (!abort || abort.signal.aborted) return;
+  const running = workerReady;
+  abort.abort();
+  if (running && !workerReady && !closing) warmGeometryWorker();
+}
+
+/** Shows "Calculating" while a click waits for `read`, a read begun quietly; `read` must settle. */
+function showBusyWhile<T>(read: Promise<T>): Promise<T> {
+  busyWaits += 1;
+  notifyBusy();
+  return read.finally(() => {
+    busyWaits -= 1;
+    notifyBusy();
+  });
+}
+
+function calledOff(signal: AbortSignal) {
+  return new Promise<null>((resolve) => {
+    if (signal.aborted) resolve(null);
+    else signal.addEventListener("abort", () => resolve(null), { once: true });
+  });
+}
+
+/**
+ * A face read as the Face tool and the hole pattern keep it: null when it fails or is called off
+ * (a read called off never answers), so a click waiting on it can read for itself.
+ */
+function keptFaceRead(read: Promise<Float64Array>, signal: AbortSignal): Promise<Float64Array | null> {
+  return Promise.race([read.catch(() => null), calledOff(signal)]);
+}
+
+export type FaceReadKeeper = {
+  /** Reads the body quietly, unless a read of it is kept. */
+  readAhead: (shape: WorkplaneShape, fingerprint: string) => void;
+  /**
+   * A click's read: the one kept, when it is of the same body, or its own, kept in turn when it runs
+   * in the worker. Called off, or left with a read dropped for a body that has changed (`unchanged`
+   * false), it never answers, as a read called off never does: the click would not count.
+   */
+  forClick: (shape: WorkplaneShape, fingerprint: string, signal: AbortSignal, unchanged: () => boolean) => Promise<Float64Array>;
+  /** Calls the kept read off: the pick step ended or the body changed. */
+  drop: (closing?: boolean) => void;
+};
+
+/**
+ * The read of one body that the Face tool and the hole pattern keep while they wait for a click:
+ * read ahead quietly, or by the first click, and taken by the clicks after it. The read has a
+ * controller of its own, called off by `drop` or when a read of another body takes its place; a
+ * click called off stops waiting, and the read goes on for the next one. `onRead` hears each kept
+ * read that answers.
+ */
+export function createFaceReadKeeper(onRead: (fingerprint: string, positions: Float64Array) => void): FaceReadKeeper {
+  type Kept = { fingerprint: string; abort: AbortController; read: Promise<Float64Array | null>; failure?: unknown };
+  let kept: Kept | null = null;
+  const keep = (shape: WorkplaneShape, fingerprint: string, quiet: boolean) => {
+    callOffFaceRead(kept?.abort);
+    const abort = new AbortController();
+    const read = faceReadPositionsOffThread(shape, abort.signal, quiet);
+    const entry: Kept = { fingerprint, abort, read: keptFaceRead(read, abort.signal) };
+    read.catch((error: unknown) => { entry.failure = error; });
+    kept = entry;
+    void entry.read.then((positions) => {
+      if (kept !== entry) return;
+      if (positions) onRead(fingerprint, positions);
+      else kept = null;
+    });
+    return entry;
+  };
+  return {
+    readAhead(shape: WorkplaneShape, fingerprint: string) {
+      if (kept?.fingerprint !== fingerprint) keep(shape, fingerprint, true);
+    },
+    async forClick(shape: WorkplaneShape, fingerprint: string, signal: AbortSignal, unchanged: () => boolean): Promise<Float64Array> {
+      if (!faceReadInWorker(shape)) return faceReadPositionsOffThread(shape, signal);
+      const never = () => new Promise<never>(() => undefined);
+      const ahead = kept?.fingerprint === fingerprint ? kept : null;
+      if (ahead) {
+        const positions = await showBusyWhile(Promise.race([ahead.read, calledOff(signal)]));
+        if (positions) return positions;
+        if (signal.aborted || (ahead.abort.signal.aborted && !unchanged())) return never();
+        // A quiet read that failed, or one dropped while the body stayed as it is: the click reads for itself.
+      }
+      const own = keep(shape, fingerprint, false);
+      const positions = await Promise.race([own.read, calledOff(signal)]);
+      if (positions) return positions;
+      if (!signal.aborted && own.failure !== undefined) throw own.failure;
+      return never();
+    },
+    drop(closing = false) {
+      const entry = kept;
+      kept = null;
+      callOffFaceRead(entry?.abort, closing);
+    },
+  };
 }
 
 /** Build 68: the 3MF made in the geometry worker (Send to Bambu Studio and 3MF export); on the page where no worker runs. */
@@ -387,10 +575,4 @@ export function exportMeshesTo3mfOffThread(meshes: readonly ThreeMfExportMesh[],
   return runGeometryTask<Uint8Array>("threemf", { meshes: flattenThreeMfMeshes(meshes), metadata }, () => exportMeshesTo3mfAsync(meshes, metadata), () => {
     throw new Error(t("status.computeTimedOut"));
   }, undefined, true);
-}
-
-/** splitBoltForShape (lib/boltSplit.ts) off the page: a screw or rod cut lengthwise and laid flat for printing. */
-export function splitBoltOffThread(shape: WorkplaneShape, options: Partial<BoltSplitOptions>, signal?: AbortSignal): Promise<BoltSplitShapeResult> {
-  const onPage = () => splitBoltForShape(shape, options);
-  return runGeometryTask<BoltSplitShapeResult>("boltSplit", { shape, options }, onPage, () => ({ parts: null, error: t("status.computeTimedOut") }), signal);
 }

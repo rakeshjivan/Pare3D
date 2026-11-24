@@ -17,6 +17,12 @@ That has a downside: whoever clears the browser storage or switches to another c
 
 A slim line on the start page says how your designs are backed up. With automatic backup on, Pare 3D writes all your designs to a backup file in a folder you choose, every 5 minutes while designs change, and the line says when it last did. {{ui:backupStrip.turnOn}} or {{ui:backupStrip.chooseFolder}} sets it up; {{ui:backupStrip.backUpNow}} makes a backup straight away, and {{ui:backupStrip.restore}} brings designs back from one. A cloud folder such as iCloud Drive, OneDrive or Dropbox keeps the backups safe off this computer too.
 
+## Your designs, your backup
+
+Your designs live in this browser on your computer. As with all data, only what exists a second time in another place is safe: a failing drive, a new PC, cleared browser data or a bug, and without a backup the work is gone. Keeping that backup is up to you; no software can do it for you. Pare 3D makes it easy: {{ui:dashboard.backupAll}} on the start page puts every design into one file in a single click (see below). Keep that file on a USB stick, in a cloud folder or on a NAS, after every bigger session.
+
+Pare 3D reminds you. The line above the designs of this browser grows louder the longer the last {{ui:dashboard.backupAll}} lies back: with the button {{ui:backups.backUpNow}} once it is older than the days set under {{ui:backups.reminderDays}} (7 to begin with) and designs changed since, and in red when there are more than three designs and no backup at all, or none for 30 days. The editor reminds you once a day in the status line, with the same button. The automatic backups below do not count here: they are on the same computer.
+
 ## Earlier versions
 
 While you work on a design, Pare 3D keeps a state of it every 10 minutes, but only when something changed; the last six of each design stay. {{ui:backups.title}} in the {{ui:editor.group.history}} group of the ribbon (or in the command search) lists them with their time, name and size. {{ui:backups.open}} opens the version as a new design: the design you have open stays as it is. The download button saves the version as a `.lyl` file, the bin deletes it.
@@ -50,6 +56,18 @@ On the start page every design has a menu with the options to rename, duplicate 
 You back up a single design in the editor: {{ui:editor.export}}, choose the format **LYL** and click {{ui:export.saveProject}}. The LYL file is Pare 3D's own design format and contains everything: shapes, groups, sketches, CAD data, imported sources and the history, meaning the undo steps. Under {{ui:export.historyTitle}} you choose how many of the last steps travel along; it starts at what the settings (the cogwheel in the ribbon) keep under {{ui:workspace.history}}. The last stop, {{ui:export.historyNone}}, saves the design with its current state only - the way to share a file without its undo steps. The export is a copy under the {{ui:export.fileName}} you give it; the design in your browser keeps its history. Older `.skf` files from earlier versions can still be opened; they are then saved as `.lyl`.
 
 **Saving into your own folder (Chrome and Edge).** There the button opens your system's save dialog, so you pick the folder and the name yourself, and an existing file can be replaced. Afterwards [[Ctrl]]+[[S]] saves the design into that same file again, without a dialog. A design opened from a `.lyl` file with {{ui:dashboard.importGeometry}} or the open button of the export window saves back into that file, too. The browser may ask once for permission to change the file. After the page is reloaded the design forgets its file, and the next [[Ctrl]]+[[S]] asks for it again; the dialog starts in the folder you used last. Firefox and Safari do not allow a page to write into files like this. There the file is downloaded to the Downloads folder as before, and [[Ctrl]]+[[S]] downloads it again; Firefox can be set to ask for the folder each time under Settings, General, Downloads.
+
+## Attachments
+
+Instructions, a parts list, notes, a photo or a datasheet can stay with the design as files. {{ui:editor.attachments}} in the {{ui:editor.group.file}} group of the ribbon, the paperclip, opens the list; a small dot on the paperclip shows that the design has some.
+
+- **{{ui:attachments.upload}}:** Choose one or more files: `.md` (Markdown) or `.txt` as plain text (UTF-8), `.png`, `.jpg`, `.jpeg` or `.webp` pictures, or `.pdf` documents. A file is checked by its content, so a file that is not what its name says is refused, and other types, `.svg` among them, cannot be attached. A text file can be at most 2 MB, a picture 16 MB and a PDF 32 MB; a design holds up to 32 files and 64 MB together.
+- **The list:** The arrow downloads a file as it was uploaded. The bin removes it; the row asks once more first, and a removed file cannot be brought back with undo, because attachments are not part of the undo history.
+- **Reading a file:** The eye on the row of a `.md` or `.txt` file opens it in a window to read, without downloading it. Markdown is shown formatted, with headings, lists, tick boxes, tables and code; a text file is shown exactly as it is written. Only links to web pages and e-mail addresses work, and they open in a new tab. Pictures named in the file are not loaded: their description stands in their place. Escape, the cross or a click beside the window closes it. Reading works in the History view too.
+- **Looking at a picture:** The eye on the row of a picture opens it in the same window, shrunk to fit when it is large. A PDF has no eye: download it and open it in the program you read PDF files with.
+- **A name that is already there:** Pare 3D asks what to do. {{ui:attachments.replace}} puts the new content into the file of that name, which keeps its place in the list. {{ui:common.rename}} adds the new file under another name and suggests the first free one, such as `notes 2.md`. The cross leaves the new file out. Upper and lower case count the same, and the same file uploaded again changes nothing.
+
+Attachments are saved with the design like everything else: in the browser, in a LYL file, in a backup and in a design on a server, which they reach as soon as one is added or removed. They do not come along with {{ui:import.insertProject}} or with a custom shape, and a bug report does not contain them. A design with attachments is saved as a newer kind of LYL file: an older Pare 3D says that it cannot open it instead of dropping the files. A design without attachments is saved exactly as before.
 
 ## Exporting
 
@@ -106,6 +124,10 @@ Quicker still: drag files from your desktop or a folder straight onto the editor
 A design saved with a **newer Pare 3D** may hold things your version does not know yet, such as a new shape, a new setting or fonts of one's own. If Pare 3D cannot open it for that reason, the message names both versions. If it opens, the notice says that newer things may look different here. Either way, reloading the page helps: a copy on the web always serves its newest version. The installed app picks it up the next time it starts; on your own server you install the update.
 
 Template pictures are added in sketch mode, see [Sketches](chapter:sketches).
+
+## Large meshes
+
+Pare 3D is made first of all for building exact CAD bodies: a cylinder is stored as a circle and a height, a rounding as one curved face. An imported mesh is an approximation made of triangles, the finer the more of them, and every one of them is held in memory, drawn and saved. Smaller parts as meshes are no problem. Very large meshes, such as scans, sculpts or models from Blender with hundreds of thousands or millions of triangles, make the editor slower, take a lot of memory and make saving slow, and cutting them may not work at all. After an import that brings such meshes in, Pare 3D says so once. Simplify such a mesh first (see below), import only the parts you need, or build simple parts from Pare 3D's own shapes.
 
 ## Checking and repairing an imported mesh
 

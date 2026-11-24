@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { belowBedCutter, shapeBelowBed } from "@/lib/cutBelowBed";
 import { buildGroupedShapeFromSelection } from "@/lib/editorBooleans";
 import { meshForShape } from "@/lib/editorMeshCore";
-import { checkForPrinting } from "@/lib/printCheck";
+import { checkForPrinting } from "@/lib/pareReadyCheck";
 import type { WorkplaneShape } from "@/types/layerling";
 
 const box = (elevation: number, rotationX = 0) => ({ id: "b", name: "Block", kind: "box", color: "#d41721", x: 5, z: -3, elevation, size: 20, width: 20, depth: 20, height: 20, rotation: 0, rotationX }) as unknown as WorkplaneShape;

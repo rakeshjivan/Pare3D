@@ -448,8 +448,8 @@ export function MeshSculptPanel({
         <div className="sculpt-view-aids">{GROUPS}</div>
       </>) : null}
       {tab === "part" && WHOLE_PART_TOOLS ? (<>{WHOLE_PART}</>) : null}
-      {error ? <div className="edge-modifier-error" role="alert">{error}</div> : null}
       {error ? <p className="blend-hint" role="status">{t("sculpt.errorHelp")}</p> : null}
+      {error ? <div className="edge-modifier-error" role="alert">{error}</div> : null}
       <div className="edge-modifier-footer">
         {WHOLE_PART_TOOLS && tab === "part" ? (<>
         <button type="button" className="secondary" disabled={busy} title={t("sculpt.tip.done")} onClick={onClose}>{t("sculpt.done")}</button>

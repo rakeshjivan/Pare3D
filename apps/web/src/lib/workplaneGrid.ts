@@ -286,6 +286,28 @@ export function workplaneGridBandWidths(step: number) {
   return { minor, major: minor * 2 };
 }
 
+/** How wide the centre cross stays on the screen at least, in CSS pixels, however far out you zoom (Discussion #1666). */
+export const AXIS_MIN_PIXELS = 3;
+
+/**
+ * How many mm one CSS pixel covers at a point `depth` mm in front of the camera: for a perspective camera from its
+ * vertical field of view, for an orthographic one from its frame and zoom. Not finite when it cannot be told.
+ */
+export function mmPerScreenPixel(
+  camera: { perspective: true; fovDegrees: number } | { perspective: false; top: number; bottom: number; zoom: number },
+  depth: number,
+  viewportHeight: number,
+) {
+  if (!(viewportHeight > 0)) return Number.NaN;
+  if (camera.perspective) return (2 * Math.max(0, depth) * Math.tan((camera.fovDegrees * Math.PI) / 360)) / viewportHeight;
+  return (camera.top - camera.bottom) / (camera.zoom || 1) / viewportHeight;
+}
+
+/** The centre cross's width in mm: its own band, or wider when that would come out thinner than AXIS_MIN_PIXELS on the screen. */
+export function axisCrossWidth(bandWidth: number, mmPerPixel: number) {
+  return Number.isFinite(mmPerPixel) && mmPerPixel > 0 ? Math.max(bandWidth, AXIS_MIN_PIXELS * mmPerPixel) : bandWidth;
+}
+
 export function workplaneGridLines(span: number, layout: WorkplaneGridLayout) {
   const coordinates = centeredWorkplaneGridCoordinates(span, layout.step);
   return coordinates.map(({ coordinate, index }) => ({
@@ -301,12 +323,23 @@ export function workplaneGridLines(span: number, layout: WorkplaneGridLayout) {
  */
 export function sceneLightLevels(contrast: number) {
   const c = Math.max(-100, Math.min(100, Number.isFinite(contrast) ? contrast : 0)) / 100;
-  if (c <= 0) return { ambient: 2.1 * (1 - 0.5 * c), key: 3.1 * (1 + 0.5 * c), fill: 1.2 };
+  if (c <= 0) return { ambient: 2.1 * (1 - 0.5 * c), key: 3.1 * (1 + 0.5 * c), fill: 1.2, head: 0 };
   // Towards "punchy" the range reaches further than it used to (#143): the even light and the
   // fill light fade much more, so shaded sides and shadows get really dark at the top end.
   // The first half of the slider is close to the old one.
   const strong = c * c;
-  return { ambient: 2.1 * (1 - 0.5 * c - 0.3 * strong), key: 3.1 * (1 + 0.5 * c + 0.2 * strong), fill: 1.2 * (1 - 0.6 * strong) };
+  return { ambient: 2.1 * (1 - 0.5 * c - 0.3 * strong), key: 3.1 * (1 + 0.5 * c + 0.2 * strong), fill: 1.2 * (1 - 0.6 * strong), head: 0 };
+}
+
+/**
+ * Soft light (#812): most of the light comes from the viewer's eye (`head`, carried with the camera), so a face
+ * turned towards you is lit and none is left dark, and the fixed lights are much weaker, so a face turned up is no
+ * longer burnt out to white (the renderer clips, it has no tone mapping). The key light stays a little for the
+ * shadows. Contrast still works: towards "punchy" the eye light takes over from the even light.
+ */
+export function softSceneLightLevels(contrast: number) {
+  const c = Math.max(-100, Math.min(100, Number.isFinite(contrast) ? contrast : 0)) / 100;
+  return { ambient: 1.5 * (1 - 0.4 * c), key: 0.9 * (1 + 0.3 * c), fill: 0.25, head: 2.4 * (1 + 0.25 * c) };
 }
 
 /** Where the main light stands by default: in front, to the right and above, as layerling always had it. */

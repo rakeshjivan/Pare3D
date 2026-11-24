@@ -20,29 +20,14 @@ function stlHeader(buffer: ArrayBuffer) {
   return new TextDecoder("ascii").decode(new Uint8Array(buffer, 0, Math.min(80, buffer.byteLength))).toLowerCase();
 }
 
-function stlUsesLayerlingYUp(buffer: ArrayBuffer, position: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) {
-  // Our own ASCII STL exports are already Y-up. Preserve those, including tall
-  // models where geometry alone cannot reveal an up axis.
-  const header = stlHeader(buffer);
-  if (header.includes("layerling")) return true;
-
-  let minY = Number.POSITIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  let minZ = Number.POSITIVE_INFINITY;
-  let maxZ = Number.NEGATIVE_INFINITY;
-  for (let i = 0; i < position.count; i += 1) {
-    minY = Math.min(minY, position.getY(i));
-    maxY = Math.max(maxY, position.getY(i));
-    minZ = Math.min(minZ, position.getZ(i));
-    maxZ = Math.max(maxZ, position.getZ(i));
-  }
-
-  const ySpan = maxY - minY;
-  const zSpan = maxZ - minZ;
-  // Some legacy/model-library STLs (including the Raspberry Pi fixture) are
-  // unmistakably flat on Y. Keep that established orientation; ambiguous STL
-  // files follow the slicer-standard Z-up convention.
-  return Number.isFinite(ySpan) && Number.isFinite(zSpan) && ySpan <= zSpan * 0.55;
+/**
+ * Whether an STL is already in layerling's own Y-up frame: only our own ASCII exports, known by their header. Every
+ * other STL is Z-up, as every slicer reads it, and keeps the orientation it was made in. A guess from the proportions
+ * (thin in Y means Y-up) laid upright flat parts down: a knife standing on its back, 306 × 30 × 70 mm, came in lying
+ * flat (Discussion #1450).
+ */
+function stlUsesLayerlingYUp(buffer: ArrayBuffer) {
+  return stlHeader(buffer).includes("layerling");
 }
 
 /** The name an imported body takes after its file. */
@@ -50,11 +35,19 @@ export function importedMeshName(fileName: string, sourceFormat: NonNullable<Wor
   return fileName.replace(/\.[^.]+$/, "") || `Imported ${sourceFormat.toUpperCase()}`;
 }
 
+/**
+ * Where an imported body stands. Left to itself it stands at one spot near the middle of the plate, whatever its file
+ * says. With `keepPosition` it stands where its file puts it, the file's origin in the middle of the plate and its
+ * floor on the plate, so parts of one model exported as separate files fit together again (Issue #1939).
+ */
+export type MeshPlacement = { keepPosition?: boolean };
+
 export function importedShapeFromTriangleSoup(
   fileName: string,
   rawPositions: number[],
   rawNormals: number[] | undefined,
   sourceFormat: NonNullable<WorkplaneShape["importedMesh"]>["sourceFormat"] = "stl",
+  placement: MeshPlacement = {},
   sourceTurned?: boolean,
 ): WorkplaneShape {
   const geometry = new THREE.BufferGeometry();
@@ -107,8 +100,9 @@ export function importedShapeFromTriangleSoup(
     kind: "mesh",
     // Build 85: Meshmixer's light grey, so a scan's surface reads as it does there.
     color: SCAN_GREY,
-    x: 10,
-    z: -10,
+    ...(placement.keepPosition
+      ? { x: center.x * scale, z: center.z * scale, elevation: box.min.y * scale }
+      : { x: 10, z: -10 }),
     size: Math.max(width, depth),
     width,
     depth,
@@ -137,23 +131,54 @@ export function importExtensionSupported(fileName: string) {
   return SUPPORTED_IMPORT_EXTENSIONS.has(fileExtension(fileName));
 }
 
-export function importedShapeFromStl(fileName: string, buffer: ArrayBuffer): WorkplaneShape {
+/**
+ * How an STL is read. `yUp` reads it in layerling's own Y-up frame whatever its header says: a design saved before
+ * 1.151.0 had some STLs read that way (see `stlReadBeforeZUp`), and keeps them so when it opens again (Issue #1518).
+ */
+export type StlReadOptions = { yUp?: boolean; keepPosition?: boolean };
+
+export function importedShapeFromStl(fileName: string, buffer: ArrayBuffer, options: StlReadOptions = {}): WorkplaneShape {
   const rawGeometry = stlLoader.parse(buffer);
   const geometry = rawGeometry.index ? rawGeometry.toNonIndexed() : rawGeometry.clone();
   const position = geometry.getAttribute("position");
-  const normal = geometry.getAttribute("normal");
   const rawPositions: number[] = [];
-  const rawNormals: number[] = [];
-  const usesLayerlingYUp = stlUsesLayerlingYUp(buffer, position);
+  const usesLayerlingYUp = options.yUp === true || stlUsesLayerlingYUp(buffer);
 
   for (let i = 0; i < position.count; i += 1) {
     const sourcePosition: [number, number, number] = [position.getX(i), position.getY(i), position.getZ(i)];
     rawPositions.push(...(usesLayerlingYUp ? sourcePosition : zUpToLayerling(sourcePosition)));
-    if (normal) {
-      const sourceNormal: [number, number, number] = [normal.getX(i), normal.getY(i), normal.getZ(i)];
-      rawNormals.push(...(usesLayerlingYUp ? sourceNormal : zUpToLayerling(sourceNormal)));
-    }
   }
 
-  return importedShapeFromTriangleSoup(fileName, rawPositions, rawNormals.length ? rawNormals : undefined, "stl", !usesLayerlingYUp);
+  // The file's facet normals are left out: many programs write 0 0 0 or stale ones, and the
+  // triangles' own order gives the same direction for a sound file (#988), as Cura does.
+  return importedShapeFromTriangleSoup(fileName, rawPositions, undefined, "stl", { keepPosition: options.keepPosition }, !usesLayerlingYUp);
+}
+
+type StlMeshSize = { baseWidth: number; baseDepth: number; baseHeight: number };
+type StlShapeSize = { width?: number; depth?: number; height?: number };
+
+function sameSize(a: number, b: number) {
+  return Math.abs(a - b) <= Math.max(0.01, Math.abs(b) * 0.001);
+}
+
+/** Whether a part keeps one scale on all three axes (within 1 %) against the given mesh size. */
+function evenScale(shape: StlShapeSize, width: number, depth: number, height: number) {
+  const scales = [(shape.width ?? 0) / width, (shape.depth ?? 0) / depth, (shape.height ?? 0) / height];
+  if (!scales.every((scale) => Number.isFinite(scale) && scale > 0)) return false;
+  return Math.max(...scales) / Math.min(...scales) <= 1.01;
+}
+
+/**
+ * Whether a saved STL part was read Y-up when it was imported, before every STL was read Z-up (1.151.0, Discussion #1450).
+ * A design keeps the STL file and reads it again when it opens, so such a part opened turned by 90° and stretched to its
+ * old size (Issue #1518). `zUp` is the file read the new way. It only applies where the old rule read the file Y-up (thin
+ * in Y, at most 0.55 of its Z), and then either the saved mesh size is the old reading's, or the design was saved once
+ * more after opening wrongly: then the saved size is the new reading's, but the part's own size only fits the old one.
+ */
+export function stlReadBeforeZUp(zUp: StlMeshSize, saved: StlMeshSize, shape: StlShapeSize) {
+  // Read Z-up, the file's Y is our depth and its Z our height; read Y-up, the two change places.
+  if (!(zUp.baseDepth <= zUp.baseHeight * 0.55)) return false;
+  const savedAsOld = sameSize(saved.baseWidth, zUp.baseWidth) && sameSize(saved.baseDepth, zUp.baseHeight) && sameSize(saved.baseHeight, zUp.baseDepth);
+  if (savedAsOld) return true;
+  return evenScale(shape, zUp.baseWidth, zUp.baseHeight, zUp.baseDepth) && !evenScale(shape, zUp.baseWidth, zUp.baseDepth, zUp.baseHeight);
 }

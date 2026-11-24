@@ -16,6 +16,21 @@ export type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 export type SketchImageCrop = { left: number; top: number; right: number; bottom: number };
 
 export const MIN_IMAGE_SIZE = 0.5;
+/** The width and height fields reached only to 200 mm, whatever the plate (#1727). */
+const IMAGE_SLIDER_FLOOR = 200;
+
+/**
+ * How far the width and height of the image go (#1727): the slider to the larger side of the plate, at least
+ * 200 mm and always to the image's own size, so it shows what dragging the handles made; a typed size up to
+ * ten times the plate, which only guards against a slip of the finger.
+ */
+export function sketchImageSizeLimits(plate: { width: number; depth: number }, image: { width: number; depth: number }) {
+  const side = Math.max(Number(plate.width) || 0, Number(plate.depth) || 0);
+  const own = Math.max(Number(image.width) || 0, Number(image.depth) || 0);
+  const slider = Math.max(IMAGE_SLIDER_FLOOR, side, own);
+  return { slider, typed: Math.max(slider, side * 10) };
+}
+
 /** How much of the picture must stay in each direction. */
 const MIN_CROP_REMAINDER = 0.02;
 
@@ -75,11 +90,6 @@ export const IMAGE_HANDLES: readonly ResizeHandle[] = ["nw", "n", "ne", "e", "se
 /** Where the eight handles sit on the plate, following the turn of the picture. */
 export function imageHandlePositions(image: SketchImage): Array<{ id: ResizeHandle } & Vec2> {
   return IMAGE_HANDLES.map((id) => ({ id, ...imageToWorld(image, { x: HANDLE_LOCALS[id].x * image.width / 2, z: HANDLE_LOCALS[id].z * image.depth / 2 }) }));
-}
-
-/** The turning handle: above the top edge, `gap` mm out from it (in the picture's own up direction). */
-export function imageRotateHandle(image: SketchImage, gap: number): Vec2 {
-  return imageToWorld(image, { x: 0, z: -image.depth / 2 - gap });
 }
 
 /** The angle of a point about the image's centre, in degrees counter-clockwise on the plate. */
@@ -143,10 +153,11 @@ export function resizeImage(start: SketchImage, handle: ResizeHandle, point: Vec
 }
 
 /** Turning: the picture follows the pointer round its centre from where the drag began; Shift snaps to 15 degrees. */
-export function rotateImage(start: SketchImage, startAngle: number, point: Vec2, snap: boolean): { rotation: number } {
+/** `step` rounds the picture's own angle (0: none), so a turn lands on 90° and not 90° off where it began. */
+export function rotateImage(start: SketchImage, startAngle: number, point: Vec2, step: number): { rotation: number } {
   const delta = imageAngleTo(start, point) - startAngle;
   const rotation = (start.rotation ?? 0) + delta;
-  return { rotation: normalizeImageRotation(snap ? Math.round(rotation / 15) * 15 : rotation) };
+  return { rotation: normalizeImageRotation(step > 0 ? Math.round(rotation / step) * step : rotation) };
 }
 
 /**

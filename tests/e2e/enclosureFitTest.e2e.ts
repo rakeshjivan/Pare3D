@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 (globalThis as unknown as { window: unknown }).window = { location: { href: pathToFileURL(resolve("apps/web/public") + "/").href } };
 import { buildReadyPart } from "@/lib/readyPartsBuild";
 import { DEFAULT_ENCLOSURE, enclosureInside, enclosureParts } from "@/lib/enclosure";
-import { fitTestParts } from "@/lib/fitTest";
+import { fitTestParts } from "@/lib/pareFitTest";
 import { loadTextFonts } from "@/lib/textFonts";
 import type { WorkplaneShape } from "@/types/layerling";
 

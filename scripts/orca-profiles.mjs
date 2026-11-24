@@ -122,6 +122,7 @@ export const PRINTERS = [
   ["Qidi", "Qidi Q2"],
   ["Qidi", "Qidi Q2C"],
   ["Qidi", "Qidi X-Smart 3"],
+  ["Qidi", "Qidi X-Smart 5"],
   ["Qidi", "Qidi X-Plus"],
   ["Qidi", "Qidi X-Plus 3"],
   ["Qidi", "Qidi X-Plus 4"],
@@ -251,6 +252,7 @@ export const PRINTERS = [
   ["SeeMeCNC", "SeeMeCNC BOSSdelta 500 0521"],
   ["Anycubic", "Anycubic Predator"],
   ["RolohaunDesign", "Rolohaun Delta Flyer Refit"],
+  ["BenFab", "BenFab 450"],
 ];
 
 /** How the vendor is written in the menu. */

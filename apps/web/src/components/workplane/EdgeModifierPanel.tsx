@@ -1,5 +1,6 @@
 "use client";
 
+import { getEditorProfile } from "@/lib/editorProfile";
 import { GuideHelpLink } from "@/components/GuideHelpLink";
 import { MovableToolPanel } from "@/components/workplane/MovableToolPanel";
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties } from "react";
@@ -9,7 +10,7 @@ import type { CadModifierKind, CadModifierQuality } from "@/lib/cadModifierTypes
 import { CAD_MODIFIER_MAX_SHARP_ANGLE, cadModifierUserErrorMessage, edgeModifierSelectionStatus } from "@/lib/cadModifierRuntime";
 import { t } from "@/lib/i18n";
 import { useLanguage } from "@/lib/useLanguage";
-import type { WorkplaneWorkspaceSettings } from "@/types/layerling";
+import type { EdgeTreatmentFeature, WorkplaneWorkspaceSettings } from "@/types/layerling";
 import { selectWholeValue } from "@/lib/numberField";
 import { useWheelField } from "@/lib/useWheelField";
 import { wheelBaseStep, wheelNextValue } from "@/lib/wheelValueStep";
@@ -34,8 +35,12 @@ function formatSliderValue(value: number, accuracy: WorkplaneWorkspaceSettings["
 export type EdgeHistoryOption = {
   id: string;
   label: string;
-  kind: CadModifierKind;
+  kind: CadModifierKind | "surfaceTexture";
   amount: number;
+  /** Only for a variable fillet (#687): the radius at the edge's end. */
+  endAmount?: number;
+  /** Only for a concave fillet (#1160). */
+  concave?: boolean;
   edgeCount: number;
   /** Only for a deletion of faces. */
   faceCount?: number;
@@ -47,12 +52,18 @@ export type EdgeHistoryOption = {
 
 /** Der gespeicherte Text ist englisch - fuer die Tafel wird er neu gesetzt. */
 function edgeHistoryLabel(option: EdgeHistoryOption) {
-  const size = String(Number(option.amount.toFixed(2)));
+  const size = option.endAmount !== undefined
+    ? `${Number(option.amount.toFixed(2))}–${Number(option.endAmount.toFixed(2))}`
+    : String(Number(option.amount.toFixed(2)));
   if (option.kind === "shell") return t("edge.revertShell", { size });
   if (option.kind === "draft") return t("edge.revertDraft", { size: String(Number(option.amount.toFixed(1))), count: option.faceCount ?? 0 });
   if (option.kind === "offset") return t("edge.revertOffset", { size });
+  if (option.kind === "surfaceTexture") return t("edge.revertSurfaceTexture", { size });
   if (option.kind === "deleteFace") {
     return option.faceCount === 1 ? t("edge.revertDeleteFaceOne") : t("edge.revertDeleteFaceMany", { count: option.faceCount ?? 0 });
+  }
+  if (option.kind === "fillet" && option.concave) {
+    return option.edgeCount === 1 ? t("edge.revertConcaveOne", { size }) : t("edge.revertConcaveMany", { size, count: option.edgeCount });
   }
   if (option.edgeCount === 1) {
     return t(option.kind === "fillet" ? "edge.revertFilletOne" : option.kind === "chamfillet" ? "edge.revertChamfilletOne" : "edge.revertChamferOne", { size });
@@ -388,6 +399,8 @@ export function EdgeModifierPanel({
   onChamferStyleChange,
   onSwapChamferSides,
   onEndAmountChange,
+  concave = false,
+  onConcaveChange,
   onKindChange,
   onQualityChange,
   onSharpAngleChange,
@@ -445,6 +458,9 @@ export function EdgeModifierPanel({
   onChamferStyleChange?: (style: EdgeChamferStyle) => void;
   onSwapChamferSides?: () => void;
   onEndAmountChange?: (value: number | undefined) => void;
+  /** A fillet that scoops the edge out instead of rounding it (#1160). */
+  concave?: boolean;
+  onConcaveChange?: (value: boolean) => void;
   onKindChange?: (kind: "fillet" | "chamfer" | "chamfillet") => void;
   onQualityChange: (value: CadModifierQuality) => void;
   onSharpAngleChange: (value: number) => void;
@@ -470,6 +486,7 @@ export function EdgeModifierPanel({
   onApply: () => void;
   onCancel: () => void;
 }) {
+  const onlyVisibleEdgesOption = kind === "fillet" ? getEditorProfile()?.tools.fillet?.options?.onlyVisibleEdges : undefined;
   useLanguage();
   const title = kind === "fillet" ? t("edge.filletTitle") : kind === "chamfillet" ? t("edge.chamfilletTitle") : t("edge.chamferTitle");
   const amountMin = Math.min(MIN_EDGE_MODIFIER_AMOUNT, Math.max(Number.EPSILON, maxAmount));
@@ -650,7 +667,13 @@ export function EdgeModifierPanel({
           {kind === "chamfer" && chamferStyle !== "equal" && onSwapChamferSides ? (
             <button type="button" className="edge-modifier-secondary-action" disabled={disabled} title={t("edge.swapSidesHint")} onClick={onSwapChamferSides}>{t("edge.swapSides")}</button>
           ) : null}
-          {kind === "fillet" && onEndAmountChange ? (
+          {kind === "fillet" && onConcaveChange ? (
+            <label className="edge-modifier-check" title={t("edge.concaveHint")}>
+              <input type="checkbox" checked={concave} disabled={disabled} onChange={(event) => onConcaveChange(event.currentTarget.checked)} />
+              <span>{t("edge.concave")}</span>
+            </label>
+          ) : null}
+          {kind === "fillet" && onEndAmountChange && !concave ? (
             <>
               <label className="edge-modifier-check" title={t("edge.variableRadiusHint")}>
                 <input type="checkbox" checked={endAmount !== undefined} disabled={disabled} onChange={(event) => onEndAmountChange(event.currentTarget.checked ? Math.min(amountMax, amount * 2) : undefined)} />
@@ -678,10 +701,12 @@ export function EdgeModifierPanel({
 
           <EdgeModifierSlider label={t("edge.sharpThreshold")} value={sharpAngle} min={1} max={CAD_MODIFIER_MAX_SHARP_ANGLE} step={1} unit="°" workspace={workspace} disabled={disabled} onChange={onSharpAngleChange} />
 
-          <label className="edge-modifier-check" title={t("edge.onlyVisibleEdgesHint")}>
-            <input type="checkbox" checked={onlyVisibleEdges} disabled={disabled} onChange={(event) => onOnlyVisibleEdgesChange(event.currentTarget.checked)} />
-            <span>{t("edge.onlyVisibleEdges")}</span>
-          </label>
+          {onlyVisibleEdgesOption?.visible !== false ? (
+            <label className="edge-modifier-check" title={t("edge.onlyVisibleEdgesHint")}>
+              <input type="checkbox" checked={onlyVisibleEdges} disabled={disabled || onlyVisibleEdgesOption?.locked} onChange={(event) => onOnlyVisibleEdgesChange(event.currentTarget.checked)} />
+              <span>{t("edge.onlyVisibleEdges")}</span>
+            </label>
+          ) : null}
 
           <label className="edge-modifier-check" title={t("edge.tangentChainsHint")}>
             <input type="checkbox" checked={tangentChain} disabled={disabled} onChange={(event) => onTangentChainChange(event.currentTarget.checked)} />

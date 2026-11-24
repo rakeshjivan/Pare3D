@@ -1,4 +1,4 @@
-import { unzipSync, zipSync } from "fflate";
+import { Zip, ZipPassThrough, unzipSync, zipSync } from "fflate";
 
 /*
  * "Back up all designs": every design of this browser as its own .lyl file,
@@ -37,9 +37,22 @@ export const CUSTOM_SHAPES_BACKUP_FOLDER = "Custom shapes";
 export const CUSTOM_SHAPES_MANIFEST = "custom-shapes.json";
 const inCustomShapesFolder = (path: string) => path.startsWith(`${CUSTOM_SHAPES_BACKUP_FOLDER}/`);
 
-export function backupFileName(date: Date) {
+/**
+ * The day and the time (hours and minutes), so each backup gets a name of its own: the save dialog of Chrome, Edge
+ * and the desktop app replaces a file of the same name instead of adding (2) as a download does (Discussion #1621).
+ */
+export function backupFileName(date: Date, prefix = "layerling-backup") {
   const pad = (value: number) => String(value).padStart(2, "0");
-  return `layerling-backup-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.zip`;
+  return `${prefix}-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}.zip`;
+}
+
+/**
+ * The start of a backup's file name after what it holds - a folder, or the one design chosen (Discussion #1317) -
+ * so several backups stay apart in the downloads: `layerling-` and the name, made safe for every system.
+ */
+export function backupNamePrefix(name: string) {
+  const safe = name.replace(/[\\/:*?"<>|\s\u0000-\u001f]+/g, "-").replace(/^[-.]+|-+$/g, "").slice(0, 100);
+  return safe ? `layerling-${safe}` : "layerling-backup";
 }
 
 /** File names for the designs: readable, safe on every system, never twice the same. */
@@ -120,6 +133,44 @@ export function packBackup(entries: BackupEntry[], modified = new Date()): Uint8
 }
 
 /**
+ * A backup written entry by entry (#887). packBackup holds every design and then the whole ZIP once
+ * more in one block, so a browser with 23 large designs ran out of memory and Safari reloaded the
+ * page without a word. Here each entry goes into the file as it comes, and what is written so far
+ * is handed to a Blob after each one, which the browser may keep outside the page's memory; the
+ * design's own bytes can go as soon as add() returns. The ZIP is the same as packBackup's: stored,
+ * not compressed (a .lyl is compressed already), read back by unpackBackup.
+ */
+export function createBackupWriter(modified = new Date()) {
+  let written: Blob = new Blob([]);
+  let pending: Uint8Array[] = [];
+  let failure: Error | null = null;
+  const zip = new Zip((error, chunk) => {
+    if (error) failure = error;
+    else pending.push(chunk);
+  });
+  const settle = () => {
+    if (failure) throw failure;
+    if (!pending.length) return;
+    written = new Blob([written, ...(pending as BlobPart[])]);
+    pending = [];
+  };
+  return {
+    add(name: string, bytes: Uint8Array) {
+      const file = new ZipPassThrough(name);
+      file.mtime = modified;
+      zip.add(file);
+      file.push(bytes, true);
+      settle();
+    },
+    finish(type = "application/zip") {
+      zip.end();
+      settle();
+      return new Blob([written], { type });
+    },
+  };
+}
+
+/**
  * The designs inside a backup, in the order they were packed, each with the folders it was in.
  * Other files, and the custom shapes, are left out. A design elsewhere in the ZIP than under
  * `Folders/` - every backup made before there were folders - comes back at the top level.
@@ -155,6 +206,24 @@ export function unpackCustomShapes(bytes: Uint8Array): { entries: BackupEntry[];
   return { entries, manifest };
 }
 
+/**
+ * The settings of the browser a full backup came from (Discussion #1678): the default for new designs and the settings
+ * that are the browser's, not a design's (theme, ribbon, keys, printers), as the file "Export settings" writes. It lies at
+ * the top of the ZIP; a design's own settings travel in its .lyl anyway. A restore takes them over only when asked to.
+ */
+export const SETTINGS_BACKUP_FILE = "layerling-settings.json";
+
+/** The text of the settings file a backup holds, or null for a backup without one (every backup made before it went along). */
+export function unpackBackupSettingsText(bytes: Uint8Array): string | null {
+  try {
+    const files = unzipSync(bytes, { filter: (file) => file.name === SETTINGS_BACKUP_FILE });
+    const data = files[SETTINGS_BACKUP_FILE];
+    return data ? new TextDecoder().decode(data) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function isBackupFileName(fileName: string) {
   return /\.zip$/i.test(fileName);
 }
@@ -186,4 +255,16 @@ export function zipHoldsDesigns(bytes: Uint8Array) {
  */
 export function backupDesignAlreadyThere(existing: ReadonlyArray<{ name: string; createdAt: number }>, restored: { name: string; createdAt: number }) {
   return existing.some((project) => project.createdAt === restored.createdAt && project.name === restored.name);
+}
+
+/**
+ * A design that is already here only blocks its copy from the backup while its own content is still there (forum,
+ * RalphD05): after a crash the list of designs can outlive their content, the cards keep their names and shape counts
+ * but open empty, and those are exactly the designs the backup has to bring back. `stored` is what the browser holds
+ * for the card: null when nothing is stored, "unreadable" when it cannot be read, else its shapes. A card that is
+ * empty on purpose takes the backup's shapes only when the backup has some.
+ */
+export function backupRefillsDesign(stored: { shapes: ReadonlyArray<unknown> } | null | "unreadable", backupShapeCount: number) {
+  if (backupShapeCount <= 0) return false;
+  return stored === null || stored === "unreadable" || stored.shapes.length === 0;
 }

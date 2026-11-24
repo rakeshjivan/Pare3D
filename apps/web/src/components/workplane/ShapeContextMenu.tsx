@@ -1,5 +1,6 @@
 "use client";
 
+import { comboLabel } from "@/lib/keyNames";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 export type ShapeContextMenuItem = {
@@ -25,7 +26,8 @@ const isMac = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(n
 /**
  * The menu a right click on a body opens: the commands people otherwise look
  * for in the ribbon or know only as shortcuts. It stays inside the window and
- * closes on any press outside it, on Escape, on the wheel and on a resize.
+ * closes on any press outside it, on Escape, on the wheel outside it and on
+ * a resize.
  */
 export function ShapeContextMenu({ x, y, label, items, onClose }: {
   x: number;
@@ -56,6 +58,10 @@ export function ShapeContextMenu({ x, y, label, items, onClose }: {
     const closeOutside = (event: PointerEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) onClose();
     };
+    // The wheel over the menu scrolls a long one (Discussion #1058); only the wheel elsewhere closes it.
+    const closeOnWheel = (event: WheelEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) onClose();
+    };
     const closeOnKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -64,10 +70,6 @@ export function ShapeContextMenu({ x, y, label, items, onClose }: {
     };
     window.addEventListener("pointerdown", closeOutside, true);
     window.addEventListener("keydown", closeOnKey, true);
-    // Build 70: a long menu scrolls in a short window; a wheel over it scrolls it instead of closing it.
-    const closeOnWheel = (event: WheelEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) onClose();
-    };
     window.addEventListener("wheel", closeOnWheel, { passive: true });
     window.addEventListener("resize", onClose);
     window.addEventListener("blur", onClose);
@@ -119,7 +121,7 @@ export function ShapeContextMenu({ x, y, label, items, onClose }: {
             {item.color ? <i className="shape-context-menu-swatch" style={{ background: item.color }} aria-hidden="true" /> : null}
             {item.label}
           </span>
-          {item.shortcut ? <kbd>{mac ? item.shortcut.replace(/Ctrl\+/g, "⌘").replace(/Shift\+/g, "⇧") : item.shortcut}</kbd> : null}
+          {item.shortcut ? <kbd>{mac ? item.shortcut.replace(/Ctrl\+/g, "⌘").replace(/Shift\+/g, "⇧") : comboLabel(item.shortcut, false)}</kbd> : null}
         </button>
       ))}
     </div>

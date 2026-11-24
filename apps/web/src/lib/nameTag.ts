@@ -1,4 +1,4 @@
-import { curvedTextPatch, DEFAULT_TEXT_SIZE, displayTextOf, MAX_TEXT_SPACING, MIN_TEXT_SPACING, textBoxAroundLetters, textFitScale, textLayoutFont, textLetterBox, textSpacingOf } from "@/lib/textGeometry";
+import { curvedTextPatch, DEFAULT_TEXT_SIZE, displayTextOf, straightTextShapes, MAX_TEXT_SPACING, MIN_TEXT_SPACING, textBoxAroundLetters, textFitScale, textLayoutFont, textLetterBox, textLetterOffset, textSpacingOf } from "@/lib/textGeometry";
 import { customFontRevision, ensureJapaneseGlyphs, textFont } from "@/lib/textFonts";
 import { DEFAULT_TEXT_LAYERS, MAX_TEXT_LAYERS, MAX_TEXT_LAYER_GROW, type TextLayer, type textLayersOf } from "@/lib/textLayers";
 import type { WorkplaneShape } from "@/types/layerling";
@@ -58,7 +58,7 @@ const wordsOf = (shape: Pick<WorkplaneShape, "text">) => {
   return words;
 };
 
-const measuresCache = new Map<string, { width: number; depth: number; cap: number }>();
+const measuresCache = new Map<string, { width: number; depth: number; cap: number; middle: number }>();
 
 /**
  * The straight line at layout size, measured the way textGlyphShapes measures it, and the height
@@ -66,14 +66,15 @@ const measuresCache = new Map<string, { width: number; depth: number; cap: numbe
  */
 function layoutMeasures(shape: WorkplaneShape) {
   const fontName = shape.font ?? "Multilanguage";
-  const key = JSON.stringify([wordsOf(shape), fontName, customFontRevision(shape.font), textSpacingOf(shape)]);
+  const key = JSON.stringify([wordsOf(shape), fontName, customFontRevision(shape.font), textSpacingOf(shape), Boolean(shape.textKerning), Boolean(shape.textVertical)]);
   const cached = measuresCache.get(key);
   if (cached) return cached;
   // The spacing between the letters (#594) is part of the line, so it is part of its measure.
   const font = textLayoutFont(shape);
   const extent = (words: string) => {
     const box = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
-    font.generateShapes(words, LAYOUT_SIZE).forEach((glyph) => {
+    // Vertical text (#981) is measured stacked, as it is drawn.
+    (shape.textVertical ? straightTextShapes({ ...shape, text: words }, LAYOUT_SIZE) : font.generateShapes(words, LAYOUT_SIZE)).forEach((glyph) => {
       const sampled = glyph.extractPoints(curveSegmentsOf(fontName));
       [sampled.shape, ...sampled.holes].forEach((points) => points.forEach((point) => {
         box.minX = Math.min(box.minX, point.x);
@@ -105,6 +106,8 @@ function layoutMeasures(shape: WorkplaneShape) {
     width: Math.max(1, line.maxX - line.minX),
     depth: Math.max(1, line.maxY - line.minY),
     cap: Number.isFinite(capital.maxY) && capital.maxY > 0 ? capital.maxY : LAYOUT_SIZE * 0.7,
+    // How far the middle of the line's box stands above the baseline: the box is laid round the shapes of the letters.
+    middle: Number.isFinite(line.minY) && Number.isFinite(line.maxY) ? (line.minY + line.maxY) / 2 : 0,
   };
   if (measuresCache.size > 200) measuresCache.clear();
   measuresCache.set(key, measures);
@@ -121,6 +124,35 @@ export function textLetterSize(shape: WorkplaneShape): number {
   const letters = textLetterBox(shape);
   // A stretched text (#382) has the height of its box: that is how tall its capitals stand.
   return textFitScale(shape, letters, measures).y * measures.cap;
+}
+
+/**
+ * Where the baseline of a straight text lies in its own frame along its depth (towards +z, the bottom of the
+ * letters): the box is laid round the shapes of the letters, so a "p" reaches the bottom of its box and a "T" has
+ * the baseline there.
+ */
+function textBaselineZ(shape: WorkplaneShape): number {
+  const measures = layoutMeasures(shape);
+  const scale = textFitScale(shape, textLetterBox(shape), measures).y;
+  return textLetterOffset(shape).z + measures.middle * scale;
+}
+
+/**
+ * How far a straight text's box has to move when its words change, so that the baseline stays where it was (#871):
+ * other words make another box, round their own letters, and a "Dp" came out bottom aligned with the "TEXT" before
+ * it, its tail on the old baseline. The letters keep their middle along the line. Null for a text with nothing
+ * to keep: curved, stretched, or tilted out of the flat.
+ */
+export function textBaselineKeepShift(before: WorkplaneShape, after: WorkplaneShape): { x: number; z: number } | null {
+  if (before.kind !== "text" || after.kind !== "text" || before.textCurved || after.textCurved || before.textStretch || after.textStretch) return null;
+  // Vertical text has no baseline to keep: its letters hang from the top.
+  if (before.textVertical || after.textVertical) return null;
+  if (before.rotationX || before.rotationZ) return null;
+  const along = textBaselineZ(before) - textBaselineZ(after);
+  if (!Number.isFinite(along) || Math.abs(along) < 1e-6) return null;
+  const turn = ((before.rotation ?? 0) * Math.PI) / 180;
+  // The shape's own +z in the plan, for a turn about the vertical axis.
+  return { x: Math.sin(turn) * along, z: Math.cos(turn) * along };
 }
 
 /**
@@ -155,6 +187,18 @@ export function textSpacingPatch(shape: WorkplaneShape, percent: number): Partia
 }
 
 /**
+ * The change that switches a text's automatic kerning (#1297) and keeps the letters as tall as they were: pairs such as
+ * AY move closer, the line gets shorter, so a straight text's box follows it and curved text re-measures its box.
+ */
+export function textKerningPatch(shape: WorkplaneShape, kerning: boolean): Partial<WorkplaneShape> {
+  const patch: Partial<WorkplaneShape> = { textKerning: kerning };
+  if (shape.textCurved) return curvedTextPatch(shape, patch);
+  if (shape.textStretch) return patch;
+  const size = textLetterSize(shape);
+  return { ...patch, ...textLetterSizePatch({ ...shape, ...patch } as WorkplaneShape, size) };
+}
+
+/**
  * The change that makes the capitals of a text `size` mm tall: a straight text gets the box its
  * line needs at that size, the fill's and an ear's reach added, so other words or another font keep the
  * size; curved text takes it as its letter size.
@@ -168,4 +212,11 @@ export function textLetterSizePatch(shape: WorkplaneShape, size: number): Partia
   const width = shape.textStretch ? textLetterBox(shape).width : measures.width * scale;
   // Round the letters the fill's reach all round, and a key ring's ear on its side.
   return textBoxAroundLetters(shape, { width, depth: measures.depth * scale });
+}
+/**
+ * Whether a layer of this name tag or icon tag has a step of its own (a surface texture, rounded or bevelled edges,
+ * paint): building the layers anew from the tag's card makes them plain again, which the card says beforehand.
+ */
+export function tagHasLayerSteps(shape: WorkplaneShape | null | undefined) {
+  return Boolean((shape?.layeredText || shape?.layeredIcon) && shape.groupedShapes?.some((part) => part.surfaceTexture || part.edgeTreatmentHistory?.length || part.edgeTreatments?.length || part.paint?.length));
 }

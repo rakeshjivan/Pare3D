@@ -28,7 +28,7 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .my-shapes-toggle:hover {
@@ -130,6 +130,7 @@
 
 .my-shapes-name-form input,
 .my-shape-rename input,
+.attachment-rename input,
 .my-shapes-folder-rename input {
   flex: 1 1 100px;
   min-width: 0;
@@ -191,8 +192,13 @@
   transition: opacity 120ms ease;
 }
 
+/* :has() stands in a rule of its own: Firefox before 121 (the last on Windows 7 is 115) drops a whole list with it, and the
+   buttons stayed hidden (#1761). */
 .my-shape-tile:hover .my-shape-tile-actions,
-.my-shape-tile:focus-within .my-shape-tile-actions,
+.my-shape-tile:focus-within .my-shape-tile-actions {
+  opacity: 1;
+}
+
 .my-shape-tile-actions:has(.danger) {
   opacity: 1;
 }
@@ -237,7 +243,7 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .my-shape-tile-action svg {
@@ -286,7 +292,7 @@
   padding: 0 4px 4px;
   color: #8a6d4c;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 
@@ -364,7 +370,10 @@
 }
 
 .my-shapes-folder-header:hover .my-shapes-folder-actions,
-.my-shapes-folder-header:focus-within .my-shapes-folder-actions,
+.my-shapes-folder-header:focus-within .my-shapes-folder-actions {
+  opacity: 1;
+}
+
 .my-shapes-folder-actions:has(.danger) {
   opacity: 1;
 }
@@ -455,7 +464,8 @@ html[data-theme="dark"] .my-shapes-name-form button[type="submit"] {
 }
 
 html[data-theme="dark"] .my-shapes-name-form input,
-html[data-theme="dark"] .my-shape-rename input {
+html[data-theme="dark"] .my-shape-rename input,
+html[data-theme="dark"] .attachment-rename input {
   color: #f0e7d9;
   background: #2c2117;
   border-color: #6b5741;

@@ -19,7 +19,7 @@ export const PLATE_GAP = 20;
 /** How far apart "Arrange on plates" sets the bodies and keeps them from the plate's edge. */
 export const PLATE_PACK_MARGIN = 5;
 
-type PlateWorkspace = Pick<WorkplaneWorkspaceSettings, "width" | "depth"> & { plates?: readonly string[] };
+export type PlateWorkspace = Pick<WorkplaneWorkspaceSettings, "width" | "depth"> & { plates?: readonly string[] };
 
 export function plateCount(workspace: PlateWorkspace): number {
   return Math.max(1, Math.min(MAX_BUILD_PLATES, workspace.plates?.length ?? 1));
@@ -28,6 +28,16 @@ export function plateCount(workspace: PlateWorkspace): number {
 /** A plate's own name, or "" when it has none (the editor then shows "Plate 2"). */
 export function plateName(workspace: PlateWorkspace, index: number): string {
   return workspace.plates?.[index] ?? "";
+}
+
+/**
+ * What the first plate says in its near left corner: the design's name - and once the plate has a name of its
+ * own (Discussion #1860) "Plate 1: Lid" as the further plates say theirs, with the design's name in small above
+ * it; before, the first plate said the design's name only.
+ */
+export function firstPlateCornerLabel(workspace: PlateWorkspace, projectName: string, plateLabel: (index: number) => string): { title: string; subtitle: string } {
+  if (!plateName(workspace, 0)) return { title: projectName, subtitle: "" };
+  return { title: plateLabel(0), subtitle: projectName.trim() };
 }
 
 /** From the middle of one plate to the middle of the next. */

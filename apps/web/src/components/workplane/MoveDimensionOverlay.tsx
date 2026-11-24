@@ -2,9 +2,10 @@
 
 import { sceneDimensionAxis } from "@/lib/dimensionAxisColors";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
-import type { MoveDimensionAxis, MoveDimensionOverlayData } from "@/lib/moveDimensionLines";
+import { moveDimensionAxisName, type MoveDimensionAxis, type MoveDimensionOverlayData } from "@/lib/moveDimensionLines";
 import { selectWholeValue } from "@/lib/numberField";
 import { t } from "@/lib/i18n";
+import { useTouchSecondTap } from "@/lib/touchSecondTap";
 
 export function MoveDimensionOverlay({
   overlay,
@@ -24,6 +25,8 @@ export function MoveDimensionOverlay({
       setEditing(null);
     }
   }, [active]);
+
+  const { armed, accept } = useTouchSecondTap();
 
   const stopPointerPropagation = (event: PointerEvent<HTMLElement>) => {
     event.stopPropagation();
@@ -59,9 +62,9 @@ export function MoveDimensionOverlay({
           return (
             <input
               key={`edit-${line.axis}`}
-              className="dimension-input move-dimension-input"
+              className="dimension-input move-dimension-input" autoComplete="off"
               data-axis={sceneDimensionAxis(line.axis)}
-              aria-label={t("aria.axisMovement", { axis: line.axis === "z" ? "Y" : "X" })}
+              aria-label={t("aria.axisMovement", { axis: moveDimensionAxisName(line.axis) })}
               value={editing.value}
               autoFocus
               inputMode="text"
@@ -101,12 +104,12 @@ export function MoveDimensionOverlay({
         ) : (
           <button
             key={line.axis}
-            className="dimension-label move-dimension-value"
+            className={armed === line.axis ? "dimension-label move-dimension-value armed" : "dimension-label move-dimension-value"}
             data-axis={sceneDimensionAxis(line.axis)}
             type="button"
-            aria-label={t("aria.axisMovement", { axis: line.axis === "z" ? "Y" : "X" })}
+            aria-label={t("aria.axisMovement", { axis: moveDimensionAxisName(line.axis) })}
             style={styleForLine(line)}
-            onClick={() => setEditing({ axis: line.axis, value: line.label })}
+            onClick={() => { if (accept(line.axis)) setEditing({ axis: line.axis, value: line.label }); }}
             onPointerDown={stopPointerPropagation}
             onContextMenu={(event) => {
               event.preventDefault();

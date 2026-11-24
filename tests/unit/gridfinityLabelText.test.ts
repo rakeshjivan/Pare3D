@@ -6,7 +6,7 @@ import { strFromU8, unzipSync } from "fflate";
 import * as THREE from "three";
 import type { FontData } from "three/examples/jsm/loaders/FontLoader.js";
 import manifoldModule, { type ManifoldToplevel } from "manifold-3d";
-import { createShapeObject, shapeGeometrySignature, tapeShapeTopologyKey } from "@/components/WorkplaneViewport";
+import { createShapeObject, shapeGeometrySignature, tapeShapeTopologyKey } from "@/components/workplane/viewportShapeObjects";
 import { cadGridfinityLetterSegmentCount, cadGridfinitySegmentCount, cadModifierGridfinityForShape, withinExactProfileLimit } from "@/lib/cadProfileExtrusion";
 import { CAD_MODIFIER_EXACT_SEGMENT_LIMIT } from "@/lib/cadModifierRuntime";
 import { buildGroupedShapeFromSelection } from "@/lib/editorBooleans";
@@ -34,6 +34,7 @@ import { rememberManifoldRuntime } from "@/lib/manifoldHandle";
 import { mcpGridfinityListParams, mcpGridfinityPatch } from "@/lib/mcpShapeSettings";
 import { makeShapeFromAsset, sceneShape, toolbarShapeAssets } from "@/lib/shapeCatalog";
 import { shapeDefaultsFromShape } from "@/lib/shapeDefaults";
+import { SURFACE_TEXT_FONTS } from "@/lib/surfaceTextOutline";
 import { straightTextShapes } from "@/lib/textGeometry";
 import { customFontEntry, loadJapaneseTypeface, loadTextFonts, registerCustomFont, resetCustomFontsForTests, resetJapaneseTypefaceForTests, setJapaneseTypefaceFetcherForTests, textFont } from "@/lib/textFonts";
 import { DEFAULT_SNAP_GRID, DEFAULT_WORKPLANE_WORKSPACE, normalizeShapeCustomizations } from "@/lib/workplaneSettings";
@@ -275,7 +276,7 @@ describe("letters fitted to a Gridfinity label shelf", () => {
     expect(holes).toEqual([2, 3, 2]);
   });
 
-  it.skip("takes the built-in fonts, the text shape's own list, and fonts of one's own, as a text does", () => {
+  it("takes the built-in fonts, the text shape's own list, and fonts of one's own, as a text does", () => {
     expect(GRIDFINITY_LABEL_FONTS).toEqual(SURFACE_TEXT_FONTS);
     const area = (font: string) => lettersArea(bin({ gridfinityLabelBack: true, gridfinityLabelBackText: "Ag", gridfinityLabelFont: font }));
     expect(area("Serif")).not.toBeCloseTo(area("Multilanguage"), 1);
@@ -355,7 +356,7 @@ describe("letters fitted to a Gridfinity label shelf", () => {
     expect(gridfinityHasLabelText(bin({ gridfinityCompartmentLabels: [{ column: 0, row: 0, side: "back", text: "M3" }] }))).toBe(false);
   });
 
-  it.skip("lays the line out kerned, as a text shape with kerning on", () => {
+  it("lays the line out kerned, as a text shape with kerning on", () => {
     // A and V close up; without kerning the line would be wider.
     const [{ layout }] = gridfinityLabelGlyphs(bin({ gridfinityLabelBack: true, gridfinityLabelBackText: "AVA" }));
     let minX = Infinity, maxX = -Infinity;
@@ -585,7 +586,7 @@ describe("text on Gridfinity label shelves through the project, the defaults and
     await expect(roundTrip([{ ...shape, gridfinityLabelLeftText: 3 } as unknown as WorkplaneShape])).rejects.toThrow(/gridfinityLabelLeftText/);
   });
 
-  it.skip("keeps the font but not the texts as a default for new bins", () => {
+  it("keeps the font but not the texts as a default for new bins", () => {
     const shape = binShape(texts);
     const defaults = shapeDefaultsFromShape(shape)!;
     expect(defaults).toMatchObject({ gridfinityLabelFont: "Serif" });
@@ -606,14 +607,14 @@ describe("text on Gridfinity label shelves through the project, the defaults and
     expect(mcpShapeSummary(binShape({ ...texts, gridfinityLabelTextSize: 7.5 }))).toMatchObject({ settings: { gridfinityLabelTextSize: 7.5 } });
   });
 
-  it.skip("writes the texts create_shape and update_object give, with the lists, in one patch", () => {
+  it("writes the texts create_shape and update_object give, with the lists, in one patch", () => {
     const labels = [{ column: 0, row: 0, side: "back", text: "Washers" }];
     expect(mcpGridfinityPatch({ gridfinityLabelBackText: "M3", gridfinityLabelLeftText: "", gridfinityCompartmentLabels: JSON.stringify(labels), gridfinityCompartmentsX: 2 })).toStrictEqual({ gridfinityCompartmentsX: 2, gridfinityDividerPositionsX: undefined, gridfinityCompartmentLabels: labels, gridfinityLabelBackText: "M3", gridfinityLabelLeftText: undefined });
     // Nothing of a bin's own given, nothing written.
     expect(mcpGridfinityPatch({ width: 83.5, gridfinityLabelFont: "Serif" })).toStrictEqual({});
   });
 
-  it.skip("takes the texts from MCP, a compartment's in its label, and reads them back", () => {
+  it("takes the texts from MCP, a compartment's in its label, and reads them back", () => {
     expect(gridfinityLabelTextPatch({ gridfinityLabelBackText: "M3", gridfinityLabelFrontText: "", gridfinityLabelLeftText: "x".repeat(30), gridfinityLabelRightText: 4 })).toStrictEqual({ gridfinityLabelBackText: "M3", gridfinityLabelFrontText: undefined, gridfinityLabelLeftText: "x".repeat(24) });
     const labels = [{ column: 0, row: 0, side: "back", text: "Washers" }];
     expect(gridfinityListPatch(mcpGridfinityListParams({ gridfinityCompartmentLabels: labels })).gridfinityCompartmentLabels).toEqual(labels);
@@ -623,7 +624,7 @@ describe("text on Gridfinity label shelves through the project, the defaults and
     for (const value of ["Screws M3", "Serif", "Washers", "gridfinityLabelRightText"]) expect(summary).toContain(value);
   });
 
-  it.skip("takes a built-in font or a font of one's own by its name or id from MCP, and refuses any other", () => {
+  it("takes a built-in font or a font of one's own by its name or id from MCP, and refuses any other", () => {
     registerCustomFont({ id: "custom:0123456789abcdef", name: "Mine", data: textFont("Serif").data as unknown as FontData }, true);
     expect(mcpGridfinityLabelFont("Serif")).toBe("Serif");
     expect(mcpGridfinityLabelFont("mine")).toBe("custom:0123456789abcdef");
@@ -719,7 +720,7 @@ describe("the editor's calls for letters on Gridfinity label shelves", () => {
   // No test mounts the editor, so its source is read here, spaces folded, as for the hinge's parts and the face tools' reads.
   const editor = readFileSync(fileURLToPath(new URL("../../apps/web/src/components/LayerlingEditor.tsx", import.meta.url)), "utf8").replace(/\s+/g, " ");
 
-  it.skip("writes the texts create_shape and update_object give through mcpGridfinityPatch", () => {
+  it("writes the texts create_shape and update_object give through mcpGridfinityPatch", () => {
     expect(editor.match(/shape = \{ \.\.\.shape, \.\.\.mcpGridfinityPatch\(params\) \};/g)).toHaveLength(1);
     expect(editor.match(/if \(target\.kind === "gridfinity"\) Object\.assign\(patch, mcpGridfinityPatch\(params\)\);/g)).toHaveLength(1);
   });
@@ -728,12 +729,12 @@ describe("the editor's calls for letters on Gridfinity label shelves", () => {
     expect(editor.match(/\+ cadGridfinitySegmentCount\(part\.gridfinity\), 0\);/g)).toHaveLength(2);
   });
 
-  it.skip("sets the font create_shape and update_object give through mcpGridfinityLabelFont, past the shape defaults", () => {
+  it("sets the font create_shape and update_object give through mcpGridfinityLabelFont, past the shape defaults", () => {
     expect(editor).toContain("shape = { ...shape, gridfinityLabelFont: mcpGridfinityLabelFont(params.gridfinityLabelFont) }");
     expect(editor).toContain("patch.gridfinityLabelFont = mcpGridfinityLabelFont(params.gridfinityLabelFont)");
   });
 
-  it.skip("puts a font from the font window on a selected bin's letters, and on nothing while a selected object is locked or has its shape locked", () => {
+  it("puts a font from the font window on a selected bin's letters, and on nothing while a selected object is locked or has its shape locked", () => {
     const apply = editor.slice(editor.indexOf("const applyCustomFontToSelection = useCallback("), editor.indexOf("const startSimplifyTool = useCallback("));
     expect(apply).toContain("(fontId: string) => { if (refuseBodyLockedSelection()) return;");
     expect(apply).toContain("}, [commitShapes, refuseBodyLockedSelection]);");

@@ -1,31 +1,39 @@
 "use client";
 
-import { SettingsSearch } from "@/components/workplane/SettingsSearch";
-import { FilesSettings } from "@/components/FilesSettings";
 import { GuideHelpLink } from "@/components/GuideHelpLink";
+import { RibbonButtonsSetting } from "@/components/workplane/RibbonButtonsSetting";
+import type { GuideSection } from "@/lib/guideLinks";
 import { MAX_OVERHANG_ANGLE, MIN_OVERHANG_ANGLE } from "@/lib/overhangLimits";
-import { Box as BoxIcon, ChevronDown, FolderOpen, Grid3X3, History, Palette, Plus, RotateCcw, Ruler, Trash2, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ArchiveRestore, Box as BoxIcon, ChevronDown, Download, FolderOpen, Grid3X3, History, MousePointer2, Palette, PanelTop, Plus, RotateCcw, Ruler, Search, Trash2, X, type LucideIcon } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useSettingsSearch } from "@/lib/useSettingsSearch";
 import { useMovablePanel } from "@/lib/useMovablePanel";
-import { createPortal } from "react-dom";
-import { HexColorInput, HexColorPicker } from "react-colorful";
-import { APP_THEME_CHOICES, type AppThemePreference } from "@/lib/appTheme";
-import { setToolbarSize, TOOLBAR_SIZE_OPTIONS, type ToolbarSize } from "@/lib/toolbarSize";
-import { useToolbarSize } from "@/lib/useToolbarSize";
+import { SpaceMouseSetting } from "@/components/workplane/SpaceMouseSetting";
+import { printerPlayShapeStart } from "@/lib/printerPlay";
+import { usePrinterPlayFor } from "@/lib/usePrinterPlay";
+import { PrinterPlaySetting } from "@/components/workplane/PrinterPlaySetting";
+import { SettingsFileButtons } from "@/components/workplane/SettingsFileButtons";
+import { FileBackupSettingsSection } from "@/components/workplane/FileBackupSettingsSection";
+import { FilesSettings } from "@/components/FilesSettings";
 import { setStudioLook } from "@/lib/studioLook";
 import { useStudioLook } from "@/lib/useStudioLook";
+import { createPortal } from "react-dom";
+import { HexColorInput, HexColorPicker } from "react-colorful";
+import { APP_THEME_OPTIONS, type AppThemePreference } from "@/lib/appTheme";
+import { setToolbarSize, TOOLBAR_SIZE_OPTIONS, type ToolbarSize } from "@/lib/toolbarSize";
+import { useToolbarSize } from "@/lib/useToolbarSize";
+import { useSimpleMode } from "@/lib/useSimpleMode";
 import { useShapeColors } from "@/lib/useShapeColors";
 import { setShapeColors } from "@/lib/shapeColors";
+import { isSimpleModeFixed, setSimpleMode } from "@/lib/simpleMode";
 import { useViewCubePosition } from "@/lib/useViewCubePosition";
 import { setViewCubePosition, VIEW_CUBE_POSITION_OPTIONS, type ViewCubePosition } from "@/lib/viewCubePosition";
 import { gearCenterHoleLimits, gearToothPitch, gearTypeHasHelix, MAX_GEAR_TEETH, MIN_GEAR_TEETH } from "@/lib/gearGeometry";
 import { automaticSideCount } from "@/lib/roundSideCount";
 import { torusTessellation } from "@/lib/torusTessellation";
 import { printerPresetById } from "@/lib/printBed";
-
-/** The printers offered first and as one-click buttons (fork default). */
-const MY_PRINTER_IDS = ["bambu-lab-a1-mini", "bambu-lab-p2s"] as const;
 import { PRINTER_PRESETS } from "@/lib/printerPresets.generated";
+import { maxDovetailNeckWidth } from "@/lib/dovetailGeometry";
 import {
   DEFAULT_THREAD_CLEARANCE,
   DEFAULT_THREAD_BOLT_CLEARANCE,
@@ -60,6 +68,16 @@ import {
   springWireLimits,
 } from "@/lib/springGeometry";
 import {
+  DEFAULT_FLAT_SPRING_ENDS,
+  DEFAULT_FLAT_SPRING_PATTERN,
+  DEFAULT_FLAT_SPRING_TURNS,
+  DEFAULT_FLAT_SPRING_WIRE,
+  flatSpringTurnLimits,
+  flatSpringWireLimits,
+  normalizeFlatSpringEnds,
+  normalizeFlatSpringPattern,
+} from "@/lib/flatSpringGeometry";
+import {
   DEFAULT_ROUNDED_BOX_CORNER_FILLET,
   DEFAULT_ROUNDED_BOX_TOP_BOTTOM_FILLET,
   DEFAULT_ROUNDED_BOX_QUALITY,
@@ -79,18 +97,49 @@ import {
 } from "@/lib/bentTubeGeometry";
 import { numberLocale, t, type MessageKey } from "@/lib/i18n";
 import { useLanguage } from "@/lib/useLanguage";
+import { readStartCornerRulerPlace, readStartWithCornerRuler, writeStartCornerRulerPlace, writeStartWithCornerRuler, type StartCornerRulerPlace } from "@/lib/cornerRulerStore";
 import { measurementOptionLabel, normalizeScaleForUnits, parseMeasurementInput, scaleOptionsForUnits, WORKSPACE_UNIT_OPTIONS } from "@/lib/measurementUnits";
 import { shapeAssetDefaultDimensions, shapeAssetLabel, shapeAssetSpecialDefaults, toolbarShapeAssets } from "@/lib/shapeCatalog";
-import { BOOLEAN_TRIANGLE_LIMIT_PRESETS, BOOLEAN_TRIANGLE_LIMIT_STEP, DEFAULT_WORKPLANE_WORKSPACE, ZOOM_SPEED_SLIDER_MAX, MAX_BOOLEAN_TRIANGLE_LIMIT, MAX_CUSTOM_SHAPE_DIMENSION, MAX_HIGH_RESOLUTION_SIDES, MAX_HIGH_RESOLUTION_STEPS, MIN_BOOLEAN_TRIANGLE_LIMIT, MIN_CUSTOM_SHAPE_DIMENSION, booleanTriangleLimitPreset, workspaceForUnits, snapGridForUnits, type BooleanTriangleLimitPreset, DEFAULT_SNAP_GRID, MAX_CUSTOM_SNAP_GRID, MAX_CUSTOM_SNAP_GRID_NAME, MAX_CUSTOM_SNAP_GRIDS, MIN_CUSTOM_SNAP_GRID, customSnapGridDivisors, customSnapGridLabel, customSnapGridSize, parseCustomSnapGrid, resetGridInSavedDefault, snapGridOptions, standardGridSettings } from "@/lib/workplaneSettings";
+import { BOOLEAN_TRIANGLE_LIMIT_PRESETS, BOOLEAN_TRIANGLE_LIMIT_STEP, DEFAULT_WORKPLANE_WORKSPACE, HOLE_OPACITY_MAX, HOLE_OPACITY_MIN, effectiveHoleOpacity, ZOOM_SPEED_SLIDER_MAX, PAN_SPEED_SLIDER_MAX, MAX_BOOLEAN_TRIANGLE_LIMIT, MAX_CUSTOM_SHAPE_DIMENSION, MAX_HIGH_RESOLUTION_SIDES, MAX_HIGH_RESOLUTION_STEPS, MIN_BOOLEAN_TRIANGLE_LIMIT, MIN_CUSTOM_SHAPE_DIMENSION, booleanTriangleLimitPreset, workspaceForUnits, snapGridForUnits, type BooleanTriangleLimitPreset, DEFAULT_SNAP_GRID, MAX_CUSTOM_SNAP_GRID, MAX_CUSTOM_SNAP_GRID_NAME, MAX_CUSTOM_SNAP_GRIDS, MIN_CUSTOM_SNAP_GRID, customSnapGridDivisors, customSnapGridLabel, customSnapGridSize, parseCustomSnapGrid, readWorkspaceDefault, resetGridInSavedDefault, snapGridOptions, standardGridSettings, workspaceWithSavedDefault } from "@/lib/workplaneSettings";
 import { DEFAULT_SKETCH_BACKGROUND, DEFAULT_SKETCH_GRID_COLOR, DEFAULT_SKETCH_PLATE_COLOR, IMPERIAL_GRID_BLOCK_PRESETS, inchGridPresetMm, workplaneGridPalette } from "@/lib/workplaneGrid";
-import { DEFAULT_GRIDFINITY_TRAY_SIZE, normalizeGridfinityType } from "@/lib/gridfinityGeometry";
 import type { BentTubeProfile, CustomSnapGrid, GearProfile, GearType, GridSize, ShapeCustomization, ShapeKind, ThreadHand, ThreadHead, ThreadProfile, ThreadRole, WorkplaneWorkspaceSettings } from "@/types/layerling";
 import { DEFAULT_LOFT } from "@/lib/loftGeometry";
+import { DEFAULT_GRIDFINITY_TRAY_SIZE, normalizeGridfinityType } from "@/lib/gridfinityGeometry";
 import { selectWholeValue } from "@/lib/numberField";
+import { DEFAULT_PULLEY_BELT_WIDTH, DEFAULT_PULLEY_BORE, DEFAULT_PULLEY_FLANGE, DEFAULT_PULLEY_FLANGE_RISE, DEFAULT_PULLEY_HUB_DIAMETER, DEFAULT_PULLEY_HUB_HEIGHT, DEFAULT_PULLEY_TEETH, MAX_PULLEY_BELT_WIDTH, MAX_PULLEY_FLANGE, MAX_PULLEY_FLANGE_RISE, MAX_PULLEY_HUB_HEIGHT, MAX_PULLEY_TEETH, MIN_PULLEY_BELT_WIDTH, MIN_PULLEY_FLANGE_RISE, MIN_PULLEY_TEETH } from "@/lib/pulleyGeometry";
+import { MAX_TEXT_LENGTH } from "@/lib/textLength";
 import { DEFAULT_HIRTH_BORE, DEFAULT_HIRTH_TEETH, MAX_HIRTH_TEETH, MIN_HIRTH_TEETH, MIN_HIRTH_TOOTH_HEIGHT, hirthBoreLimit, hirthToothHeightLimit } from "@/lib/hirthGeometry";
 
 type WorkspaceSettings = WorkplaneWorkspaceSettings;
-type WorkspaceSettingsSection = "appearance" | "measurement" | "workplane" | "shapes" | "history" | "files";
+type WorkspaceSettingsSection = "appearance" | "controls" | "output" | "ribbon" | "measurement" | "workplane" | "shapes" | "history" | "backups" | "files";
+// The question mark of each tab opens that tab's own part of the guide.
+const SETTINGS_HELP_SECTION: Record<WorkspaceSettingsSection, GuideSection> = {
+  appearance: "settingsAppearance",
+  controls: "settingsControls",
+  output: "exporting",
+  ribbon: "ribbonButtons",
+  measurement: "settingsMeasurement",
+  workplane: "settingsWorkplane",
+  shapes: "shapeSettings",
+  history: "backingUp",
+  backups: "fileBackups",
+  files: "backingUp",
+};
+
+/** The tabs of the window, in the order they stand. */
+const SETTINGS_SECTIONS: ReadonlyArray<{ id: WorkspaceSettingsSection; label: MessageKey; icon: LucideIcon }> = [
+  { id: "appearance", label: "workspace.appearance", icon: Palette },
+  { id: "controls", label: "workspace.controls", icon: MousePointer2 },
+  { id: "output", label: "workspace.output", icon: Download },
+  { id: "ribbon", label: "workspace.ribbon", icon: PanelTop },
+  { id: "measurement", label: "workspace.measurement", icon: Ruler },
+  { id: "workplane", label: "workspace.workplane", icon: Grid3X3 },
+  { id: "shapes", label: "workspace.shapeDefaults", icon: BoxIcon },
+  { id: "history", label: "workspace.history", icon: History },
+  { id: "backups", label: "backups.settingsTitle", icon: ArchiveRestore },
+  // Fork (build 22): where exports and backups go.
+  { id: "files", label: "files.section", icon: FolderOpen },
+];
 
 const MIN_WORKSPACE_SIZE = 60;
 const MAX_WORKSPACE_SIZE = 5000;
@@ -107,19 +156,13 @@ const WORKSPACE_SIZE_PRESETS = [
 // Alphabetical, numbers counted as numbers (Ender 3 before Ender 10): the list of the slicer is in no order a person could search by (#305).
 const PRINTER_COLLATOR = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 const PRINTER_VENDORS = [...new Set(PRINTER_PRESETS.map((preset) => preset.vendor))].sort(PRINTER_COLLATOR.compare);
+/** The printers offered first and as one-click buttons (fork default). */
+const MY_PRINTER_IDS = ["bambu-lab-a1-mini", "bambu-lab-p2s"] as const;
 const PRINTERS_BY_VENDOR = new Map(PRINTER_VENDORS.map((vendor) => [
   vendor,
   PRINTER_PRESETS.filter((preset) => preset.vendor === vendor).sort((a, b) => PRINTER_COLLATOR.compare(a.model, b.model)),
 ]));
 const GRID_BLOCK_PRESETS = ["1 mm", "2.5 mm", "5 mm", "10 mm", "20 mm", "50 mm", "100 mm", "Custom"] as const;
-/** Nur die freie Wahl wird uebersetzt; Masse bleiben Masse. */
-const THEME_LABEL_KEYS: Record<AppThemePreference, MessageKey> = {
-  system: "workspace.themeSystem",
-  light: "workspace.themeLight",
-  dark: "workspace.themeDark",
-  graphite: "workspace.themeGraphite",
-  classic: "workspace.themeClassic",
-};
 
 const TOOLBAR_SIZE_LABEL_KEYS: Record<ToolbarSize, MessageKey> = {
   small: "workspace.toolbarSizeSmall",
@@ -168,6 +211,10 @@ const THREAD_HEAD_OPTIONS: Array<{ value: ThreadHead; label: MessageKey }> = [
   { value: "cylinder", label: "thread.headCylinder" },
   { value: "countersunk", label: "thread.headCountersunk" },
   { value: "hex", label: "thread.headHex" },
+  { value: "square", label: "thread.headSquare" },
+  { value: "flange", label: "thread.headFlange" },
+  { value: "wing", label: "thread.headWing" },
+  { value: "knob", label: "thread.headKnob" },
 ];
 const THREAD_HAND_OPTIONS: Array<{ value: ThreadHand; label: MessageKey }> = [
   { value: "right", label: "thread.right" },
@@ -188,10 +235,11 @@ const BENT_TUBE_PROFILE_OPTIONS: Array<{ value: BentTubeProfile; label: MessageK
 ];
 
 type ShapeSpecialNumberKey = "steps" | "sides" | "bevel" | "segments" | "topRadius" | "baseRadius" | "teeth" | "toothSize" | "toothWidth" | "centerHoleSize" | "helixAngle" | "helixQuality" | "gearPressureAngle" | "gearBacklash" | "gearRim" | "threadDiameter" | "threadPitch" | "threadClearance" | "threadBoltClearance" | "threadAxialClearance" | "threadQuality" | "threadChamfer" | "threadHeadChamfer" | "springTurns" | "springWire" | "springQuality" | "topWidth" | "topDepth" | "starPoints" | "starInnerSize" | "starOuterFillet" | "starInnerFillet" | "starQuality" | "heartTipFillet" | "heartQuality" | "crescentThickness" | "crescentTipFillet" | "crescentQuality" | "honeycombCellSize" | "honeycombWallThickness" | "honeycombFrameWidth" | "dovetailNeckWidth" | "dovetailClearance" | "hingeKnuckles" | "hingePinDiameter" | "hingeLeafThickness" | "hingeClearance" | "screwHoleShaft" | "screwHoleHeadDepth" | "screwHoleAngle" | "cornerFillet" | "topBottomFillet" | "roundedBoxQuality" | "bentTubeSize" | "bentTubeWall" | "bentTubeQuality" | "knurlCount" | "knurlDepth" | "knurlAngle" | "knurlChamfer"
-  | "loftBottomWidth" | "loftBottomDepth" | "loftTopWidth" | "loftTopDepth" | "loftWall";
+  | "loftBottomWidth" | "loftBottomDepth" | "loftTopWidth" | "loftTopDepth" | "loftWall"
+  | "pulleyBeltWidth" | "pulleyFlange" | "pulleyFlangeRise" | "pulleyHubHeight" | "pulleyHubDiameter";
 type ShapeSpecialField =
   | { type: "number"; key: ShapeSpecialNumberKey; label: string; defaultValue: number; min: number; max: number; step?: number; unit?: string }
-  | { type: "select"; key: "font" | "gearType" | "gearProfile" | "threadRole" | "threadHead" | "threadHand" | "threadProfile" | "springHand" | "bentTubeProfile" | "bentTubeInnerProfile" | "knurlPattern" | "gridfinityType" | "loftBottomOutline" | "loftTopOutline"; label: string; defaultValue: string; options: Array<{ value: string; label: string }> }
+  | { type: "select"; key: "font" | "gearType" | "gearProfile" | "threadRole" | "threadHead" | "threadHand" | "threadProfile" | "springHand" | "springForm" | "springPattern" | "springEnds" | "bentTubeProfile" | "bentTubeInnerProfile" | "knurlPattern" | "gridfinityType" | "loftBottomOutline" | "loftTopOutline"; label: string; defaultValue: string; options: Array<{ value: string; label: string }> }
   | { type: "text"; key: "text"; label: string; defaultValue: string; maxLength: number };
 
 function clamp(value: number, min: number, max: number) {
@@ -213,11 +261,14 @@ function specialFieldsForShape(
   kind: ShapeKind,
   dimensions: { width: number; depth: number; height: number },
   customization: ShapeCustomization,
+  printerPlay: number | null = null,
 ): ShapeSpecialField[] {
-  const defaults = shapeAssetSpecialDefaults(kind, dimensions);
+  // A clearance that follows the printer's play starts from it here too, as a new shape of the kind does.
+  const defaults = { ...shapeAssetSpecialDefaults(kind, dimensions), ...printerPlayShapeStart(kind, printerPlay) };
   // Ohne eigene Angabe folgt die Seitenzahl der Groesse; hier steht, was das
   // bei den Vorgabemassen ergibt. Eine eingetragene Zahl haelt sie fest.
-  if (kind === "cylinder" || kind === "ellipse" || kind === "slot") {
+  // The curved cone's top and bend are kept as shares; "Save as default" on its card keeps them.
+  if (kind === "cylinder" || kind === "ellipse" || kind === "slot" || kind === "curvedCone") {
     return [{
       type: "number",
       key: "sides",
@@ -255,22 +306,38 @@ function specialFieldsForShape(
   if (kind === "tube" || kind === "ring") {
     return [
       { type: "number", key: "sides", label: t("prop.sides"), defaultValue: defaults.sides ?? automaticSideCount(dimensions.width, dimensions.depth), min: 3, max: MAX_HIGH_RESOLUTION_SIDES, step: 1 },
-      { type: "number", key: "bevel", label: t("prop.thickness"), defaultValue: defaults.bevel ?? 4, min: 0.5, max: 20, unit: "mm" },
+      { type: "number", key: "bevel", label: t("prop.bentTubeWall"), defaultValue: defaults.bevel ?? 4, min: 0.5, max: 20, unit: "mm" },
     ];
   }
   if (kind === "text") {
     return [
-      { type: "text", key: "text", label: t("prop.text"), defaultValue: defaults.text ?? "TEXT", maxLength: 24 },
+      { type: "text", key: "text", label: t("prop.text"), defaultValue: defaults.text ?? "TEXT", maxLength: MAX_TEXT_LENGTH },
       { type: "select", key: "font", label: t("prop.font"), defaultValue: defaults.font ?? "Multilanguage", options: TEXT_FONT_OPTIONS.map((value) => ({ value, label: value })) },
       { type: "number", key: "bevel", label: t("prop.bevel"), defaultValue: defaults.bevel ?? 0, min: 0, max: 8, unit: "mm" },
       { type: "number", key: "segments", label: t("prop.segments"), defaultValue: defaults.segments ?? 0, min: 0, max: 24, step: 1 },
     ];
   }
   if (kind === "spring") {
+    const form = { type: "select" as const, key: "springForm" as const, label: t("prop.springForm"), defaultValue: defaults.springForm ?? "coil", options: [{ value: "coil", label: t("spring.coil") }, { value: "flat", label: t("spring.flat") }] };
+    if ((customization.springForm ?? defaults.springForm) === "flat") {
+      const pattern = normalizeFlatSpringPattern(customization.springPattern ?? defaults.springPattern);
+      const ends = normalizeFlatSpringEnds(customization.springEnds ?? defaults.springEnds);
+      const wireLimits = flatSpringWireLimits(dimensions.width, dimensions.depth, pattern, ends);
+      const turnLimits = flatSpringTurnLimits(dimensions.width, dimensions.depth, customization.springWire ?? defaults.springWire, pattern, ends);
+      return [
+        form,
+        { type: "select", key: "springPattern", label: t("prop.springPattern"), defaultValue: defaults.springPattern ?? DEFAULT_FLAT_SPRING_PATTERN, options: [{ value: "round", label: t("spring.round") }, { value: "zigzag", label: t("spring.zigzag") }, { value: "square", label: t("spring.square") }] },
+        { type: "select", key: "springEnds", label: t("prop.springEnds"), defaultValue: defaults.springEnds ?? DEFAULT_FLAT_SPRING_ENDS, options: [{ value: "eye", label: t("spring.eye") }, { value: "tab", label: t("spring.tab") }, { value: "none", label: t("spring.none") }] },
+        { type: "number", key: "springTurns", label: t("prop.bends"), defaultValue: defaults.springTurns ?? DEFAULT_FLAT_SPRING_TURNS, min: turnLimits.min, max: turnLimits.max, step: 1 },
+        { type: "number", key: "springWire", label: t("prop.band"), defaultValue: defaults.springWire ?? DEFAULT_FLAT_SPRING_WIRE, min: wireLimits.min, max: wireLimits.max, unit: "mm" },
+        { type: "number", key: "springQuality", label: t("prop.quality"), defaultValue: defaults.springQuality ?? DEFAULT_SPRING_QUALITY, min: MIN_SPRING_QUALITY, max: MAX_SPRING_QUALITY, step: 4 },
+      ];
+    }
     const across = Math.max(dimensions.width, dimensions.depth);
     const wireLimits = springWireLimits(across, dimensions.height);
     const turnLimits = springTurnLimits(across, dimensions.height, customization.springWire ?? defaults.springWire);
     return [
+      form,
       { type: "number", key: "springTurns", label: t("prop.turns"), defaultValue: defaults.springTurns ?? DEFAULT_SPRING_TURNS, min: turnLimits.min, max: turnLimits.max, step: 1 },
       { type: "number", key: "springWire", label: t("prop.wire"), defaultValue: defaults.springWire ?? DEFAULT_SPRING_WIRE, min: wireLimits.min, max: wireLimits.max, unit: "mm" },
       { type: "number", key: "springQuality", label: t("prop.quality"), defaultValue: defaults.springQuality ?? DEFAULT_SPRING_QUALITY, min: MIN_SPRING_QUALITY, max: MAX_SPRING_QUALITY, step: 4 },
@@ -337,6 +404,17 @@ function specialFieldsForShape(
     }
     return fields;
   }
+  if (kind === "pulley") {
+    return [
+      { type: "number", key: "teeth", label: t("prop.teeth"), defaultValue: defaults.teeth ?? DEFAULT_PULLEY_TEETH, min: MIN_PULLEY_TEETH, max: MAX_PULLEY_TEETH, step: 1 },
+      { type: "number", key: "pulleyBeltWidth", label: t("prop.pulleyBeltWidth"), defaultValue: defaults.pulleyBeltWidth ?? DEFAULT_PULLEY_BELT_WIDTH, min: MIN_PULLEY_BELT_WIDTH, max: MAX_PULLEY_BELT_WIDTH, unit: "mm" },
+      { type: "number", key: "centerHoleSize", label: t("prop.centerHole"), defaultValue: defaults.centerHoleSize ?? DEFAULT_PULLEY_BORE, min: 0, max: MAX_PULLEY_BELT_WIDTH, unit: "mm" },
+      { type: "number", key: "pulleyFlange", label: t("prop.pulleyFlange"), defaultValue: defaults.pulleyFlange ?? DEFAULT_PULLEY_FLANGE, min: 0, max: MAX_PULLEY_FLANGE, unit: "mm" },
+      { type: "number", key: "pulleyFlangeRise", label: t("prop.pulleyFlangeRise"), defaultValue: defaults.pulleyFlangeRise ?? DEFAULT_PULLEY_FLANGE_RISE, min: MIN_PULLEY_FLANGE_RISE, max: MAX_PULLEY_FLANGE_RISE, unit: "mm" },
+      { type: "number", key: "pulleyHubHeight", label: t("prop.pulleyHubHeight"), defaultValue: defaults.pulleyHubHeight ?? DEFAULT_PULLEY_HUB_HEIGHT, min: 0, max: MAX_PULLEY_HUB_HEIGHT, unit: "mm" },
+      { type: "number", key: "pulleyHubDiameter", label: t("prop.pulleyHubDiameter"), defaultValue: defaults.pulleyHubDiameter ?? DEFAULT_PULLEY_HUB_DIAMETER, min: 1, max: MAX_PULLEY_BELT_WIDTH, unit: "mm" },
+    ];
+  }
   if (kind === "hirth") {
     return [
       { type: "number", key: "teeth", label: t("prop.teeth"), defaultValue: defaults.teeth ?? DEFAULT_HIRTH_TEETH, min: MIN_HIRTH_TEETH, max: MAX_HIRTH_TEETH, step: 1 },
@@ -359,6 +437,14 @@ function specialFieldsForShape(
       kind === "counterbore"
         ? { type: "number", key: "screwHoleHeadDepth", label: t("prop.screwHoleHeadDepth"), defaultValue: defaults.screwHoleHeadDepth ?? 3.2, min: 0.1, max: Math.max(0.3, dimensions.height - 0.2), unit: "mm" }
         : { type: "number", key: "screwHoleAngle", label: t("prop.screwHoleAngle"), defaultValue: defaults.screwHoleAngle ?? 90, min: 30, max: 150, step: 1, unit: "°" },
+      { type: "number", key: "sides", label: t("prop.sides"), defaultValue: defaults.sides ?? automaticSideCount(dimensions.width, dimensions.depth), min: 3, max: MAX_HIGH_RESOLUTION_SIDES, step: 1 },
+    ];
+  }
+  if (kind === "finishingWasher") {
+    return [
+      { type: "number", key: "screwHoleShaft", label: t("prop.centerHole"), defaultValue: defaults.screwHoleShaft ?? 4.5, min: 0.1, max: Math.max(0.2, dimensions.width * 0.95), unit: "mm" },
+      { type: "number", key: "screwHoleHeadDepth", label: t("prop.finishingWasherSeatDepth"), defaultValue: defaults.screwHoleHeadDepth ?? 2.45, min: 0, max: Math.max(0.1, dimensions.height - 0.2), unit: "mm" },
+      { type: "number", key: "screwHoleAngle", label: t("prop.screwHoleAngle"), defaultValue: defaults.screwHoleAngle ?? 90, min: 30, max: 150, step: 1, unit: "°" },
       { type: "number", key: "sides", label: t("prop.sides"), defaultValue: defaults.sides ?? automaticSideCount(dimensions.width, dimensions.depth), min: 3, max: MAX_HIGH_RESOLUTION_SIDES, step: 1 },
     ];
   }
@@ -390,7 +476,7 @@ function specialFieldsForShape(
   }
   if (kind === "dovetail") {
     return [
-      { type: "number", key: "dovetailNeckWidth", label: t("prop.dovetailNeckWidth"), defaultValue: defaults.dovetailNeckWidth ?? dimensions.width / 2, min: 0.1, max: Math.max(0.2, dimensions.width * 0.95), unit: "mm" },
+      { type: "number", key: "dovetailNeckWidth", label: t("prop.dovetailNeckWidth"), defaultValue: defaults.dovetailNeckWidth ?? dimensions.width / 2, min: 0.1, max: maxDovetailNeckWidth(dimensions.width), unit: "mm" },
       { type: "number", key: "dovetailClearance", label: t("prop.dovetailClearance"), defaultValue: defaults.dovetailClearance ?? 0.2, min: 0, max: 2, step: 0.05, unit: "mm" },
     ];
   }
@@ -431,9 +517,9 @@ function specialFieldsForShape(
     return [
       { type: "select", key: "bentTubeProfile", label: t("prop.bentTubeProfile"), defaultValue: defaults.bentTubeProfile ?? DEFAULT_BENT_TUBE_PROFILE, options: profileOptions },
       { type: "select", key: "bentTubeInnerProfile", label: t("prop.bentTubeInnerProfile"), defaultValue: defaults.bentTubeInnerProfile ?? DEFAULT_BENT_TUBE_INNER_PROFILE, options: [{ value: "none", label: t("bentTube.innerNone") }, ...profileOptions] },
+      { type: "number", key: "bentTubeQuality", label: t("prop.quality"), defaultValue: defaults.bentTubeQuality ?? DEFAULT_BENT_TUBE_QUALITY, min: MIN_BENT_TUBE_QUALITY, max: MAX_BENT_TUBE_QUALITY, step: 4 },
       { type: "number", key: "bentTubeSize", label: t("prop.bentTubeSize"), defaultValue: defaults.bentTubeSize ?? DEFAULT_BENT_TUBE_SIZE, min: MIN_BENT_TUBE_SIZE, max: 100, step: 0.5, unit: "mm" },
       { type: "number", key: "bentTubeWall", label: t("prop.bentTubeWall"), defaultValue: defaults.bentTubeWall ?? DEFAULT_BENT_TUBE_WALL, min: MIN_BENT_TUBE_WALL, max: 20, step: 0.1, unit: "mm" },
-      { type: "number", key: "bentTubeQuality", label: t("prop.quality"), defaultValue: defaults.bentTubeQuality ?? DEFAULT_BENT_TUBE_QUALITY, min: MIN_BENT_TUBE_QUALITY, max: MAX_BENT_TUBE_QUALITY, step: 4 },
     ];
   }
   if (kind === "roundedBox") {
@@ -463,6 +549,7 @@ export function WorkspaceSettingsModal({
   onSaveStartView,
   onResetStartView,
   onMakeDefault,
+  onMakeFitTest,
   onClose,
 }: {
   workspace: WorkspaceSettings;
@@ -479,13 +566,20 @@ export function WorkspaceSettingsModal({
   onStartInPerspectiveChange: (perspective: boolean) => void;
   /** Whether a start view of the user's own is set (#853). */
   hasStartView: boolean;
-  onSaveStartView: () => void;
+  /** Takes the 3D view as the start view; left out where there is none, in a sketch (Discussion #1990). */
+  onSaveStartView?: () => void;
   onResetStartView: () => void;
   onMakeDefault: () => void;
+  /** Puts the fit test on the plate (fitTest.ts); the window closes for it. */
+  onMakeFitTest?: () => void;
   onClose: () => void;
 }) {
   const [defaultSaved, setDefaultSaved] = useState(false);
+  // A default saved earlier or just now: what "Use my default" puts on this design (#754).
+  const savedDefault = useMemo(() => readWorkspaceDefault(), [defaultSaved]);
   useLanguage();
+  // The play of the printer chosen here (Discussion #1406), as a new shape for it starts from.
+  const { play: printerPlay } = usePrinterPlayFor(workspace.printer ?? "");
   const [activeSection, setActiveSection] = useState<WorkspaceSettingsSection>("appearance");
   // Fork (build 17): Appearance shows the everyday choices; the rest wait behind "Show advanced settings".
   const [showAdvanced, setShowAdvanced] = useState(() => {
@@ -503,8 +597,14 @@ export function WorkspaceSettingsModal({
       // Still applies while the window is open.
     }
   };
-  const toolbarSize = useToolbarSize();
   const studioLook = useStudioLook();
+  // A setting of this browser, not of the design: read when the window opens (#1386).
+  const [startWithCornerRuler, setStartWithCornerRuler] = useState(readStartWithCornerRuler);
+  const [startCornerRulerPlace, setStartCornerRulerPlace] = useState(readStartCornerRulerPlace);
+  const [query, setQuery] = useState("");
+  const { bodyRef, counts, noHits, searching, setMarkedQuery } = useSettingsSearch(query);
+  const showsSection = (section: WorkspaceSettingsSection) => searching || activeSection === section;
+  const toolbarSize = useToolbarSize();
   const shapeColors = useShapeColors();
   const viewCubePosition = useViewCubePosition();
   const [selectedShapeKind, setSelectedShapeKind] = useState<ShapeKind>(toolbarShapeAssets[0].kind);
@@ -552,13 +652,16 @@ export function WorkspaceSettingsModal({
     depth: selectedShapeCustomization.depth ?? selectedShapeAppDefaults.depth,
     height: selectedShapeCustomization.height ?? selectedShapeAppDefaults.height,
   };
-  const selectedShapeSpecialFields = specialFieldsForShape(selectedShapeKind, selectedShapeEffectiveDimensions, selectedShapeCustomization);
+  const selectedShapeSpecialFields = specialFieldsForShape(selectedShapeKind, selectedShapeEffectiveDimensions, selectedShapeCustomization, printerPlay);
+  // The fields whose starting value comes from the fit test: their line says so instead of "App".
+  const selectedShapePlayStart = printerPlayShapeStart(selectedShapeKind, printerPlay) as Record<string, number | undefined>;
   // Breite und Tiefe eines Gewindes folgen dem Durchmesser; nur die Hoehe
   // laesst sich sinnvoll vorgeben. Ein Zylinder ist immer kreisrund, daher
   // nur ein Durchmesser- (= Breiten-)Feld statt Breite und Tiefe getrennt.
   // Ein gebogenes Rohr bekommt seinen Rahmen ganz aus Profil und Segmenten.
   // Ein Uebergang bekommt Breite und Tiefe aus seinen beiden Enden, nur die Hoehe ist frei.
-  const selectedShapeDimensionKeys: Array<"width" | "depth" | "height"> = selectedShapeKind === "bentTube"
+  // A GT2 pulley's box follows from its teeth, belt width, flanges and hub.
+  const selectedShapeDimensionKeys: Array<"width" | "depth" | "height"> = selectedShapeKind === "bentTube" || selectedShapeKind === "pulley"
     ? []
     : selectedShapeKind === "loft"
     ? ["height"]
@@ -726,7 +829,7 @@ export function WorkspaceSettingsModal({
         <header className="workspace-modal-header movable" title={t("panel.moveHint")} {...movable.handleProps}>
           <strong>{t("workspace.title")}</strong>
           <div className="panel-header-actions">
-            <GuideHelpLink section={activeSection === "history" ? "backingUp" : activeSection === "shapes" ? "shapeSettings" : "gridAndSnapping"} />
+            <GuideHelpLink section={searching ? "settingsSearch" : SETTINGS_HELP_SECTION[activeSection]} />
             <button aria-label={t("workspace.close")} onClick={onClose}>
               <X size={18} />
             </button>
@@ -735,57 +838,76 @@ export function WorkspaceSettingsModal({
 
         <div className="workspace-modal-layout">
           <nav className="workspace-settings-nav" aria-label={t("workspace.sections")}>
-            <SettingsSearch
-              onPick={(section, advanced, label) => {
-                setActiveSection(section);
-                if (advanced) toggleAdvanced(true);
-                // Once the section is drawn: scroll to the setting and flash it.
-                window.setTimeout(() => {
-                  const body = document.querySelector(".workspace-modal-body");
-                  const match = [...(body?.querySelectorAll("span, strong, label") ?? [])].find((element) => element.textContent?.trim() === label);
-                  const row = (match?.closest("label, .workspace-toggle, .color-setting, .workspace-select, .workspace-range") ?? match) as HTMLElement | null;
-                  if (!row) return;
-                  row.scrollIntoView({ block: "center", behavior: "smooth" });
-                  row.classList.add("settings-search-hit");
-                  window.setTimeout(() => row.classList.remove("settings-search-hit"), 1600);
-                }, 60);
-              }}
-            />
-            <button className={activeSection === "appearance" ? "active" : ""} aria-current={activeSection === "appearance" ? "page" : undefined} onClick={() => setActiveSection("appearance")}>
-              <Palette size={18} />
-              <span>{t("workspace.appearance")}</span>
-            </button>
-            <button className={activeSection === "measurement" ? "active" : ""} aria-current={activeSection === "measurement" ? "page" : undefined} onClick={() => setActiveSection("measurement")}>
-              <Ruler size={18} />
-              <span>{t("workspace.measurement")}</span>
-            </button>
-            <button className={activeSection === "workplane" ? "active" : ""} aria-current={activeSection === "workplane" ? "page" : undefined} onClick={() => setActiveSection("workplane")}>
-              <Grid3X3 size={18} />
-              <span>{t("workspace.workplane")}</span>
-            </button>
-            <button className={activeSection === "shapes" ? "active" : ""} aria-current={activeSection === "shapes" ? "page" : undefined} onClick={() => setActiveSection("shapes")}>
-              <BoxIcon size={18} />
-              <span>{t("workspace.shapeDefaults")}</span>
-            </button>
-            <button className={activeSection === "history" ? "active" : ""} data-help={t("workspace.savedHistory")} aria-current={activeSection === "history" ? "page" : undefined} onClick={() => setActiveSection("history")}>
-              <History size={18} />
-              <span>{t("workspace.history")}</span>
-            </button>
-            {/* Fork (build 22): where exports and backups go. */}
-            <button className={activeSection === "files" ? "active" : ""} aria-current={activeSection === "files" ? "page" : undefined} onClick={() => setActiveSection("files")}>
-              <FolderOpen size={18} />
-              <span>{t("files.section")}</span>
-            </button>
+            <div className="workspace-settings-search" role="search" data-help={t("workspace.search")}>
+              <Search size={15} aria-hidden="true" />
+              <input
+                type="text"
+                value={query}
+                placeholder={t("workspace.search")}
+                aria-label={t("workspace.search")}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(event) => {
+                  setQuery(event.currentTarget.value);
+                  setMarkedQuery("");
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (query) setQuery("");
+                  else onClose();
+                }}
+              />
+              {query ? (
+                <button
+                  type="button"
+                  aria-label={t("workspace.searchClear")}
+                  title={t("workspace.searchClear")}
+                  onClick={(event) => {
+                    setQuery("");
+                    event.currentTarget.parentElement?.querySelector("input")?.focus();
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              ) : null}
+            </div>
+            {SETTINGS_SECTIONS.map(({ id, label, icon: Icon }) => {
+              const current = !searching && activeSection === id;
+              const count = searching ? counts[id] ?? 0 : null;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`${current ? "active" : ""}${count === 0 ? " no-hits" : ""}`.trim()}
+                  data-help={t(label)}
+                  aria-current={current ? "page" : undefined}
+                  onClick={() => {
+                    // Leaving the search for a whole tab: what was found stays marked in it.
+                    setMarkedQuery(count ? query : "");
+                    setQuery("");
+                    setActiveSection(id);
+                  }}
+                >
+                  <Icon size={18} />
+                  <span>{t(label)}</span>
+                  {count ? <small className="workspace-settings-nav-count">{count}</small> : null}
+                </button>
+              );
+            })}
           </nav>
 
           <div className="workspace-modal-content">
-            <div className="workspace-modal-body">
-              {activeSection === "appearance" ? (
-                <>
+            <div className="workspace-modal-body" ref={bodyRef}>
+              {searching && noHits ? <p className="workspace-search-empty" role="status">{t("workspace.searchEmpty")}</p> : null}
+              {showsSection("appearance") ? (
+                <section className="workspace-settings-section" data-settings-section="appearance">
                   <div className="workspace-section-heading">
                     <strong>{t("workspace.appearance")}</strong>
                     <span>{t("workspace.appearanceHint")}</span>
                   </div>
+                  <SimpleModeSetting />
                   <WorkspaceToggle
                     label={t("workspace.fastMode")}
                     description={t("workspace.fastModeHint")}
@@ -793,19 +915,6 @@ export function WorkspaceSettingsModal({
                     onChange={(fastMode) => patchWorkspace({ fastMode })}
                   />
                   {/* Build 104: CAD Studio is always light - no theme here. */}
-                  <label className="workspace-select" data-help={t("workspace.toolbarSize")}>
-                    <span>{t("workspace.toolbarSize")}</span>
-                    <select
-                      value={toolbarSize}
-                      onChange={(event) => setToolbarSize(event.currentTarget.value as ToolbarSize)}
-                    >
-                      {TOOLBAR_SIZE_OPTIONS.map((size) => (
-                        <option key={size} value={size}>
-                          {t(TOOLBAR_SIZE_LABEL_KEYS[size])}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                   <WorkspaceToggle
                     label={t("workspace.studioLook")}
                     description={t("workspace.studioLookHint")}
@@ -831,7 +940,8 @@ export function WorkspaceSettingsModal({
                       ))}
                     </select>
                   </label>
-                  {showAdvanced ? (
+                  {/* Fork (build 17): Appearance shows the everyday choices first. */}
+                  {showAdvanced || searching ? (
                   <>
                   <ColorSettingControl
                     label={t("workspace.backgroundColor")}
@@ -880,6 +990,24 @@ export function WorkspaceSettingsModal({
                     checked={workspace.strongHoles}
                     onChange={(strongHoles) => patchWorkspace({ strongHoles })}
                   />
+                  <label className="workspace-range" data-help={t("workspace.holeOpacityHint")}>
+                    <span>
+                      {t("workspace.holeOpacity")}: {effectiveHoleOpacity(workspace)} %
+                      {workspace.holeOpacity ? "" : ` (${t("workspace.holeOpacityAuto")})`}
+                    </span>
+                    <input
+                      type="range"
+                      min={HOLE_OPACITY_MIN}
+                      max={HOLE_OPACITY_MAX}
+                      value={effectiveHoleOpacity(workspace)}
+                      onChange={(event) => patchWorkspace({ holeOpacity: Number(event.currentTarget.value) })}
+                      onDoubleClick={() => patchWorkspace({ holeOpacity: DEFAULT_WORKPLANE_WORKSPACE.holeOpacity })}
+                    />
+                    <small>
+                      <span>{t("workspace.holeOpacityClear")}</span>
+                      <span>{t("workspace.holeOpacitySolid")}</span>
+                    </small>
+                  </label>
                   <ColorSettingControl
                     label={t("workspace.sketchBackground")}
                     color={sketchBackground}
@@ -911,8 +1039,6 @@ export function WorkspaceSettingsModal({
                       {t("workspace.sketchMatch")}
                     </button>
                   </div>
-                  </>
-                  ) : null}
                   <hr className="workspace-divider" />
                   <WorkspaceToggle
                     label={t("workspace.showMoveDimensions")}
@@ -924,14 +1050,6 @@ export function WorkspaceSettingsModal({
                     checked={originDimensionsEnabled}
                     onChange={onOriginDimensionsEnabledChange}
                   />
-                  <WorkspaceToggle
-                    label={t("settings.showAdvanced")}
-                    description={t("settings.advancedHint")}
-                    checked={showAdvanced}
-                    onChange={toggleAdvanced}
-                  />
-                  {showAdvanced ? (
-                  <>
                   <WorkspaceToggle
                     label={t("workspace.dimensionsAlwaysVisible")}
                     checked={workspace.dimensionsAlwaysVisible}
@@ -949,60 +1067,53 @@ export function WorkspaceSettingsModal({
                     onChange={(showRotationAngles) => patchWorkspace({ showRotationAngles })}
                   />
                   <WorkspaceToggle
+                    label={t("workspace.showSlideArrows")}
+                    description={t("workspace.showSlideArrowsHint")}
+                    checked={workspace.showSlideArrows}
+                    onChange={(showSlideArrows) => patchWorkspace({ showSlideArrows })}
+                  />
+                  <WorkspaceToggle
                     label={t("workspace.startInPerspective")}
                     checked={startInPerspective}
                     onChange={onStartInPerspectiveChange}
                   />
+                  <WorkspaceToggle
+                    label={t("workspace.startWithScrollbars")}
+                    checked={workspace.startWithScrollbars}
+                    onChange={(startWithScrollbars) => patchWorkspace({ startWithScrollbars })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.viewBarOpensOnHover")}
+                    description={t("workspace.viewBarOpensOnHoverHint")}
+                    checked={workspace.viewBarOpensOnHover}
+                    onChange={(viewBarOpensOnHover) => patchWorkspace({ viewBarOpensOnHover })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.showStepNotices")}
+                    description={t("workspace.showStepNoticesHint")}
+                    checked={workspace.showStepNotices}
+                    onChange={(showStepNotices) => patchWorkspace({ showStepNotices })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.viewCubeKeepsTurn")}
+                    description={t("workspace.viewCubeKeepsTurnHint")}
+                    checked={workspace.viewCubeKeepsTurn}
+                    onChange={(viewCubeKeepsTurn) => patchWorkspace({ viewCubeKeepsTurn })}
+                  />
                   <div className="workspace-reset-row" data-help={t("workspace.startViewHint")}>
                     <span>{t("workspace.startView")}</span>
                     <div className="property-defaults-actions">
-                      <button type="button" title={t("workspace.startViewHint")} onClick={onSaveStartView}>
-                        {t("workspace.startViewUseCurrent")}
-                      </button>
+                      {onSaveStartView ? (
+                        <button type="button" title={t("workspace.startViewHint")} onClick={onSaveStartView}>
+                          {t("workspace.startViewUseCurrent")}
+                        </button>
+                      ) : null}
                       <button type="button" disabled={!hasStartView} onClick={onResetStartView}>
                         <RotateCcw size={14} />
                         <span>{t("workspace.startViewStandard")}</span>
                       </button>
                     </div>
                   </div>
-                  <WorkspaceToggle
-                    label={t("workspace.selectBeforeMoving")}
-                    checked={workspace.selectBeforeMove}
-                    onChange={(selectBeforeMove) => patchWorkspace({ selectBeforeMove })}
-                  />
-                  <WorkspaceToggle
-                    label={t("workspace.frameByDirection")}
-                    description={t("workspace.frameByDirectionHint")}
-                    checked={workspace.frameByDirection}
-                    onChange={(frameByDirection) => patchWorkspace({ frameByDirection })}
-                  />
-                  <WorkspaceToggle
-                    label={t("workspace.pasteCentered")}
-                    description={t("workspace.pasteCenteredHint")}
-                    checked={workspace.pasteCentered}
-                    onChange={(pasteCentered) => patchWorkspace({ pasteCentered })}
-                  />
-                  <WorkspaceToggle
-                    label={t("workspace.doubleClickOpensSketch")}
-                    checked={workspace.doubleClickOpensSketch}
-                    onChange={(doubleClickOpensSketch) => patchWorkspace({ doubleClickOpensSketch })}
-                  />
-                  <WorkspaceToggle
-                    label={t("workspace.doubleClickOpensGroup")}
-                    checked={workspace.doubleClickOpensGroup}
-                    onChange={(doubleClickOpensGroup) => patchWorkspace({ doubleClickOpensGroup })}
-                  />
-                  <WorkspaceToggle
-                    label={t("workspace.objectSnap")}
-                    checked={workspace.objectSnap}
-                    onChange={(objectSnap) => patchWorkspace({ objectSnap })}
-                  />
-                  <WorkspaceToggle
-                    label={t("workspace.confirmTabClose")}
-                    description={t("workspace.confirmTabCloseHint")}
-                    checked={workspace.confirmTabClose}
-                    onChange={(confirmTabClose) => patchWorkspace({ confirmTabClose })}
-                  />
                   <WorkspaceToggle
                     label={t("workspace.showShadows")}
                     description={workspace.fastMode ? t("workspace.offInFastMode") : undefined}
@@ -1073,6 +1184,12 @@ export function WorkspaceSettingsModal({
                       <span>{t("workspace.lightAbove")}</span>
                     </small>
                   </label>
+                  <WorkspaceToggle
+                    label={t("workspace.softLighting")}
+                    description={t("workspace.softLightingHint")}
+                    checked={workspace.softLighting}
+                    onChange={(softLighting) => patchWorkspace({ softLighting })}
+                  />
                   <label className="workspace-range" data-help={t("workspace.shadeContrast")}>
                     <span>{t("workspace.shadeContrast")}: {workspace.shadeContrast}</span>
                     <input
@@ -1092,13 +1209,14 @@ export function WorkspaceSettingsModal({
                   <div className="property-defaults-actions">
                     <button
                       type="button"
-                      disabled={(["shadowStrength", "shadowSoftness", "shadeContrast", "lightAzimuth", "lightElevation"] as const).every((key) => workspace[key] === DEFAULT_WORKPLANE_WORKSPACE[key])}
+                      disabled={(["shadowStrength", "shadowSoftness", "shadeContrast", "lightAzimuth", "lightElevation", "softLighting"] as const).every((key) => workspace[key] === DEFAULT_WORKPLANE_WORKSPACE[key])}
                       onClick={() => patchWorkspace({
                         shadowStrength: DEFAULT_WORKPLANE_WORKSPACE.shadowStrength,
                         shadowSoftness: DEFAULT_WORKPLANE_WORKSPACE.shadowSoftness,
                         shadeContrast: DEFAULT_WORKPLANE_WORKSPACE.shadeContrast,
                         lightAzimuth: DEFAULT_WORKPLANE_WORKSPACE.lightAzimuth,
                         lightElevation: DEFAULT_WORKPLANE_WORKSPACE.lightElevation,
+                        softLighting: DEFAULT_WORKPLANE_WORKSPACE.softLighting,
                       })}
                     >
                       {t("workspace.lightReset")}
@@ -1127,33 +1245,6 @@ export function WorkspaceSettingsModal({
                       <span>{t("workspace.overhangLoose")}</span>
                     </small>
                   </label>
-                  <WorkspaceToggle
-                    label={t("workspace.cruise")}
-                    checked={workspace.clickToPlaceShapes}
-                    onChange={(clickToPlaceShapes) => patchWorkspace({ clickToPlaceShapes })}
-                  />
-                  <label className="workspace-range" data-help={t("workspace.zoomSpeed")}>
-                    <span>{t("workspace.zoomSpeed")}</span>
-                    <input
-                      type="range"
-                      min={1}
-                      max={ZOOM_SPEED_SLIDER_MAX}
-                      value={workspace.zoomSpeed}
-                      onChange={(event) => patchWorkspace({ zoomSpeed: Number(event.currentTarget.value) })}
-                      onDoubleClick={() => patchWorkspace({ zoomSpeed: DEFAULT_WORKPLANE_WORKSPACE.zoomSpeed })}
-                    />
-                    <small>
-                      <span>{t("workspace.slow")}</span>
-                      <span>{t("workspace.fast")}</span>
-                    </small>
-                  </label>
-                  <WorkspaceToggle
-                    label={t("workspace.cameraInertia")}
-                    description={workspace.fastMode ? t("workspace.offInFastMode") : t("workspace.cameraInertiaHint")}
-                    checked={workspace.cameraInertia && !workspace.fastMode}
-                    disabled={workspace.fastMode}
-                    onChange={(cameraInertia) => patchWorkspace({ cameraInertia })}
-                  />
                   <label className="workspace-select" data-help={t("workspace.booleanTriangleLimit")}>
                     <span>{t("workspace.booleanTriangleLimit")}</span>
                     <select
@@ -1188,11 +1279,167 @@ export function WorkspaceSettingsModal({
                   <p className="workspace-history-note">{t("workspace.booleanTriangleLimitNote")}</p>
                   </>
                   ) : null}
-                </>
+                  {/* Fork (build 17): the rest of Appearance waits behind this switch; a search shows it all. */}
+                  <WorkspaceToggle
+                    label={t("settings.showAdvanced")}
+                    description={t("settings.advancedHint")}
+                    checked={showAdvanced}
+                    onChange={toggleAdvanced}
+                  />
+                </section>
               ) : null}
 
-              {activeSection === "measurement" ? (
-                <>
+              {showsSection("controls") ? (
+                <section className="workspace-settings-section" data-settings-section="controls">
+                  <div className="workspace-section-heading">
+                    <strong>{t("workspace.controls")}</strong>
+                    <span>{t("workspace.controlsHint")}</span>
+                  </div>
+                  <WorkspaceToggle
+                    label={t("workspace.selectBeforeMoving")}
+                    checked={workspace.selectBeforeMove}
+                    onChange={(selectBeforeMove) => patchWorkspace({ selectBeforeMove })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.frameByDirection")}
+                    description={t("workspace.frameByDirectionHint")}
+                    checked={workspace.frameByDirection}
+                    onChange={(frameByDirection) => patchWorkspace({ frameByDirection })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.pasteCentered")}
+                    description={t("workspace.pasteCenteredHint")}
+                    checked={workspace.pasteCentered}
+                    onChange={(pasteCentered) => patchWorkspace({ pasteCentered })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.doubleClickOpensSketch")}
+                    checked={workspace.doubleClickOpensSketch}
+                    onChange={(doubleClickOpensSketch) => patchWorkspace({ doubleClickOpensSketch })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.doubleClickOpensGroup")}
+                    checked={workspace.doubleClickOpensGroup}
+                    onChange={(doubleClickOpensGroup) => patchWorkspace({ doubleClickOpensGroup })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.doubleClickCentersView")}
+                    checked={workspace.doubleClickCentersView}
+                    onChange={(doubleClickCentersView) => patchWorkspace({ doubleClickCentersView })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.objectSnap")}
+                    checked={workspace.objectSnap}
+                    onChange={(objectSnap) => patchWorkspace({ objectSnap })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.cruise")}
+                    checked={workspace.clickToPlaceShapes}
+                    onChange={(clickToPlaceShapes) => patchWorkspace({ clickToPlaceShapes })}
+                  />
+                  <label className="workspace-range" data-help={t("workspace.zoomSpeed")}>
+                    <span>{t("workspace.zoomSpeed")}</span>
+                    <input
+                      type="range"
+                      min={1}
+                      max={ZOOM_SPEED_SLIDER_MAX}
+                      value={workspace.zoomSpeed}
+                      onChange={(event) => patchWorkspace({ zoomSpeed: Number(event.currentTarget.value) })}
+                      onDoubleClick={() => patchWorkspace({ zoomSpeed: DEFAULT_WORKPLANE_WORKSPACE.zoomSpeed })}
+                    />
+                    <small>
+                      <span>{t("workspace.slow")}</span>
+                      <span>{t("workspace.fast")}</span>
+                    </small>
+                  </label>
+                  <label className="workspace-range" data-help={t("workspace.panSpeedHint")}>
+                    <span>{t("workspace.panSpeed")}</span>
+                    <input
+                      type="range"
+                      min={1}
+                      max={PAN_SPEED_SLIDER_MAX}
+                      value={workspace.panSpeed}
+                      onChange={(event) => patchWorkspace({ panSpeed: Number(event.currentTarget.value) })}
+                      onDoubleClick={() => patchWorkspace({ panSpeed: DEFAULT_WORKPLANE_WORKSPACE.panSpeed })}
+                    />
+                    <small>
+                      <span>{t("workspace.slow")}</span>
+                      <span>{t("workspace.fast")}</span>
+                    </small>
+                  </label>
+                  <label className="workspace-select" data-help={t("workspace.mouseScheme")}>
+                    <span>{t("workspace.mouseScheme")}</span>
+                    <select
+                      value={workspace.mouseScheme}
+                      onChange={(event) => patchWorkspace({ mouseScheme: event.currentTarget.value === "slicer" ? "slicer" : "layerling" })}
+                    >
+                      <option value="layerling">{t("workspace.mouseSchemeLayerling")}</option>
+                      <option value="slicer">{t("workspace.mouseSchemeSlicer")}</option>
+                    </select>
+                    <small>{workspace.mouseScheme === "slicer" ? t("workspace.mouseSchemeSlicerHint") : t("workspace.mouseSchemeLayerlingHint")}</small>
+                  </label>
+                  <SpaceMouseSetting />
+                  <WorkspaceToggle
+                    label={t("workspace.cameraInertia")}
+                    description={workspace.fastMode ? t("workspace.offInFastMode") : t("workspace.cameraInertiaHint")}
+                    checked={workspace.cameraInertia && !workspace.fastMode}
+                    disabled={workspace.fastMode}
+                    onChange={(cameraInertia) => patchWorkspace({ cameraInertia })}
+                  />
+                </section>
+              ) : null}
+
+              {showsSection("output") ? (
+                <section className="workspace-settings-section" data-settings-section="output">
+                  <div className="workspace-section-heading">
+                    <strong>{t("workspace.output")}</strong>
+                    <span>{t("workspace.outputHint")}</span>
+                  </div>
+                  <WorkspaceToggle
+                    label={t("workspace.stlAsDownload")}
+                    description={t("workspace.stlAsDownloadHint")}
+                    checked={workspace.stlAsDownload}
+                    onChange={(stlAsDownload) => patchWorkspace({ stlAsDownload })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.lylAsDownload")}
+                    description={t("workspace.lylAsDownloadHint")}
+                    checked={workspace.lylAsDownload}
+                    onChange={(lylAsDownload) => patchWorkspace({ lylAsDownload })}
+                  />
+                  <WorkspaceToggle
+                    label={t("workspace.confirmTabClose")}
+                    description={t("workspace.confirmTabCloseHint")}
+                    checked={workspace.confirmTabClose}
+                    onChange={(confirmTabClose) => patchWorkspace({ confirmTabClose })}
+                  />
+                </section>
+              ) : null}
+
+              {showsSection("ribbon") ? (
+                <section className="workspace-settings-section" data-settings-section="ribbon">
+                  <div className="workspace-section-heading">
+                    <strong>{t("workspace.ribbon")}</strong>
+                    <span>{t("workspace.ribbonHint")}</span>
+                  </div>
+                  <label className="workspace-select" data-help={t("workspace.toolbarSize")}>
+                    <span>{t("workspace.toolbarSize")}</span>
+                    <select
+                      value={toolbarSize}
+                      onChange={(event) => setToolbarSize(event.currentTarget.value as ToolbarSize)}
+                    >
+                      {TOOLBAR_SIZE_OPTIONS.map((size) => (
+                        <option key={size} value={size}>
+                          {t(TOOLBAR_SIZE_LABEL_KEYS[size])}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <RibbonButtonsSetting />
+                </section>
+              ) : null}
+              {showsSection("measurement") ? (
+                <section className="workspace-settings-section" data-settings-section="measurement">
                   <div className="workspace-section-heading">
                     <strong>{t("workspace.measurement")}</strong>
                     <span>{t("workspace.measurementHint")}</span>
@@ -1254,11 +1501,37 @@ export function WorkspaceSettingsModal({
                       else if (!customSnapGrids.some((grid) => grid.size === current.size)) onSnapChange(workspace.units === "Imperial" ? "1/8 in" : DEFAULT_SNAP_GRID);
                     }}
                   />
-                </>
+                  <WorkspaceToggle
+                    label={t("workspace.startWithCornerRuler")}
+                    description={t("workspace.startWithCornerRulerHint")}
+                    checked={startWithCornerRuler}
+                    onChange={(on) => {
+                      setStartWithCornerRuler(on);
+                      writeStartWithCornerRuler(on);
+                    }}
+                  />
+                  {startWithCornerRuler ? (
+                    <label className="workspace-select" data-help={t("workspace.startCornerRulerPlace")}>
+                      <span>{t("workspace.startCornerRulerPlace")}</span>
+                      <select
+                        data-testid="start-corner-ruler-place"
+                        value={startCornerRulerPlace}
+                        onChange={(event) => {
+                          const place = event.currentTarget.value as StartCornerRulerPlace;
+                          setStartCornerRulerPlace(place);
+                          writeStartCornerRulerPlace(place);
+                        }}
+                      >
+                        <option value="origin">{t("workspace.startCornerRulerPlace.origin")}</option>
+                        <option value="plateCorner">{t("workspace.startCornerRulerPlace.plateCorner")}</option>
+                      </select>
+                    </label>
+                  ) : null}
+                </section>
               ) : null}
 
-              {activeSection === "workplane" ? (
-                <>
+              {showsSection("workplane") ? (
+                <section className="workspace-settings-section" data-settings-section="workplane">
                   <div className="workspace-section-heading">
                     <strong>{t("workspace.workplane")}</strong>
                     <span>{t("workspace.workplaneHint")}</span>
@@ -1301,6 +1574,11 @@ export function WorkspaceSettingsModal({
                         : t("workspace.printerInfo", { width: chosenPrinter.width, depth: chosenPrinter.depth, height: chosenPrinter.height })
                       : t("workspace.printerHint")}
                   </p>
+                  <PrinterPlaySetting
+                    onMakeFitTest={onMakeFitTest}
+                    printer={chosenPrinter?.id ?? ""}
+                    printerName={chosenPrinter ? `${chosenPrinter.vendor} ${chosenPrinter.model}` : ""}
+                  />
                   <WorkspaceToggle
                     label={t("workspace.showPlateLabels")}
                     description={t("workspace.showPlateLabelsHint")}
@@ -1411,11 +1689,11 @@ export function WorkspaceSettingsModal({
                       <span>{t("workspace.resetGrid")}</span>
                     </button>
                   </div>
-                </>
+                </section>
               ) : null}
 
-              {activeSection === "shapes" ? (
-                <>
+              {showsSection("shapes") ? (
+                <section className="workspace-settings-section" data-settings-section="shapes">
                   <div className="workspace-section-heading">
                     <strong>{t("workspace.shapeDefaults")}</strong>
                     <span>{t("workspace.shapeDefaultsHint")}</span>
@@ -1522,7 +1800,7 @@ export function WorkspaceSettingsModal({
                                     if (event.key === "Enter") event.currentTarget.blur();
                                   }}
                                 />
-                                <small>{t("workspace.appDefault", {
+                                <small>{t(selectedShapePlayStart[field.key] !== undefined ? "workspace.fitTestDefault" : "workspace.appDefault", {
                                     value: `${field.step === 1 ? Math.round(field.defaultValue) : Number(field.defaultValue.toFixed(workspace.accuracy))}${field.unit ? ` ${field.unit}` : ""}`,
                                   })}</small>
                               </label>
@@ -1551,20 +1829,27 @@ export function WorkspaceSettingsModal({
                     </label>
                     <p className="workspace-shape-note">{t("workspace.shapeNote", { max: MAX_CUSTOM_SHAPE_DIMENSION })}</p>
                   </div>
-                </>
+                </section>
               ) : null}
 
-              {activeSection === "files" ? (
-                <>
+              {showsSection("backups") ? (
+                <section className="workspace-settings-section" data-settings-section="backups">
+                  <FileBackupSettingsSection />
+                </section>
+              ) : null}
+
+              {showsSection("files") ? (
+                <section className="workspace-settings-section" data-settings-section="files">
                   <div className="workspace-section-heading">
                     <strong>{t("files.section")}</strong>
                     <span>{t("files.sectionHint")}</span>
                   </div>
                   <FilesSettings />
-                </>
+                </section>
               ) : null}
-              {activeSection === "history" ? (
-                <>
+
+              {showsSection("history") ? (
+                <section className="workspace-settings-section" data-settings-section="history">
                   <div className="workspace-section-heading">
                     <strong>{t("workspace.savedHistory")}</strong>
                     <span>{t("workspace.savedHistoryHint")}</span>
@@ -1616,21 +1901,37 @@ export function WorkspaceSettingsModal({
                       {t("workspace.historyNote", { count: DEFAULT_WORKPLANE_WORKSPACE.historyLimit })}
                     </p>
                   </div>
-                </>
+                </section>
               ) : null}
             </div>
 
             <div className="workspace-modal-footer">
-              <span>{t("workspace.footerHint")}</span>
-              <button
-                className="make-default-button"
-                onClick={() => {
-                  onMakeDefault();
-                  setDefaultSaved(true);
-                }}
-              >
-                {defaultSaved ? t("workspace.defaultSaved") : t("workspace.makeDefault")}
-              </button>
+              <span className="workspace-footer-hint">{t("workspace.footerHint")}</span>
+              <div className="workspace-footer-buttons">
+                {savedDefault ? (
+                  <button
+                    className="make-default-button"
+                    title={t("workspace.useMyDefaultHint")}
+                    onClick={() => {
+                      const next = workspaceWithSavedDefault(workspace, savedDefault.workspace);
+                      setGridBlockSizeDraft(next.gridBlockSize.toFixed(next.accuracy));
+                      onWorkspaceChange({ ...next, scale: normalizeScaleForUnits(next.units, next.scale) });
+                    }}
+                  >
+                    {t("workspace.useMyDefault")}
+                  </button>
+                ) : null}
+                <SettingsFileButtons workspace={workspace} snap={snap} onWorkspaceChange={onWorkspaceChange} onSnapChange={onSnapChange} />
+                <button
+                  className="make-default-button"
+                  onClick={() => {
+                    onMakeDefault();
+                    setDefaultSaved(true);
+                  }}
+                >
+                  {defaultSaved ? t("workspace.defaultSaved") : t("workspace.makeDefault")}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1724,6 +2025,7 @@ function classicLookPatch(workspace: WorkplaneWorkspaceSettings): Partial<Workpl
     shadowSoftness: 100,
     lightAzimuth: 90,
     lightElevation: 90,
+    softLighting: false,
   };
 }
 
@@ -1960,6 +2262,64 @@ function ColorSettingControl({
         </button>
         {popover}
       </div>
+    </div>
+  );
+}
+
+/** How long the button to leave the simple mode is held: a child does not switch it off by a tap, an adult does (#695). */
+const SIMPLE_MODE_HOLD_MS = 2000;
+
+/**
+ * The simple mode switch (#695). Switching it on is a tap; switching it off is a press held for two seconds. A server that
+ * fixes the mode (`LAYERLING_SIMPLE_MODE=always`) takes the switch away.
+ */
+function SimpleModeSetting() {
+  const simple = useSimpleMode();
+  const [holding, setHolding] = useState(false);
+  const timerRef = useRef<number | null>(null);
+  const cancel = () => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+    setHolding(false);
+  };
+  const start = () => {
+    if (timerRef.current !== null) return;
+    setHolding(true);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      setHolding(false);
+      setSimpleMode(false);
+    }, SIMPLE_MODE_HOLD_MS);
+  };
+  useEffect(() => cancel, []);
+  if (isSimpleModeFixed()) return null;
+  if (!simple) {
+    return <WorkspaceToggle label={t("workspace.simpleMode")} description={t("workspace.simpleModeHint")} checked={false} onChange={() => setSimpleMode(true)} />;
+  }
+  return (
+    <div className="workspace-toggle simple-mode-setting" data-help={t("workspace.simpleMode")}>
+      <span className="workspace-toggle-copy">
+        <span>{t("workspace.simpleMode")}</span>
+        <small>{t("workspace.simpleModeHint")}</small>
+      </span>
+      <button
+        type="button"
+        className={holding ? "simple-mode-hold holding" : "simple-mode-hold"}
+        onPointerDown={start}
+        onPointerUp={cancel}
+        onPointerLeave={cancel}
+        onPointerCancel={cancel}
+        // On a phone or tablet a long press opens the browser's own menu, which takes the touch away and cancels the hold
+        // (#1671): the menu stays shut here, so the two seconds run through.
+        onContextMenu={(event) => event.preventDefault()}
+        onKeyDown={(event) => {
+          if ((event.key === "Enter" || event.key === " ") && !event.repeat) start();
+        }}
+        onKeyUp={cancel}
+        onBlur={cancel}
+      >
+        {t("workspace.simpleModeOff")}
+      </button>
     </div>
   );
 }

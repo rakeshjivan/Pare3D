@@ -1,5 +1,6 @@
 import type { ManifoldToplevel } from "manifold-3d";
 import type { PerforableFace } from "@/lib/holePatternShapes";
+import { clearanceMeshShape } from "@/lib/clearanceCheck";
 import { shapeToManifoldSolid } from "@/lib/editorBooleans";
 import { supportRibMark } from "@/lib/supportRibMark";
 import type { ManifoldSolid } from "@/lib/editorMeshCore";
@@ -376,7 +377,7 @@ export function buildSupportRib(runtime: ManifoldToplevel, face: SupportRibFace,
 
 /** The rib as a body of the design, marked with its part for the checks (lib/supportRibMark). */
 export function supportRibShape(id: string, name: string, color: string, positions: ArrayLike<number>, partId?: string): WorkplaneShape | null {
-  const shape = ribMeshShape(id, name, color, positions);
+  const shape = clearanceMeshShape(id, name, color, positions);
   return shape && partId ? { ...shape, ...supportRibMark(partId) } : shape;
 }
 
@@ -402,34 +403,4 @@ export function writeSupportRibSettings(settings: SupportRibSettings) {
   } catch {
     // Blocked storage: the settings hold until the page is closed.
   }
-}
-
-/** A mesh part from world triangles, standing on its lowest point. */
-function ribMeshShape(id: string, name: string, color: string, positions: ArrayLike<number>): WorkplaneShape | null {
-  if (positions.length < 9) return null;
-  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < positions.length; i += 1) {
-    min[i % 3] = Math.min(min[i % 3], positions[i]);
-    max[i % 3] = Math.max(max[i % 3], positions[i]);
-  }
-  const center = [(min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2];
-  const local = Array.from(positions, (value, i) => value - center[i % 3]);
-  const width = Math.max(1e-3, max[0] - min[0]), height = Math.max(1e-3, max[1] - min[1]), depth = Math.max(1e-3, max[2] - min[2]);
-  return {
-    id,
-    name,
-    kind: "mesh",
-    color,
-    x: center[0],
-    z: center[2],
-    elevation: center[1],
-    size: Math.max(width, depth),
-    width,
-    depth,
-    height,
-    rotation: 0,
-    importedMesh: { positions: local, baseWidth: width, baseDepth: depth, baseHeight: height, triangleCount: Math.floor(local.length / 9), sourceFormat: "json" },
-    locked: false,
-    hidden: false,
-  } as WorkplaneShape;
 }
