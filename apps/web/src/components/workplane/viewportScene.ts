@@ -442,8 +442,14 @@ export function rebuildWorkplane(
   const view = effectiveViewSettings(workspace);
   state.renderer.shadowMap.enabled = view.showShadows;
   state.controls.enableDamping = view.cameraInertia;
-  const pixelRatio = viewPixelRatio(workspace, window.devicePixelRatio);
-  if (state.renderer.getPixelRatio() !== pixelRatio) state.renderer.setPixelRatio(pixelRatio);
+  // Fast mode and the pixel budget decide the sharpness the view settles at; the lower resolution while
+  // moving (adaptiveResolution) comes back to this, not to the screen's full Retina ratio.
+  pv.viewFastMode = workspace.fastMode;
+  const canvas = state.renderer.domElement;
+  const pixelRatio = viewPixelRatio(workspace, window.devicePixelRatio, canvas.clientWidth, canvas.clientHeight);
+  const adapt = adaptiveResolution(state, canvas);
+  adapt.base = pixelRatio;
+  if (!adapt.low && state.renderer.getPixelRatio() !== pixelRatio) state.renderer.setPixelRatio(pixelRatio);
   const lightLevels = workspace.softLighting ? softSceneLightLevels(workspace.shadeContrast) : sceneLightLevels(workspace.shadeContrast);
   state.lights.ambient.intensity = lightLevels.ambient;
   state.lights.key.intensity = lightLevels.key;

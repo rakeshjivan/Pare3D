@@ -1,5 +1,5 @@
 import type { MeshData } from "@/lib/editorMeshCore";
-import { weldOnGrid } from "@/lib/gridWeld";
+import { weldFlatOnGrid, weldOnGrid } from "@/lib/gridWeld";
 
 /**
  * How many separate parts a mesh is made of: faces that share a corner - two corners count as
@@ -37,6 +37,43 @@ export function meshPartCount(mesh: MeshData, tolerance: number): number {
   const counted = new Uint8Array(cornerCount);
   for (let index = 0; index < faces.length; index += 1) {
     const root = find(ids[faces[index][0]]);
+    if (!counted[root]) {
+      counted[root] = 1;
+      count += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * The same count for a triangle soup kept flat (an imported mesh's `positions`: three corners a
+ * triangle, x y z each), without first turning it into a corner list and a face list.
+ */
+export function soupPartCount(positions: ArrayLike<number>, tolerance: number): number {
+  const triangles = Math.floor(positions.length / 9);
+  if (triangles === 0) return 0;
+  const { ids, count: cornerCount } = weldFlatOnGrid(positions, tolerance);
+  const parent = new Int32Array(cornerCount);
+  for (let corner = 0; corner < cornerCount; corner += 1) parent[corner] = corner;
+  const find = (start: number) => {
+    let current = start;
+    while (parent[current] !== current) {
+      parent[current] = parent[parent[current]];
+      current = parent[current];
+    }
+    return current;
+  };
+  for (let index = 0; index < triangles; index += 1) {
+    const a = find(ids[index * 3]);
+    const b = find(ids[index * 3 + 1]);
+    if (a !== b) parent[b] = a;
+    const c = find(ids[index * 3 + 2]);
+    if (c !== a) parent[c] = a;
+  }
+  let count = 0;
+  const counted = new Uint8Array(cornerCount);
+  for (let index = 0; index < triangles; index += 1) {
+    const root = find(ids[index * 3]);
     if (!counted[root]) {
       counted[root] = 1;
       count += 1;

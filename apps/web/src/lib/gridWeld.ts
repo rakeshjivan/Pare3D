@@ -17,6 +17,21 @@ export function weldOnGrid(vertices: ReadonlyArray<ArrayLike<number>>, step: num
     grid[index * 3 + 1] = Math.round(vertex[1] / step) + 0;
     grid[index * 3 + 2] = Math.round(vertex[2] / step) + 0;
   }
+  return weldGrid(grid, total);
+}
+
+/**
+ * The same for corners kept flat, x y z one after the other (an imported mesh's `positions`): no
+ * array per corner is built, which on a scan of a few hundred thousand triangles was most of the time.
+ */
+export function weldFlatOnGrid(positions: ArrayLike<number>, step: number) {
+  const total = Math.floor(positions.length / 3);
+  const grid = new Float64Array(total * 3);
+  for (let index = 0; index < total * 3; index += 1) grid[index] = Math.round(positions[index] / step) + 0;
+  return weldGrid(grid, total);
+}
+
+function weldGrid(grid: Float64Array, total: number) {
   let capacity = 1;
   while (capacity < total * 2) capacity <<= 1;
   const mask = capacity - 1;

@@ -130,6 +130,12 @@ export function adaptiveResolution(state: object, canvas?: HTMLElement) {
   return entry;
 }
 
+/** Counts as movement for the lower resolution while moving: a shape from the library following the pointer, say. */
+export function markViewMotion(state: object) {
+  const entry = adaptiveResolutionStates.get(state);
+  if (entry) entry.lastMotion = performance.now();
+}
+
 /**
  * Build 99: the gimbal on the screen - an arrow along each axis to move by, and a ring round each to turn
  * on, about `center`, a fixed size on the screen however near the camera is. An arrow or ring seen edge

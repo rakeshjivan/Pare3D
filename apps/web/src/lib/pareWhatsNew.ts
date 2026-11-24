@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 121,
+    items: [
+      "Smoother on Mac Retina screens: with Fast mode on (the default) the view now stays at standard resolution, as Fast mode intends. Before, it went back to full Retina sharpness after every move and while a new shape followed the mouse, four times the pixels to draw. For the sharpest picture, turn Fast mode off in Settings: the view still drops to standard resolution while anything moves.",
+      "Selecting a large imported mesh no longer freezes the window for a moment.",
+    ],
+  },
+  {
     build: 120,
     items: [
       "Pare 3D is now built on layerling's latest version, with Pare's own look, toolbar, right-click menu and home screen kept. Your designs open as before.",

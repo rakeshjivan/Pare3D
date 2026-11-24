@@ -1,6 +1,6 @@
 "use client";
 
-import { ADAPTIVE_SETTLE_MS, GIMBAL_RING, GIMBAL_VIEW_RING, GIMBAL_SPACE_KEY, WORLD_GIMBAL_AXES, adaptiveResolution, applyViewLook, baseLight, gimbalAxesFor, gimbalGeometry, gimbalReadoutText, placeHeadlight, pv, type GimbalSpace } from "@/components/workplane/viewportPare";
+import { ADAPTIVE_SETTLE_MS, markViewMotion, GIMBAL_RING, GIMBAL_VIEW_RING, GIMBAL_SPACE_KEY, WORLD_GIMBAL_AXES, adaptiveResolution, applyViewLook, baseLight, gimbalAxesFor, gimbalGeometry, gimbalReadoutText, placeHeadlight, pv, type GimbalSpace } from "@/components/workplane/viewportPare";
 import { EDITOR_WINDOW_EVENT } from "@/lib/editorShared";
 import { readViewLook, type ViewLook } from "@/lib/viewLook";
 import { ArrowDownToLine, Check, Moon, ChevronLeft, ChevronRight, Crosshair, Cuboid, Download, Eye, EyeOff, FlipHorizontal, GripVertical, Home, Layers, Minus, MousePointer2, PanelsTopLeft, Plus, Rotate3d, RotateCcw, Ruler, RulerDimensionLine, Slice, Spline, Trash2, X, Move, Pointer, ScanEye, PencilLine, PictureInPicture2, RotateCw, Scaling } from "lucide-react";
@@ -4450,6 +4450,7 @@ export function WorkplaneViewport({
     const state = threeRef.current;
     if (!preview || !state) return;
     cruisePointerRef.current = { x: clientX, y: clientY };
+    markViewMotion(state);
     const target = cruiseTarget(clientX, clientY);
     if (!target) return;
     const asset = cruiseAssetRef.current;

@@ -375,7 +375,7 @@ import { getSectionBounds, sectionAxisLetter, sectionMeshInFrame, sectionPlaceme
 import { SECTION_CUT_FACES, type SectionCutFace } from "@/lib/sectionCaps";
 import { MAX_SECTION_SKETCH_SEGMENTS, sectionSketchProfile } from "@/lib/sectionSketch";
 import { FOOTPRINT_CUT_HEIGHT, footprintCutOffset, projectSectionPoint, SECTION_VIEW_FACE, sectionSvgDocument, sliceMeshContours } from "@/lib/sectionSvg";
-import { meshPartCount } from "@/lib/meshPartCount";
+import { meshPartCount, soupPartCount } from "@/lib/meshPartCount";
 import { roundedAlignedValue } from "@/lib/alignRounding";
 import { buildSketchLoftFromSelection, canSketchLoft } from "@/lib/sketchLoft";
 import { alignBounds, sizeAlignmentState, sizedShapesForSelection } from "@/lib/alignSize";
@@ -2506,7 +2506,18 @@ function separablePartCount(shape: WorkplaneShape) {
   }
   const cached = importedPartCounts.get(shape.importedMesh);
   if (cached !== undefined) return cached;
-  const count = meshPartCount(meshForShape(shape), SEPARATE_PARTS_VERTEX_TOLERANCE);
+  // Counted on the file's own flat corners, in its own size: the tolerance shrinks by how much the body is
+  // scaled up, so corners that meet on the plate meet here too. Placing and turning do not change the count.
+  const mesh = shape.importedMesh;
+  const scale = Math.max(
+    shapeWidth(shape) / Math.max(mesh.baseWidth, 1e-9),
+    shapeDepth(shape) / Math.max(mesh.baseDepth, 1e-9),
+    (shape.height ?? mesh.baseHeight) / Math.max(mesh.baseHeight, 1e-9),
+    1e-9,
+  );
+  const count = mesh.positions.length >= 9 && !shape.groupedShapes?.length
+    ? soupPartCount(mesh.positions, SEPARATE_PARTS_VERTEX_TOLERANCE / scale)
+    : meshPartCount(meshForShape(shape), SEPARATE_PARTS_VERTEX_TOLERANCE);
   importedPartCounts.set(shape.importedMesh, count);
   return count;
 }
