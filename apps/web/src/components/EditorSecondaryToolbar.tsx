@@ -81,6 +81,7 @@ import { SaveStatus } from "./SaveStatus";
 import { CUT_BELOW_BED_EVENT, PRINT_CHECK_EVENT, SPLIT_TO_FIT_EVENT } from "./PrintCheckPanel";
 import { Brush, ChevronDown, Cookie, Grip, MessageSquareText, PackageOpen, Printer, Worm } from "lucide-react";
 import { PareBuildBadge } from "./PareVersionStatus";
+import { AiToolbarControls } from "./AiPanel";
 import { ArchiveRestore, Signature } from "lucide-react";
 import { OPEN_FILE_BACKUPS_EVENT } from "@/lib/fileBackups";
 import { OPEN_BAUBLE_EVENT } from "@/lib/baubleLithophane";
@@ -2064,6 +2065,8 @@ export function SecondaryToolbar({
               <Import aria-hidden="true" />
               <span>{t("editor.import")}</span>
             </button>
+            {/* Build 126: AI design, with the ChatGPT / Gemini switch (desktop app only). */}
+            <AiToolbarControls />
             <div className="toolbar-section toolbar-actions-section" data-group="manage">
               <div className="action-buttons">
                 <button className="action-icon-button" aria-label={t("editor.workspaceSettings")} title={t("editor.workspaceSettings")} data-tip={topTip(t("editor.workspaceSettings"), "units, grid, plate and appearance")} onClick={() => window.dispatchEvent(new Event("layerling:open-workspace-settings"))}>

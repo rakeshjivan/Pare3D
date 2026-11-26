@@ -76,6 +76,7 @@ import { BusyIndicator } from "./BusyIndicator";
 import { beginBusy, setBusyCount, whileBusy } from "@/lib/busy";
 import { WhatsNew } from "./WhatsNew";
 import { FastModeHint } from "./FastModeHint";
+import { AiPanel } from "./AiPanel";
 import { checkBeforeSending, CUT_BELOW_BED_EVENT, PRINT_CHECK_EVENT, PrintCheckPanel as ReadyCheckPanel, SPLIT_TO_FIT_EVENT } from "./PrintCheckPanel";
 import { belowBedCutter } from "@/lib/cutBelowBed";
 import { fillHoleAt, isManifoldSolid, makeSolidPositions, meshHealth, pendingMeshChecks, shapeWithWorldPositions } from "@/lib/meshRepair";
@@ -21018,7 +21019,9 @@ export function LayerlingEditor({
     const localDevelopment = process.env.NODE_ENV !== "production" && ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
     // The static export has no bridge. A copy somebody hosts themselves (a NAS, the Docker image) has one only
     // when its server switched remote use on (LAYERLING_MCP_REMOTE and LAYERLING_MCP_TOKEN); it says so itself.
-    if (!localDevelopment && process.env.NEXT_PUBLIC_STATIC_EXPORT === "true") {
+    // Pare 3D (build 126): the desktop app serves the static export from 127.0.0.1 and has a bridge for AI design.
+    const desktopApp = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (!localDevelopment && !desktopApp && process.env.NEXT_PUBLIC_STATIC_EXPORT === "true") {
       return;
     }
 
@@ -25490,6 +25493,7 @@ export function LayerlingEditor({
         <ShortcutsModal sketchMode={toolbarMode === "sketch"} onClose={() => setShortcutsOpen(false)} />
       ) : null}
       {whatsNewOpen ? <WhatsNewWindow onClose={() => setWhatsNewOpen(false)} /> : null}
+      <AiPanel />
       {interactiveHelp ? <InteractiveHelp onExit={toggleInteractiveHelp} /> : null}
       {viewedAttachment ? <AttachmentViewer attachment={viewedAttachment} onClose={() => setViewedAttachmentId(null)} /> : null}
       {guideOpen ? <GuideModal sharedStore={sharedProjectsEnabled} sketchMode={toolbarMode === "sketch"} onClose={() => setGuideOpen(false)} /> : null}

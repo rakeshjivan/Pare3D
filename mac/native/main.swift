@@ -117,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     /// The runtime of the serve.mjs this app carries (RUNTIME_VERSION there).
-    private let ownRuntime = 6
+    private let ownRuntime = 7
 
     /// Fork (build 29): a Pare 3D server already on the port is reused only when it is at least as new as
     /// this app - its runtime and the build it serves. One left running by an older app is replaced,
@@ -401,6 +401,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         alert.beginSheetModal(for: window) { response in
             completionHandler(response == .alertFirstButtonReturn ? field.stringValue : nil)
         }
+    }
+
+    /// Build 126: speaking a request in the AI panel needs the microphone. Only Pare's own page (this
+    /// computer's server) gets it; macOS still asks the person once.
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        let local = origin.host == "127.0.0.1" || origin.host == "localhost"
+        decisionHandler(local && type == .microphone ? .grant : .deny)
     }
 
     /// Fork (build 32): WebKit asks its embedder before letting the page's storage grow past its quota

@@ -4,6 +4,15 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 126,
+    items: [
+      "AI design: click AI in the top row, say or type what to make or change, and the AI builds it in your design. Every change can be undone.",
+      "The switch beside the AI button picks the engine: ChatGPT on your own Plus or Pro plan (Continue with ChatGPT signs in through your browser), or Gemini through Google's free Gemini CLI.",
+      "The microphone button types what you say.",
+      "AI design needs this new app once: download it from the releases page. The web version has no AI design.",
+    ],
+  },
+  {
     build: 125,
     items: [
       "Dark mode: Settings > Appearance > Theme offers Light, Dark or Same as my computer. Dark gives charcoal bars and panels, a graphite view with a grey grid and light type, in the manner of desktop CAD programs, and works with the Fresh look too.",

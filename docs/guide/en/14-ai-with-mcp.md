@@ -1,13 +1,26 @@
 ---
-title: Building with an AI (MCP)
-summary: How an AI assistant such as Gemini, Claude or Codex creates and changes shapes, groups them and takes pictures of the view in your open editor.
+title: Building with an AI
+summary: AI design in the app with ChatGPT or Gemini, and how an AI assistant such as Gemini, Claude or Codex creates and changes shapes, groups them and takes pictures of the view in your open editor.
 ---
 
 Pare 3D's source comes with an MCP server. MCP is a standard through which an AI assistant can use tools in other programs. With it an AI client such as Gemini, Claude or Codex sees an open editor tab and works in it: it creates shapes, changes dimensions, groups, cuts, rounds edges, reads out the scene and takes pictures of the view. You describe the part, the AI builds it, you watch and can step in at any moment.
 
 The bridge between AI client and editor runs **locally on your computer**. Keep in mind, though: what the AI reads, meaning the scene and the pictures of the view, goes to the provider of your AI client, like any other input there.
 
-> **Important:** The MCP bridge exists only in the development server that you start yourself from the source code. The Pare 3D app for Mac and Windows does not include it, and neither do copies with static hosting. A copy you host yourself, such as the Docker image on a NAS, can switch it on with an access token; see "A copy on a NAS or server" below.
+## AI design in the app
+
+The Pare 3D app for Mac, Windows and Linux (build 126 or later) has AI design built in. Click **AI** in the top row, say or type what to make or change, and the AI builds it in the open design. Every change lands in the undo history, so Ctrl/⌘Z takes it back.
+
+The switch beside the AI button chooses the engine:
+
+- **ChatGPT** runs on your own ChatGPT plan (Plus or Pro). Click **Continue with ChatGPT** in the AI panel; the sign-in opens in your browser, and Pare 3D never sees your password. The sign-in is kept in Pare 3D's own folder on your computer, readable only by you. Its use counts against your plan's usage, not from API credits. Sign out with the button beside your email in the panel.
+- **Gemini** runs through Google's free Gemini CLI. Install it once (`brew install gemini-cli` on a Mac, or `npm install -g @google/gemini-cli`), start `gemini` in Terminal, choose **Sign in with Google**, and quit it with `/quit`. Pare 3D then uses it with your Google account.
+
+The microphone button types what you say (macOS asks once for the microphone). What the AI reads, the scene and your request, goes to OpenAI or Google like any other request there. The web version of Pare 3D has no AI design: it needs the app's own server on your computer. If the panel says it needs the new app, download the app once from the releases page.
+
+## Your own AI client
+
+> **Important:** For your own AI client (Claude Code, Codex and others) the MCP bridge exists in the development server that you start yourself from the source code. Copies with static hosting do not include it. A copy you host yourself, such as the Docker image on a NAS, can switch it on with an access token; see "A copy on a NAS or server" below.
 
 ## Setting up
 
