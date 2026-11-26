@@ -18,9 +18,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir, platform } from "node:os";
 import { basename, extname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
-import { configureAi, handleAi } from "./ai/ai.mjs";
-import { handleBridge } from "./ai/bridge.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const bundledRoot = join(fileURLToPath(new URL(".", import.meta.url)), "app");
 const port = Number(process.env.PORT || 47177);
@@ -32,7 +30,8 @@ const port = Number(process.env.PORT || 47177);
 // download) on an older server, so minRuntime stays 4.
 // 7 (build 126): AI design - /__ai (ChatGPT sign-in and agent, Gemini CLI) and the editor bridge at
 // /api/layerling-mcp. App files hide the AI panel's controls on an older server, so minRuntime stays 4.
-const RUNTIME_VERSION = 7;
+// 8 (build 127): the AI design code comes with the app files (_pare-ai/) and updates with them.
+const RUNTIME_VERSION = 8;
 const RELEASES_API = process.env.PARE3D_RELEASES_API || "https://api.github.com/repos/rakeshjivan/Pare3D/releases/latest";
 // Build 103: a test build (its app files carry pare-preview.txt) follows the test builds, never the
 // public release - which would take features in testing away - and the newest of them wins.
@@ -736,8 +735,29 @@ async function handleFiles(req, res, url) {
   }
 }
 
-configureAi({ dataDirectory: DATA_DIR, port });
 await chooseRoots();
+const ai = await loadAi();
+
+/**
+ * Build 127: the AI design code (ai.mjs, its editor bridge and the MCP server for Gemini) travels with the app
+ * files in _pare-ai/, so a fix reaches installed apps with the next update. The newest app files that carry a
+ * copy this server understands win; the copy next to this file is the fallback.
+ */
+async function loadAi() {
+  const folders = [...roots.map((root) => join(root, "_pare-ai")), join(fileURLToPath(new URL(".", import.meta.url)), "ai")];
+  for (const folder of folders) {
+    try {
+      await stat(join(folder, "ai.mjs"));
+      const [module, bridge] = await Promise.all([import(pathToFileURL(join(folder, "ai.mjs")).href), import(pathToFileURL(join(folder, "bridge.mjs")).href)]);
+      if (module.AI_PROTOCOL !== 1) continue;
+      module.configureAi({ dataDirectory: DATA_DIR, port });
+      return { handleAi: module.handleAi, handleBridge: bridge.handleBridge };
+    } catch {
+      // Not in these app files, or not loadable: try the next.
+    }
+  }
+  return null;
+}
 
 createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
@@ -761,7 +781,8 @@ createServer(async (req, res) => {
   // browser could otherwise post here); the bridge takes JSON only, which a foreign page cannot send unasked.
   if (path === "/__ai" || path.startsWith("/__ai/")) {
     if (req.method === "POST" && !allowedLocalWrite(req)) json(res, 403, { error: "Not allowed." });
-    else await handleAi(req, res, url);
+    else if (!ai) json(res, 404, { error: "AI design is not available." });
+    else await ai.handleAi(req, res, url);
     return;
   }
   if (path === "/api/layerling-mcp" && req.method === "POST") {
@@ -772,7 +793,7 @@ createServer(async (req, res) => {
       return;
     }
   }
-  if (await handleBridge(req, res, url)) return;
+  if (ai && (await ai.handleBridge(req, res, url))) return;
   if (path === "/__backup") {
     if (req.method === "POST") await writeBackup(req, res);
     else json(res, 200, { folder: (await readFileSettings()).backups, runtime: RUNTIME_VERSION });
@@ -803,7 +824,7 @@ createServer(async (req, res) => {
     json(res, 200, answer);
     return;
   }
-  const file = await resolveFile(path);
+  const file = path.startsWith("/_pare-ai/") ? null : await resolveFile(path);
   if (!file) {
     res.writeHead(404, { "content-type": "text/html; charset=utf-8" });
     res.end(await readFile(join(roots[0], "404.html")).catch(() => "Not found"));

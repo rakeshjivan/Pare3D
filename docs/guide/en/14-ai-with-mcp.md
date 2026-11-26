@@ -9,7 +9,7 @@ The bridge between AI client and editor runs **locally on your computer**. Keep 
 
 ## AI design in the app
 
-The Pare 3D app for Mac, Windows and Linux (build 126 or later) has AI design built in. Click **AI** in the top row, say or type what to make or change, and the AI builds it in the open design. Every change lands in the undo history, so Ctrl/⌘Z takes it back.
+The Pare 3D app for Mac, Windows and Linux (build 127 or later) has AI design built in. Click **AI** in the top row, say or type what to make or change, and the AI builds it in the open design. Every change lands in the undo history, so Ctrl/⌘Z takes it back.
 
 The switch beside the AI button chooses the engine:
 

@@ -855,7 +855,7 @@ export const MESSAGES_EN = {
   "ai.micStart": "Speak your request",
   "ai.micStop": "Stop listening",
   "ai.micBlocked": "Pare 3D may not use the microphone. Allow it in System Settings › Privacy & Security › Microphone.",
-  "ai.needsNewApp": "AI design needs the new Pare 3D app (build 126 or later). Download it once from the Pare 3D releases page; after that it updates itself as before.",
+  "ai.needsNewApp": "AI design needs the new Pare 3D app (build 127 or later). Download it once from the Pare 3D releases page; after that it updates itself as before.",
   "ai.chatgptIntro": "Use your own ChatGPT plan (Plus or Pro) to design in Pare 3D. Sign-in opens in your browser; Pare 3D never sees your password.",
   "ai.continueWithChatgpt": "Continue with ChatGPT",
   "ai.signingIn": "Finish signing in in your browser…",

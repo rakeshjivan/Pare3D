@@ -17,10 +17,10 @@ trap 'rm -rf "$WORK"' EXIT
 BUILD="${PARE_BUILD:-$(tr -dc '0-9' < "$ROOT/PARE_BUILD" 2>/dev/null || true)}"
 BUILD="${BUILD:-0}"
 # The AI design files (build 126) sit next to serve.mjs, in ai/.
-copy_ai() {
-  mkdir -p "$1/ai"
+copy_ai() { # destination folder
+  mkdir -p "$1"
   cp "$ROOT/mac/ai/ai.mjs" "$ROOT/mac/ai/bridge.mjs" "$ROOT/scripts/layerling-mcp-server.mjs" "$ROOT/scripts/layerling-mcp-tools.mjs" \
-    "$ROOT/scripts/layerling-mcp-open.mjs" "$ROOT/scripts/layerling-mcp-notes-wait.mjs" "$1/ai/"
+    "$ROOT/scripts/layerling-mcp-open.mjs" "$ROOT/scripts/layerling-mcp-notes-wait.mjs" "$1/"
 }
 # Raise together with RUNTIME_VERSION in mac/serve.mjs when app files need a newer launcher.
 MIN_RUNTIME="${MIN_RUNTIME:-1}"
@@ -35,6 +35,8 @@ copy_app() { # destination
   cp -R "$EXPORT" "$1"
   rm -f "$1/store.php" "$1/sitemap.xml" "$1/robots.txt"
   echo "$BUILD" > "$1/pare-build.txt"
+  # Build 127: the AI design code updates with the app files (serve.mjs loads it from here).
+  copy_ai "$1/_pare-ai"
   # Build 103: a test build says so (and which one), so it updates to newer test builds only.
   if [ -n "${PARE_PREVIEW:-}" ]; then echo "$PARE_PREVIEW" > "$1/pare-preview.txt"; fi
 }
@@ -63,7 +65,7 @@ else
   cp "$ROOT/mac/Pare3D" "$APP/MacOS/" && chmod +x "$APP/MacOS/Pare3D"
 fi
 cp "$ROOT/mac/serve.mjs" "$ROOT/mac/AppIcon.icns" "$ROOT/mac/NOTICE.txt" "$APP/Resources/"
-copy_ai "$APP/Resources"
+copy_ai "$APP/Resources/ai"
 cp "$ROOT/LICENSE" "$APP/Resources/LICENSE.txt"
 cp "$(fetch_bun bun-darwin-aarch64)/bun" "$APP/Resources/bun-arm64"
 cp "$(fetch_bun bun-darwin-x64)/bun" "$APP/Resources/bun-x64"
@@ -82,7 +84,7 @@ fi
 WIN="$WORK/win/Pare 3D"
 mkdir -p "$WIN"
 cp "$ROOT/mac/serve.mjs" "$ROOT/mac/launch.mjs" "$ROOT/mac/NOTICE.txt" "$WIN/"
-copy_ai "$WIN"
+copy_ai "$WIN/ai"
 cp "$ROOT/mac/Pare 3D.vbs" "$WIN/Pare 3D (browser).vbs"
 cp "$ROOT/windows/READ ME FIRST.txt" "$WIN/"
 if command -v dotnet >/dev/null 2>&1; then
@@ -103,7 +105,7 @@ copy_app "$WIN/app"
 LNX="$WORK/linux/Pare 3D"
 mkdir -p "$LNX"
 cp "$ROOT/mac/serve.mjs" "$ROOT/mac/NOTICE.txt" "$ROOT/linux/pare3d" "$ROOT/linux/pare3d.png" "$ROOT/linux/READ ME FIRST.txt" "$LNX/"
-copy_ai "$LNX"
+copy_ai "$LNX/ai"
 cp "$ROOT/LICENSE" "$LNX/LICENSE.txt"
 cp "$(fetch_bun bun-linux-x64)/bun" "$LNX/bun-x64"
 cp "$(fetch_bun bun-linux-aarch64)/bun" "$LNX/bun-arm64"

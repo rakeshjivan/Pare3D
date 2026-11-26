@@ -9,6 +9,9 @@
 //  - Gemini, through Google's own Gemini CLI, signed in with the person's Google account; Pare runs
 //    it with its MCP server (scripts/layerling-mcp-server.mjs) pointed at this server's bridge.
 //
+/** Which serve.mjs this module fits; serve.mjs loads an updated copy (from the app files) only if it matches. */
+export const AI_PROTOCOL = 1;
+
 // Tokens stay in the app's data folder (owner-only file), never in the page, logs or URLs.
 import { spawn } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -443,7 +446,8 @@ async function chatgptModels() {
   const response = await fetch(`${API}/models`, { headers: { authorization: `Bearer ${await accessToken()}` } });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body?.error?.message || `ChatGPT did not list its models (${response.status}).`);
-  const models = (body.data ?? [])
+  // The plan's catalogue comes as a "models" array (OpenAI's own API lists "data"; both are read).
+  const models = (body.models ?? body.data ?? [])
     .filter((model) => (model.visibility ?? "list") === "list")
     .map((model) => ({ id: model.slug || model.id, name: model.display_name || model.slug || model.id }));
   modelCache = { at: Date.now(), models };
@@ -473,11 +477,14 @@ async function* sseEvents(response) {
 }
 
 const USAGE_ERRORS = {
-  subscription_sharing_usage_limit_exceeded: "You have reached the ChatGPT usage this app may use for now. Try again later, or raise Pare 3D's limit in ChatGPT under Settings > Usage.",
+  subscription_sharing_usage_limit_exceeded: "You have reached the ChatGPT usage this app may use for now. Try again later; ChatGPT's settings show the usage this app may have.",
   subscription_sharing_usage_unavailable: "ChatGPT plan usage is not available for this account right now.",
 };
 
-async function responsesTurn(job, { model, input, tools, include }) {
+// Request fields Pare would like but can do without; one the route refuses is left out from then on.
+const OPTIONAL_FIELDS = { parallel_tool_calls: false, include: ["reasoning.encrypted_content"] };
+
+async function responsesTurn(job, { model, input, tools, optional }) {
   const controller = new AbortController();
   job.stop = () => controller.abort();
   const response = await fetch(`${API}/responses`, {
@@ -491,8 +498,7 @@ async function responsesTurn(job, { model, input, tools, include }) {
       tools,
       store: false,
       stream: true,
-      parallel_tool_calls: false,
-      ...(include ? { include: ["reasoning.encrypted_content"] } : {}),
+      ...optional,
     }),
   });
   if (!response.ok) {
@@ -521,21 +527,22 @@ async function responsesTurn(job, { model, input, tools, include }) {
 async function runChatgpt(job, { prompt, history = [], model }) {
   const tools = await chatgptTools();
   const chosen = model || (await chatgptModels())[0]?.id;
-  if (!chosen) throw new Error("ChatGPT offered no model to use.");
+  if (!chosen) throw new Error("ChatGPT listed no models for this account. Check that your plan is Plus or Pro, then sign out in the AI panel and sign in again.");
   job.model = chosen;
   const input = [
     ...history.slice(-12).map((turn) => ({ role: turn.role === "assistant" ? "assistant" : "user", content: clip(String(turn.text || ""), 2000) })),
     { role: "user", content: prompt },
   ];
-  let include = true;
+  const optional = { ...OPTIONAL_FIELDS };
   for (let step = 0; step < MAX_STEPS; step += 1) {
     if (job.status !== "running") return;
     let turn;
     try {
-      turn = await responsesTurn(job, { model: chosen, input, tools, include });
+      turn = await responsesTurn(job, { model: chosen, input, tools, optional });
     } catch (error) {
-      if (include && error.status === 400 && String(error.message).includes("include")) {
-        include = false;
+      const refused = error.status === 400 ? Object.keys(optional).find((field) => field === error.param || String(error.message).includes(field)) : undefined;
+      if (refused) {
+        delete optional[refused];
         step -= 1;
         continue;
       }
@@ -545,7 +552,9 @@ async function runChatgpt(job, { prompt, history = [], model }) {
     for (const item of turn.items) {
       if (item.type === "reasoning" && !item.encrypted_content) continue;
       if (item.type === "message") continue;
-      input.push(item);
+      // Nothing is stored at OpenAI (store: false): a call goes back as its content, without an item id.
+      if (item.type === "function_call") input.push({ type: "function_call", call_id: item.call_id, name: item.name, arguments: item.arguments || "{}" });
+      else input.push(item);
     }
     if (calls.length === 0) {
       job.answer = turn.text.trim() || "Done.";

@@ -4,12 +4,19 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 127,
+    items: [
+      "AI design with ChatGPT now finds your plan's models: build 126 signed in but then said no model was offered.",
+      "The AI design code now updates with the app, so later AI fixes arrive by themselves. This app needs downloading once more.",
+    ],
+  },
+  {
     build: 126,
     items: [
       "AI design: click AI in the top row, say or type what to make or change, and the AI builds it in your design. Every change can be undone.",
       "The switch beside the AI button picks the engine: ChatGPT on your own Plus or Pro plan (Continue with ChatGPT signs in through your browser), or Gemini through Google's free Gemini CLI.",
       "The microphone button types what you say.",
-      "AI design needs this new app once: download it from the releases page. The web version has no AI design.",
+      "AI design needs the new app: download it from the releases page. The web version has no AI design.",
     ],
   },
   {
