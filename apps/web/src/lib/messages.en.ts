@@ -867,6 +867,7 @@ export const MESSAGES_EN = {
   "ai.geminiStep3": "Choose Sign in with Google, finish in the browser, then quit it with /quit.",
   "ai.checkAgain": "Check again",
   "ai.meshAdded": "{name} is in your design. Tell the AI what to do with it, e.g. scale it to 80 mm tall and flatten the base.",
+  "ai.restartForPictures": "To send pictures, quit Pare 3D (⌘Q or Ctrl+Q) and open it again: it updated while open, and the AI part finishes updating on restart.",
   "ai.pictureAdd": "Add a picture to turn into a 3D model (or drop or paste one here)",
   "ai.pictureDrop": "Drop the picture to turn it into a 3D model",
   "ai.pictureReady": "Picture added. Say what it is or how big, or just press Send.",

@@ -4,6 +4,12 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 129,
+    items: [
+      "AI design: after Pare 3D updates itself while open, the AI panel now says to quit and reopen before sending a picture. Build 128 could send it to AI code that was still the older one, which left the picture out.",
+    ],
+  },
+  {
     build: 128,
     items: [
       "AI design takes pictures: drop, paste or pick a photo or drawing in the AI panel, and the AI builds a 3D model of it from shapes you can edit. Say how big it should be, or it picks a sensible size.",

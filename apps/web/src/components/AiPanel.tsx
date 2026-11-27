@@ -207,6 +207,11 @@ export function AiPanel() {
   const send = async () => {
     const text = prompt.trim() || (picture ? t("ai.pictureDefault") : "");
     if (!text || jobId || !ready) return;
+    // The page updated but the app's server still runs older AI code, which would drop the picture.
+    if (picture && !status?.features?.includes("picture")) {
+      setNotice(t("ai.restartForPictures"));
+      return;
+    }
     recognitionRef.current?.stop();
     const history = turns.filter((turn) => !turn.error).map((turn) => ({ role: turn.role, text: turn.text }));
     const image = picture;

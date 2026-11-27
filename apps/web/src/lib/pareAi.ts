@@ -7,6 +7,8 @@
 export type AiEngine = "chatgpt" | "gemini";
 export type AiStatus = {
   ok: boolean;
+  /** Build 128 on: what the AI code running in the app's server can do (absent before). */
+  features?: string[];
   editors: number;
   chatgpt: { signedIn: boolean; email: string; signingIn: boolean; error: string };
   gemini: { installed: boolean; signedIn: boolean };

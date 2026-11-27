@@ -31,7 +31,8 @@ const port = Number(process.env.PORT || 47177);
 // 7 (build 126): AI design - /__ai (ChatGPT sign-in and agent, Gemini CLI) and the editor bridge at
 // /api/layerling-mcp. App files hide the AI panel's controls on an older server, so minRuntime stays 4.
 // 8 (build 127): the AI design code comes with the app files (_pare-ai/) and updates with them.
-const RUNTIME_VERSION = 8;
+// 9 (build 129): an update's AI design code takes over at once, not at the next start.
+const RUNTIME_VERSION = 9;
 const RELEASES_API = process.env.PARE3D_RELEASES_API || "https://api.github.com/repos/rakeshjivan/Pare3D/releases/latest";
 // Build 103: a test build (its app files carry pare-preview.txt) follows the test builds, never the
 // public release - which would take features in testing away - and the newest of them wins.
@@ -540,6 +541,8 @@ async function checkForUpdate() {
     await rename(temp, finalRoot);
     // Served at once; the open page notices the new version and offers to reload.
     roots = [finalRoot, ...roots.filter((root) => root !== finalRoot)].slice(0, 2);
+    // Build 129: the AI design code of the new app files takes over too (before, it waited for a restart).
+    ai = (await loadAi()) ?? ai;
     updateState.ready = build;
     updateState.serving = build;
     updateState.readyPreview = preview;
@@ -736,7 +739,7 @@ async function handleFiles(req, res, url) {
 }
 
 await chooseRoots();
-const ai = await loadAi();
+let ai = await loadAi();
 
 /**
  * Build 127: the AI design code (ai.mjs, its editor bridge and the MCP server for Gemini) travels with the app

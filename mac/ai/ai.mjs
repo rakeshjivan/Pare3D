@@ -704,6 +704,8 @@ async function status() {
   const gemini = findGemini();
   return {
     ok: true,
+    // What this AI code can do; the panel asks for a restart when the page is newer than the code running.
+    features: ["picture", "mesh"],
     editors: listEditors().length,
     chatgpt: { signedIn: Boolean(saved?.access_token), email: saved?.access_token ? saved.email || "" : "", signingIn: Boolean(signIn.pending), error: signIn.error },
     gemini: { installed: Boolean(gemini), signedIn: geminiSignedIn() },
