@@ -16,6 +16,10 @@ The switch beside the AI button chooses the engine:
 - **ChatGPT** runs on your own ChatGPT plan (Plus or Pro). Click **Continue with ChatGPT** in the AI panel; the sign-in opens in your browser, and Pare 3D never sees your password. The sign-in is kept in Pare 3D's own folder on your computer, readable only by you. Its use counts against your plan's usage, not from API credits. Sign out with the button beside your email in the panel.
 - **Gemini** runs through Google's free Gemini CLI. Install it once (`brew install gemini-cli` on a Mac, or `npm install -g @google/gemini-cli`), start `gemini` in Terminal, choose **Sign in with Google**, and quit it with `/quit`. Pare 3D then uses it with your Google account.
 
+To turn a picture into a model, drop a photo or drawing on the AI panel, paste one, or pick one with the picture button. Add what it is and how big if you like ("a phone stand, 90 mm tall"), then press Send. The AI builds the object from Pare's shapes after the picture: a model you can edit, not an exact copy. Without a size it picks one (about 80 mm across, or the real size of a known object).
+
+To work on a mesh made elsewhere, for example by an image-to-3D website, drop the STL, OBJ, 3MF or GLB on the AI panel. It goes into your design like any import, and your next request is about that mesh: "scale it to 60 mm tall and flatten the base", "cut off everything below the plate", "add a 5 mm hole through the middle".
+
 The microphone button types what you say (macOS asks once for the microphone). What the AI reads, the scene and your request, goes to OpenAI or Google like any other request there. The web version of Pare 3D has no AI design: it needs the app's own server on your computer. If the panel says it needs the new app, download the app once from the releases page.
 
 ## Your own AI client

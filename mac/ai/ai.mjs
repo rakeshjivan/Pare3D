@@ -162,7 +162,16 @@ How the editor works:
 - Keep parts on the plate (elevation 0) unless asked otherwise, and inside a 180 mm cube unless the person gives other sizes.
 - Give parts short, clear names. Every change can be undone by the person, so go ahead without asking unless the request is truly unclear.
 - After building, check with layerling_read_scene (and layerling_inspect_errors if a step failed) and fix what is off.
-- When you are done, answer in one to three short sentences: what you made or changed, with the main sizes. No lists of tool calls.`;
+- When you are done, answer in one to three short sentences: what you made or changed, with the main sizes. No lists of tool calls.
+
+When the person has added a mesh (an STL, OBJ, 3MF or GLB made elsewhere): it is an imported object in the scene. Resize it with layerling_scale_objects, set it on the plate with layerling_lay_flat, cut it with layerling_split_objects or holes, combine it with other parts, and use the mesh tools (repair, simplify, smooth and the like; see pare_use_tool's list) where asked. Keep its look: do not rebuild it from shapes unless asked.
+
+When the person gives a picture (a photo, drawing or sketch) to turn into a 3D model:
+- Work out what the object is and its main parts, and its proportions from the picture.
+- Use the sizes the person gives. Without any, make the longest side about 80 mm, or use the real size of a known object (a mug is about 95 mm tall) when that is clearly what it is.
+- Build it from the editor's shapes, part by part: the main body first, then the features (holes, cut-outs, rounded edges, text, ridges, handles). Place each part where it sits in the picture, use holes for openings, and keep it printable (flat base on the plate, walls at least 1.2 mm).
+- Name the parts after what they are, and group the finished model (layerling_group_objects) unless the person wants the parts separate.
+- Check it with layerling_read_scene, fix what is off, and in your answer say it is a model built from shapes after the picture (not an exact copy), with its overall size.`;
 
 // ---------- Jobs: one request from the panel, with its progress for the page to poll ----------
 
@@ -524,14 +533,16 @@ async function responsesTurn(job, { model, input, tools, optional }) {
   return { items, text };
 }
 
-async function runChatgpt(job, { prompt, history = [], model }) {
+async function runChatgpt(job, { prompt, history = [], model, image }) {
   const tools = await chatgptTools();
   const chosen = model || (await chatgptModels())[0]?.id;
   if (!chosen) throw new Error("ChatGPT listed no models for this account. Check that your plan is Plus or Pro, then sign out in the AI panel and sign in again.");
   job.model = chosen;
   const input = [
     ...history.slice(-12).map((turn) => ({ role: turn.role === "assistant" ? "assistant" : "user", content: clip(String(turn.text || ""), 2000) })),
-    { role: "user", content: prompt },
+    image
+      ? { role: "user", content: [{ type: "input_text", text: prompt }, { type: "input_image", image_url: image, detail: "high" }] }
+      : { role: "user", content: prompt },
   ];
   const optional = { ...OPTIONAL_FIELDS };
   for (let step = 0; step < MAX_STEPS; step += 1) {
@@ -606,7 +617,7 @@ async function geminiWorkspace() {
   const { serverPath } = await editorTools();
   await mkdir(join(folder, ".gemini"), { recursive: true });
   // Only Pare's tools: no shell, no file writing, no web (--yolo approves every tool call).
-  const blocked = ["run_shell_command", "write_file", "replace", "edit", "web_fetch", "google_web_search", "save_memory", "read_many_files"];
+  const blocked = ["run_shell_command", "write_file", "replace", "edit", "web_fetch", "google_web_search", "save_memory"];
   await writeFile(join(folder, ".gemini", "settings.json"), JSON.stringify({
     excludeTools: blocked,
     tools: { exclude: blocked },
@@ -624,13 +635,20 @@ async function geminiWorkspace() {
   return folder;
 }
 
-async function runGemini(job, { prompt, history = [] }) {
+async function runGemini(job, { prompt, history = [], image }) {
   const gemini = findGemini();
   if (!gemini) throw new Error("Gemini CLI is not installed. See Gemini in the AI panel for how to set it up.");
   if (!geminiSignedIn()) throw new Error("Sign in to Gemini CLI once first: open Terminal, type gemini, and choose Sign in with Google.");
   const folder = await geminiWorkspace();
   const earlier = history.slice(-8).map((turn) => `${turn.role === "assistant" ? "You" : "Me"}: ${clip(String(turn.text || ""), 800)}`).join("\n");
-  const fullPrompt = earlier ? `Our conversation so far:\n${earlier}\n\nNow: ${prompt}` : prompt;
+  let request = prompt;
+  if (image) {
+    const [, type, data] = /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(image) ?? [];
+    const name = `picture.${type === "jpeg" ? "jpg" : type}`;
+    await writeFile(join(folder, name), Buffer.from(data, "base64"));
+    request = `${prompt}\n\nThe picture: @${name}`;
+  }
+  const fullPrompt = earlier ? `Our conversation so far:\n${earlier}\n\nNow: ${request}` : request;
   await new Promise((resolve, reject) => {
     const child = spawn(gemini, ["-p", fullPrompt, "--yolo"], {
       cwd: folder,
@@ -707,13 +725,15 @@ export async function handleAi(req, res, url) {
     if (path === "/models") return send(res, 200, { models: await chatgptModels() }), true;
     if (path === "/run") {
       const body = await readBody(req);
-      const prompt = String(body.prompt || "").trim();
+      // Build 128: a picture to turn into a 3D model (a data URL the panel has already scaled down).
+      const image = typeof body.image === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(body.image) && body.image.length < 12_000_000 ? body.image : "";
+      const prompt = String(body.prompt || "").trim() || (image ? "Make a 3D model of what is in this picture." : "");
       if (!prompt) return send(res, 400, { error: "Say what to make or change." }), true;
       if (listEditors().length === 0) return send(res, 409, { error: "Open a design in the editor first." }), true;
       const engine = body.engine === "gemini" ? "gemini" : "chatgpt";
       const job = newJob(engine);
       const run = engine === "gemini" ? runGemini : runChatgpt;
-      run(job, { prompt, history: Array.isArray(body.history) ? body.history : [], model: typeof body.model === "string" ? body.model : "" })
+      run(job, { prompt, history: Array.isArray(body.history) ? body.history : [], model: typeof body.model === "string" ? body.model : "", image })
         .then(() => {
           if (job.status === "running") job.status = "done";
         })

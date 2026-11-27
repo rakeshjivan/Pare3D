@@ -5,7 +5,7 @@
  * or Gemini (through Google's Gemini CLI) builds it in the open design with the editor's own tools.
  * Every change lands in the undo history like a change made by hand.
  */
-import { Bot, Loader2, LogOut, Mic, MicOff, Send, Sparkles, Square, X } from "lucide-react";
+import { Bot, ImagePlus, Loader2, LogOut, Mic, MicOff, Send, Sparkles, Square, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "@/lib/i18n";
 import {
@@ -16,6 +16,7 @@ import {
   aiStatus,
   inDesktopApp,
   OPEN_AI_EVENT,
+  pictureForAi,
   readAiEngine,
   signInChatgpt,
   signOutChatgpt,
@@ -27,9 +28,10 @@ import {
   type AiStatus,
 } from "@/lib/pareAi";
 
-type Turn = { role: "user" | "assistant"; text: string; steps?: string[]; error?: boolean };
+type Turn = { role: "user" | "assistant"; text: string; steps?: string[]; error?: boolean; image?: string };
 
 const ENGINE_NAMES: Record<AiEngine, string> = { chatgpt: "ChatGPT", gemini: "Gemini" };
+const MESH_FILE = /\.(stl|obj|3mf|glb|gltf|ply|off|amf)$/i;
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -96,6 +98,10 @@ export function AiPanel() {
   const [models, setModels] = useState<AiModel[]>([]);
   const [model, setModel] = useState("");
   const [notice, setNotice] = useState("");
+  const [picture, setPicture] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const [meshName, setMeshName] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -184,15 +190,33 @@ export function AiPanel() {
 
   const ready = status ? (engine === "chatgpt" ? status.chatgpt.signedIn : status.gemini.installed && status.gemini.signedIn) : false;
 
+  const takePicture = async (file: Blob | null | undefined) => {
+    if (!file || !file.type.startsWith("image/")) {
+      if (file) setNotice(t("ai.pictureNotImage"));
+      return;
+    }
+    try {
+      setPicture(await pictureForAi(file));
+      setNotice("");
+      inputRef.current?.focus();
+    } catch {
+      setNotice(t("ai.pictureUnreadable"));
+    }
+  };
+
   const send = async () => {
-    const text = prompt.trim();
+    const text = prompt.trim() || (picture ? t("ai.pictureDefault") : "");
     if (!text || jobId || !ready) return;
     recognitionRef.current?.stop();
     const history = turns.filter((turn) => !turn.error).map((turn) => ({ role: turn.role, text: turn.text }));
-    setTurns((list) => [...list, { role: "user", text }]);
+    const image = picture;
+    setTurns((list) => [...list, { role: "user", text, image: image || undefined }]);
     setPrompt("");
+    setPicture("");
+    const request = meshName ? `${text}\n\n(I just added the mesh "${meshName}" to the design; it is the newest object in the scene. Work on that mesh unless I say otherwise.)` : text;
+    setMeshName("");
     try {
-      const { id } = await startAiRun({ engine, prompt: text, history, model: engine === "chatgpt" ? model : undefined });
+      const { id } = await startAiRun({ engine, prompt: request, history, model: engine === "chatgpt" ? model : undefined, image: image || undefined });
       setJobId(id);
     } catch (error) {
       setTurns((list) => [...list, { role: "assistant", text: error instanceof Error ? error.message : String(error), error: true }]);
@@ -281,7 +305,37 @@ export function AiPanel() {
   }
 
   return (
-    <aside className="ai-panel" aria-label={t("ai.title")}>
+    <aside
+      className={`ai-panel${dragging ? " is-dragging" : ""}`}
+      aria-label={t("ai.title")}
+      onDragOver={(event) => {
+        if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={(event) => {
+        setDragging(false);
+        const file = event.dataTransfer.files[0];
+        if (!file) return;
+        if (file.type.startsWith("image/") && !/\.svg$/i.test(file.name)) {
+          // A picture: for the AI to model. It does not go on to the editor's own import.
+          event.preventDefault();
+          event.stopPropagation();
+          void takePicture(file);
+          return;
+        }
+        // Anything else (an STL, OBJ, 3MF or GLB made elsewhere, an SVG): the editor imports it as usual,
+        // and the next request tells the AI it is there.
+        if (MESH_FILE.test(file.name)) {
+          setMeshName(file.name);
+          setNotice(t("ai.meshAdded", { name: file.name }));
+        }
+      }}
+    >
+      {dragging ? <div className="ai-drop-hint">{t("ai.pictureDrop")}</div> : null}
       <header className="ai-panel-header">
         <Sparkles aria-hidden="true" />
         <strong>{t("ai.title")}</strong>
@@ -323,6 +377,7 @@ export function AiPanel() {
         {turns.map((turn, index) => (
           <div key={index} className={`ai-turn is-${turn.role}${turn.error ? " is-error" : ""}`}>
             {turn.steps?.length ? <p className="ai-steps">{turn.steps.join(" · ")}</p> : null}
+            {turn.image ? <img className="ai-turn-picture" src={turn.image} alt={t("ai.pictureAlt")} /> : null}
             <p>{turn.text}</p>
           </div>
         ))}
@@ -342,13 +397,28 @@ export function AiPanel() {
           void send();
         }}
       >
+        {picture ? (
+          <div className="ai-picture">
+            <img src={picture} alt={t("ai.pictureAlt")} />
+            <span>{t("ai.pictureReady")}</span>
+            <button type="button" className="ai-icon-button" aria-label={t("ai.pictureRemove")} title={t("ai.pictureRemove")} onClick={() => setPicture("")}>
+              <X aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
         <textarea
           ref={inputRef}
           value={prompt}
           rows={3}
-          placeholder={t("ai.placeholder")}
+          placeholder={picture ? t("ai.picturePlaceholder") : t("ai.placeholder")}
           disabled={!ready && status !== undefined}
           onChange={(event) => setPrompt(event.target.value)}
+          onPaste={(event) => {
+            const file = Array.from(event.clipboardData.files).find((item) => item.type.startsWith("image/"));
+            if (!file) return;
+            event.preventDefault();
+            void takePicture(file);
+          }}
           onKeyDown={(event) => {
             event.stopPropagation();
             if (event.key === "Enter" && !event.shiftKey) {
@@ -358,6 +428,19 @@ export function AiPanel() {
           }}
         />
         <div className="ai-compose-actions">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/heic,image/gif"
+            hidden
+            onChange={(event) => {
+              void takePicture(event.target.files?.[0]);
+              event.target.value = "";
+            }}
+          />
+          <button type="button" className="ai-icon-button ai-picture-button" title={t("ai.pictureAdd")} aria-label={t("ai.pictureAdd")} onClick={() => fileRef.current?.click()} disabled={!ready || Boolean(jobId)}>
+            <ImagePlus aria-hidden="true" />
+          </button>
           {canSpeak ? (
             <button type="button" className={`ai-icon-button${listening ? " is-listening" : ""}`} aria-pressed={listening} title={listening ? t("ai.micStop") : t("ai.micStart")} aria-label={listening ? t("ai.micStop") : t("ai.micStart")} onClick={toggleListening} disabled={!ready}>
               {listening ? <MicOff aria-hidden="true" /> : <Mic aria-hidden="true" />}
@@ -368,7 +451,7 @@ export function AiPanel() {
               <Square aria-hidden="true" /> {t("ai.stop")}
             </button>
           ) : (
-            <button type="submit" className="ai-send-button" disabled={!ready || !prompt.trim()}>
+            <button type="submit" className="ai-send-button" disabled={!ready || (!prompt.trim() && !picture)}>
               <Send aria-hidden="true" /> {t("ai.send")}
             </button>
           )}

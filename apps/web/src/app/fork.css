@@ -2859,3 +2859,14 @@ html[data-theme="dark"] .ai-icon-button:hover:not(:disabled) { background: rgba(
 html[data-theme="dark"] .ai-engine-switch { background: var(--pare-dark-chrome); border-color: var(--pare-dark-border); }
 html[data-theme="dark"] .ai-engine-switch button { color: var(--pare-dark-muted); }
 html[data-theme="dark"] .ai-engine-switch button.is-active { background: var(--pare-dark-raised); color: var(--pare-dark-ink); }
+
+/* Build 128: a picture for AI design. */
+.ai-panel.is-dragging { outline: 2px dashed #5b6cff; outline-offset: -6px; }
+.ai-drop-hint { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 24px; border-radius: 12px; background: color-mix(in srgb, #5b6cff 12%, var(--surface, #fff)); color: #3d4bd6; font: 600 14px var(--font-ui); text-align: center; pointer-events: none; }
+.ai-picture { display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--border, #d8dde3); border-radius: 8px; font-size: 12px; color: var(--text-muted, #5d6670); }
+.ai-picture img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+.ai-picture span { flex: 1; }
+.ai-turn-picture { display: block; max-width: 160px; max-height: 120px; margin-bottom: 5px; border-radius: 8px; object-fit: cover; }
+.ai-compose-actions .ai-picture-button { margin-right: auto; }
+html[data-theme="dark"] .ai-drop-hint { background: color-mix(in srgb, #5b6cff 22%, var(--pare-dark-panel)); color: #c8cdff; }
+html[data-theme="dark"] .ai-picture { border-color: var(--pare-dark-border); color: var(--pare-dark-muted); }

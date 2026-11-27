@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 128,
+    items: [
+      "AI design takes pictures: drop, paste or pick a photo or drawing in the AI panel, and the AI builds a 3D model of it from shapes you can edit. Say how big it should be, or it picks a sensible size.",
+      "Drop an STL, OBJ, 3MF or GLB made elsewhere on the AI panel: it goes into your design, and the AI works on that mesh next (scale it, flatten the base, cut it, combine it).",
+    ],
+  },
+  {
     build: 127,
     items: [
       "AI design with ChatGPT now finds your plan's models: build 126 signed in but then said no model was offered.",

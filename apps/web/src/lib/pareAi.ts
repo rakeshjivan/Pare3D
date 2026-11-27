@@ -70,7 +70,7 @@ async function post<T>(path: string, body: unknown = {}): Promise<T> {
 
 export const signInChatgpt = () => post<{ ok: boolean }>("/chatgpt/signin");
 export const signOutChatgpt = () => post<{ ok: boolean; revoked: boolean }>("/chatgpt/signout");
-export const startAiRun = (body: { engine: AiEngine; prompt: string; history: { role: "user" | "assistant"; text: string }[]; model?: string }) =>
+export const startAiRun = (body: { engine: AiEngine; prompt: string; history: { role: "user" | "assistant"; text: string }[]; model?: string; image?: string }) =>
   post<{ id: string }>("/run", body);
 export const stopAiRun = (id: string) => post<{ ok: boolean }>("/stop", { id });
 
@@ -86,4 +86,23 @@ export async function aiJob(id: string, after: number): Promise<AiJob> {
   const value = (await response.json().catch(() => ({}))) as AiJob & { error?: string };
   if (!response.ok) throw new Error(value.error || "The AI request was lost.");
   return value;
+}
+
+/**
+ * A picture for the AI, scaled so its longest side is at most 1280 px and sent as JPEG (on white, for
+ * pictures with transparency): sharp enough to read shapes from, small enough for the request.
+ */
+export async function pictureForAi(file: Blob): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("The picture could not be read.");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL("image/jpeg", 0.88);
 }
