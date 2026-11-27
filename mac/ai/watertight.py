@@ -22,7 +22,7 @@ import numpy as np
 import trimesh
 from scipy import ndimage
 
-RESOLUTION = 360
+RESOLUTION = 440
 
 
 def load(path):
@@ -177,26 +177,51 @@ def main():
     if source.lower().endswith(".glb"):
         # glTF has y up; the STL goes out with z up, as slicers and Pare's import expect (as for a GLB import).
         mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
-    # Already one closed surface (TRELLIS.2's own remesh with its Metal add-ons): keep it as it is.
-    if mesh.is_watertight and mesh.is_winding_consistent and len(mesh.split(only_watertight=False)) == 1:
-        if mesh.volume < 0:
-            mesh.invert()
-        mesh.export(target)
-        print(f"Pare: already closed, kept as made ({len(mesh.faces):,} triangles)", flush=True)
-        return
+    # Already closed (TRELLIS.2's own remesh): tidy it and keep its detail. Floaters under 0.5% of the
+    # surface go; what is left must be closed, consistently wound and positive in volume for slicers.
+    mesh.update_faces(mesh.nondegenerate_faces())
+    mesh.update_faces(mesh.unique_faces())
+    mesh.remove_unreferenced_vertices()
+    parts = mesh.split(only_watertight=False)
+    total = sum(part.area for part in parts) or 1
+    kept = [part for part in parts if part.area >= 0.005 * total]
+    if kept and all(part.is_watertight and part.is_winding_consistent for part in kept):
+        closed = trimesh.util.concatenate(kept)
+        trimesh.repair.fix_normals(closed, multibody=True)
+        if all(part.volume > 0 for part in closed.split(only_watertight=False)):
+            closed.export(target)
+            # The STL as a slicer reads it (vertices welded by position) must still be closed.
+            if not trimesh.load(target).is_watertight:
+                print("Pare: closed in memory but not as an STL; rebuilding", flush=True)
+                return rebuild(mesh, target, resolution)
+            print(f"Pare: already closed, kept as made ({len(closed.faces):,} triangles, {len(kept)} part(s), {len(parts) - len(kept)} speck(s) removed)", flush=True)
+            return
+    rebuild(mesh, target, resolution)
+
+
+def rebuild(mesh, target, resolution):
     print(f"Pare: rebuilding {len(mesh.faces):,} triangles as a closed solid", flush=True)
     grid, origin, pitch = occupancy(mesh, resolution)
     solid = solidify(grid)
-    solid = well_composed(solid)
+    # One cell of growth keeps every part at least three cells thick, so no two pieces of surface meet at
+    # one point (a slicer reads those as non-manifold); the inset below takes it back.
+    solid = well_composed(ndimage.binary_dilation(solid, ndimage.generate_binary_structure(3, 1)))
     vertices, faces = surface_nets(solid.astype(np.float32), 0.5)
     vertices = origin + (vertices + 0.5) * pitch
     out = trimesh.Trimesh(vertices=vertices, faces=faces, process=True)
     trimesh.repair.fix_normals(out, multibody=False)
     trimesh.smoothing.filter_taubin(out, lamb=0.5, nu=-0.53, iterations=6)
-    # The marked cells reach about half a cell past the real surface: bring it back to size.
-    out.vertices = out.vertices - out.vertex_normals * (0.5 * pitch)
+    # The marked cells reach about half a cell past the real surface, and the growth one more. Moving the
+    # surface back along its normals can fold thin parts onto themselves, so the size is put back with a
+    # uniform scale about the centre instead (the mesh is resized to the wanted size anyway).
+    extent = float(out.extents.max())
+    scale = max(0.5, (extent - 3 * pitch) / extent)
+    centre = out.bounds.mean(axis=0)
+    out.vertices = centre + (out.vertices - centre) * scale
     # No decimation here: it would tear the closed surface again. Pare's Simplify mesh can thin it later.
     out.export(target)
+    check = trimesh.load(target)
+    print(f"Pare: written STL closed={check.is_watertight}", flush=True)
     print(f"Pare: closed solid {len(out.faces):,} triangles, watertight={out.is_watertight}, volume={out.volume:.1f}", flush=True)
 
 

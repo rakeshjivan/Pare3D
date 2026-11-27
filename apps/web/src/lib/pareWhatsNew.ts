@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 136,
+    items: [
+      "Mesh from a picture at the most detail your Mac can take: with Xcode's Metal add-ons and 32 GB of memory or more it uses TRELLIS.2's 1024 setting (about 8 minutes) and keeps up to 600,000 triangles.",
+      "Every mesh is checked as a slicer reads it before it comes in: specks are removed and it must be closed; one that is not is rebuilt finer than before (440 cells across).",
+    ],
+  },
+  {
     build: 135,
     items: [
       "Mesh from a picture: with Xcode installed, TRELLIS.2 now does its own clean-up (a remesh that fills holes and gives one closed surface), which keeps far more detail than Pare's rebuild. Before, Pare skipped the step that runs it.",

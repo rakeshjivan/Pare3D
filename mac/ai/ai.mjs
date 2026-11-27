@@ -19,7 +19,7 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { createServer } from "node:http";
-import { homedir, platform } from "node:os";
+import { homedir, platform, totalmem } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dispatchCommand, listEditors } from "./bridge.mjs";
@@ -740,9 +740,14 @@ async function runMesh(job, { image }) {
     // --steps 8: about 14% faster than the default 12, with the surface staying close (trellis-silicon's own
     // measurement). The watermark ratio 0 lets PyTorch use the Mac's memory as macOS allows, instead of
     // stopping early at its own cap (build 133, after an out-of-memory stop on a 48 GB Mac mini).
-    const child = spawn(bin, [input, "--output", join(folder, "model"), ...(metal ? [] : ["--no-texture"]), "--steps", "8"], {
+    // Build 136: the most detail the Mac can take. With the Metal add-ons and 32 GB or more, the 1024
+    // pipeline (about 8 minutes, about 21 GB at its peak) at the model's own step count; otherwise the 512
+    // one at 8 steps. The texture is not printed, so it is baked at the smallest size.
+    const detailed = metal && totalmem() >= 32 * 1024 ** 3;
+    const quality = detailed ? ["--pipeline-type", "1024", "--texture-size", "512"] : metal ? ["--texture-size", "512", "--steps", "8"] : ["--no-texture", "--steps", "8"];
+    const child = spawn(bin, [input, "--output", join(folder, "model"), ...quality], {
       cwd: folder,
-      env: { ...process.env, PATH: searchPath().join(":"), BAKE_MAX_FACES: "300000", PYTORCH_ENABLE_MPS_FALLBACK: "1", PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.0", NO_COLOR: "1" },
+      env: { ...process.env, PATH: searchPath().join(":"), BAKE_MAX_FACES: "600000", PYTORCH_ENABLE_MPS_FALLBACK: "1", PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.0", NO_COLOR: "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     job.stop = () => child.kill();
