@@ -168,7 +168,7 @@ export function AiPanel() {
         try {
           const job = await aiJob(jobId, seen);
           seen = job.logLength;
-          for (const entry of job.log) if (entry.kind === "tool" && collected[collected.length - 1] !== entry.text) collected.push(entry.text);
+          for (const entry of job.log) if (entry.kind === "tool" && !collected.includes(entry.text)) collected.push(entry.text);
           setSteps([...collected]);
           if (job.status !== "running") {
             const finished = jobKindRef.current;
@@ -372,7 +372,7 @@ export function AiPanel() {
         if (file.type.startsWith("image/") && !/\.svg$/i.test(file.name)) {
           // A picture: for the AI to model. It does not go on to the editor's own import.
           event.preventDefault();
-          event.stopPropagation();
+          (event.nativeEvent as DragEvent & { pareAiTook?: boolean }).pareAiTook = true;
           void takePicture(file);
           return;
         }

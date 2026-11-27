@@ -4,6 +4,14 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 132,
+    items: [
+      "No more dashed frame or Drop to import card while dragging files in. Build 131 could leave them stuck on screen after a picture was dropped on the AI panel.",
+      "No Fast mode offer popping up; Fast mode stays in Settings.",
+      "The AI panel lists each mesh-making step once.",
+    ],
+  },
+  {
     build: 131,
     items: [
       "Calmer screen: no hint on an empty workplane, and dragging files in shows only a light outline instead of a message.",

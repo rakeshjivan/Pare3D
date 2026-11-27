@@ -75,7 +75,6 @@ import { moreShapeFromDragId, moreShapePart } from "@/lib/moreShapes";
 import { BusyIndicator } from "./BusyIndicator";
 import { beginBusy, setBusyCount, whileBusy } from "@/lib/busy";
 import { WhatsNew } from "./WhatsNew";
-import { FastModeHint } from "./FastModeHint";
 import { AiPanel } from "./AiPanel";
 import { IMPORT_FILES_EVENT } from "@/lib/pareAi";
 import { withGlbAsStl } from "@/lib/glbImport";
@@ -22699,7 +22698,7 @@ export function LayerlingEditor({
   // Build 75: files dragged from the desktop onto the window are imported where they are let go - no
   // trip through the Import window. Drop zones of their own (the Import window, the font manager) keep
   // their drops; a design shown from its history takes none.
-  const [fileDragging, setFileDragging] = useState(false);
+  const [, setFileDragging] = useState(false);
   const fileDropBlockedRef = useRef(false);
   fileDropBlockedRef.current = Boolean(historyViewState);
   useEffect(() => {
@@ -22725,6 +22724,8 @@ export function LayerlingEditor({
       depth = 0;
       setFileDragging(false);
       if (!carriesFiles(event)) return;
+      // A picture dropped on the AI panel is the panel's (build 131).
+      if ((event as DragEvent & { pareAiTook?: boolean }).pareAiTook) return;
       event.preventDefault();
       const files = Array.from(event.dataTransfer?.files ?? []);
       if (!files.length || fileDropBlockedRef.current) return;
@@ -24451,16 +24452,7 @@ export function LayerlingEditor({
       ) : null}
       <BusyIndicator />
       <SavedFileToast />
-      <FastModeHint
-        fastMode={workspaceSettings.fastMode}
-        onTurnOn={() => {
-          updateProjectWorkspaceSettings({ workspace: { ...workspaceSettingsRef.current, fastMode: true }, snap: snapGridRef.current });
-          // New designs on this computer start in Fast mode too.
-          const saved = readWorkspaceDefault();
-          saveWorkspaceDefault({ ...(saved?.workspace ?? workspaceSettingsRef.current), fastMode: true }, saved?.snap ?? snapGridRef.current);
-          setNotice(t("fastModeHint.done"));
-        }}
-      />
+      {/* Pare 3D (build 131): no Fast mode offer popping up; it stays in Settings. */}
       <AppFooter variant="editor" version={LYL_CREATED_WITH_VERSION} onBugReport={() => void saveBugReport()} />
       {historyViewState && toolbarMode === "geometry" ? (
         <HistoryViewOverlay
@@ -25380,10 +25372,6 @@ export function LayerlingEditor({
       ) : null}
       {qrCodePanelOpen && !historyViewState ? (
         <QrCodePanel onClose={() => setQrCodePanelOpen(false)} onCreate={createQrCode} />
-      ) : null}
-      {fileDragging ? (
-        // Pare 3D (build 131): only a light outline while files are dragged in, no message card.
-        <div className="file-drop-overlay" aria-hidden="true" />
       ) : null}
       {topPanel ? (
         <TopActionPanel
