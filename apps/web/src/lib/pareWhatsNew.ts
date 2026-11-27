@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 134,
+    items: [
+      "A mesh made from a picture now comes in as one closed, watertight solid, ready to slice: Pare rebuilds it from its volume, sealing the holes, filling the inside and dropping loose bits, at the size it was made.",
+      "It has about half a million triangles; Simplify mesh thins it if needed.",
+    ],
+  },
+  {
     build: 133,
     items: [
       "Mesh from a picture is about 14% quicker (8 steps instead of 12) and may use more of the Mac's memory before stopping, so a large picture is less likely to run out of memory.",

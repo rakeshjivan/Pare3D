@@ -19,7 +19,7 @@ BUILD="${BUILD:-0}"
 # The AI design files (build 126) sit next to serve.mjs, in ai/.
 copy_ai() { # destination folder
   mkdir -p "$1"
-  cp "$ROOT/mac/ai/ai.mjs" "$ROOT/mac/ai/bridge.mjs" "$ROOT/scripts/layerling-mcp-server.mjs" "$ROOT/scripts/layerling-mcp-tools.mjs" \
+  cp "$ROOT/mac/ai/ai.mjs" "$ROOT/mac/ai/bridge.mjs" "$ROOT/mac/ai/watertight.py" "$ROOT/scripts/layerling-mcp-server.mjs" "$ROOT/scripts/layerling-mcp-tools.mjs" \
     "$ROOT/scripts/layerling-mcp-open.mjs" "$ROOT/scripts/layerling-mcp-notes-wait.mjs" "$1/"
 }
 # Raise together with RUNTIME_VERSION in mac/serve.mjs when app files need a newer launcher.

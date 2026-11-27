@@ -765,6 +765,27 @@ async function runMesh(job, { image }) {
   const made = (await readdir(folder)).filter((name) => /\.(glb|obj)$/i.test(name)).sort((a, b) => (a.endsWith(".glb") ? -1 : 1) - (b.endsWith(".glb") ? -1 : 1));
   if (!made.length) throw new Error("Mesh making finished but left no mesh file.");
   job.meshFile = join(folder, made[0]);
+  // Build 134: rebuild it as one closed solid, ready to print (watertight.py, in trellis-silicon's Python).
+  const python = join(dirname(bin), "python");
+  const script = join(here, "watertight.py");
+  if (existsSync(python) && existsSync(script) && job.status === "running") {
+    note(job, "tool", "Closing it into a printable solid");
+    const closed = join(folder, "model-closed.stl");
+    const ok = await new Promise((resolve) => {
+      const child = spawn(python, [script, job.meshFile, closed], { cwd: folder, stdio: ["ignore", "pipe", "pipe"] });
+      job.stop = () => child.kill();
+      let output = "";
+      child.stdout.on("data", (chunk) => (output += chunk));
+      child.stderr.on("data", (chunk) => (output += chunk));
+      child.on("error", () => resolve(false));
+      child.on("close", (code) => {
+        void writeFile(join(folder, "closing-log.txt"), output).catch(() => undefined);
+        resolve(code === 0 && existsSync(closed));
+      });
+    });
+    if (ok) job.meshFile = closed;
+    else note(job, "warn", "Could not close the mesh; it comes in as made.");
+  }
   job.answer = "The mesh is in your design. Tell me how big it should be, or what to change.";
 }
 
