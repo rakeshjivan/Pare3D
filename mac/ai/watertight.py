@@ -177,6 +177,13 @@ def main():
     if source.lower().endswith(".glb"):
         # glTF has y up; the STL goes out with z up, as slicers and Pare's import expect (as for a GLB import).
         mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
+    # Already one closed surface (TRELLIS.2's own remesh with its Metal add-ons): keep it as it is.
+    if mesh.is_watertight and mesh.is_winding_consistent and len(mesh.split(only_watertight=False)) == 1:
+        if mesh.volume < 0:
+            mesh.invert()
+        mesh.export(target)
+        print(f"Pare: already closed, kept as made ({len(mesh.faces):,} triangles)", flush=True)
+        return
     print(f"Pare: rebuilding {len(mesh.faces):,} triangles as a closed solid", flush=True)
     grid, origin, pitch = occupancy(mesh, resolution)
     solid = solidify(grid)

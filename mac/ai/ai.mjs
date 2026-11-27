@@ -722,6 +722,17 @@ async function runMesh(job, { image }) {
   const input = join(folder, `picture.${type === "jpeg" ? "jpg" : type}`);
   await writeFile(input, Buffer.from(data, "base64"));
   note(job, "tool", "Starting on this Mac");
+  // Build 135: TRELLIS.2's own clean-up (a remesh that fills holes and makes one closed surface) runs only
+  // in its export with textures, and only with its Metal add-ons (built when Xcode is installed). With
+  // them, let it run; without, skip the texture step, which would not clean up anyway.
+  const metal = await new Promise((resolve) => {
+    const python = join(dirname(bin), "python");
+    if (!existsSync(python)) return resolve(false);
+    const check = spawn(python, ["-c", "import mtldiffrast, flex_gemm, cumesh"], { stdio: "ignore" });
+    check.on("error", () => resolve(false));
+    check.on("close", (code) => resolve(code === 0));
+  });
+  job.metal = metal;
   let lastStep = "";
   let errors = "";
   const log = [];
@@ -729,7 +740,7 @@ async function runMesh(job, { image }) {
     // --steps 8: about 14% faster than the default 12, with the surface staying close (trellis-silicon's own
     // measurement). The watermark ratio 0 lets PyTorch use the Mac's memory as macOS allows, instead of
     // stopping early at its own cap (build 133, after an out-of-memory stop on a 48 GB Mac mini).
-    const child = spawn(bin, [input, "--output", join(folder, "model"), "--no-texture", "--steps", "8"], {
+    const child = spawn(bin, [input, "--output", join(folder, "model"), ...(metal ? [] : ["--no-texture"]), "--steps", "8"], {
       cwd: folder,
       env: { ...process.env, PATH: searchPath().join(":"), BAKE_MAX_FACES: "300000", PYTORCH_ENABLE_MPS_FALLBACK: "1", PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.0", NO_COLOR: "1" },
       stdio: ["ignore", "pipe", "pipe"],
@@ -786,7 +797,9 @@ async function runMesh(job, { image }) {
     if (ok) job.meshFile = closed;
     else note(job, "warn", "Could not close the mesh; it comes in as made.");
   }
-  job.answer = "The mesh is in your design. Tell me how big it should be, or what to change.";
+  job.answer = job.metal
+    ? "The mesh is in your design. Tell me how big it should be, or what to change."
+    : "The mesh is in your design, closed by Pare. For cleaner, more detailed meshes, install Xcode so TRELLIS.2 can do its own clean-up (Set up in the AI panel). Tell me how big it should be, or what to change.";
 }
 
 // ---------- HTTP ----------

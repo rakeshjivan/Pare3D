@@ -878,7 +878,7 @@ export const MESSAGES_EN = {
   "ai.meshFromPicture": "Make a mesh of this picture.",
   "ai.meshWorking": "Making the mesh on this Mac…",
   "ai.meshSetupTitle": "Free mesh making on this Mac.",
-  "ai.meshSetupIntro": "Pare 3D uses TRELLIS.2, Microsoft's open image-to-3D model, through its Apple Silicon version. It needs an Apple Silicon Mac with 24 GB of memory or more, about 20 GB of disk, and a free Hugging Face account. Set it up once:",
+  "ai.meshSetupIntro": "Pare 3D uses TRELLIS.2, Microsoft's open image-to-3D model, through its Apple Silicon version. It needs an Apple Silicon Mac with 24 GB of memory or more, about 20 GB of disk, Xcode (free in the App Store; open it once to accept its licence) for the clean, closed meshes, and a free Hugging Face account. Set it up once:",
   "ai.meshSetupStep1": "Make a free Hugging Face account, sign in, and request access to this model (usually granted quickly):",
   "ai.meshSetupStep2": "Open Terminal and paste these lines. The first two install uv, which brings the Python version the model needs (the Mac's own is too old). It takes a while; when it asks, sign in to Hugging Face with a Read access token from huggingface.co/settings/tokens:",
   "ai.meshSetupStep3": "Click Check again. The first mesh also downloads the model, about 15 GB.",

@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 135,
+    items: [
+      "Mesh from a picture: with Xcode installed, TRELLIS.2 now does its own clean-up (a remesh that fills holes and gives one closed surface), which keeps far more detail than Pare's rebuild. Before, Pare skipped the step that runs it.",
+      "A mesh that comes out closed is kept as made; only a flawed one is rebuilt.",
+    ],
+  },
+  {
     build: 134,
     items: [
       "A mesh made from a picture now comes in as one closed, watertight solid, ready to slice: Pare rebuilds it from its volume, sealing the holes, filling the inside and dropping loose bits, at the size it was made.",
