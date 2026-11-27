@@ -427,7 +427,7 @@ export function AiPanel() {
             <ol>
               <li>{t("ai.meshSetupStep1")} <a href="https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m" target="_blank" rel="noreferrer">huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m</a></li>
               <li>{t("ai.meshSetupStep2")}
-                <pre>{"cd ~ && git clone https://github.com/sanchez-kim/trellis-silicon.git && cd trellis-silicon\nxcodebuild -downloadComponent MetalToolchain\nbash setup.sh && source .venv/bin/activate\nhf auth login"}</pre>
+                <pre>{"curl -LsSf https://astral.sh/uv/install.sh | sh\nsource $HOME/.local/bin/env\ncd ~ && git clone https://github.com/sanchez-kim/trellis-silicon.git && cd trellis-silicon\nxcodebuild -downloadComponent MetalToolchain\nbash setup.sh && source .venv/bin/activate\nhf auth login"}</pre>
               </li>
               <li>{t("ai.meshSetupStep3")}</li>
             </ol>
