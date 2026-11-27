@@ -25382,12 +25382,8 @@ export function LayerlingEditor({
         <QrCodePanel onClose={() => setQrCodePanelOpen(false)} onCreate={createQrCode} />
       ) : null}
       {fileDragging ? (
-        <div className="file-drop-overlay" aria-hidden="true">
-          <div className="file-drop-card">
-            <strong>{t("editor.dropToImport")}</strong>
-            <span>{t("editor.dropToImportHint")}</span>
-          </div>
-        </div>
+        // Pare 3D (build 131): only a light outline while files are dragged in, no message card.
+        <div className="file-drop-overlay" aria-hidden="true" />
       ) : null}
       {topPanel ? (
         <TopActionPanel

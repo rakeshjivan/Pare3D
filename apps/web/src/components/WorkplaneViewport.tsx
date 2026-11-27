@@ -10435,7 +10435,7 @@ export function WorkplaneViewport({
       {/* Scrollbars that slide the view, switched in the view bar (Discussion #1241). */}
       {viewScrollbarsOn && !pickOnly ? <ViewScrollbars threeRef={threeRef} /> : null}
       {/* An empty design says where to start, and that a tool can be found by its name (31.10.2026). */}
-      {shapes.length === 0 && !pickOnly ? <p className="workplane-empty-hint">{t("editor.emptyHint")}</p> : null}
+      {/* Pare 3D (build 131): no hint on an empty workplane. */}
       {secondViewWindow ? <SecondViewWindow popup={secondViewWindow} threeRef={threeRef} projectId={projectId} getSelectedIds={getSelectedIds} onClosed={closeSecondView} /> : null}
 
       <div

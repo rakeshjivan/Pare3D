@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 131,
+    items: [
+      "Calmer screen: no hint on an empty workplane, and dragging files in shows only a light outline instead of a message.",
+      "The mesh-making setup in the AI panel now installs uv first, which brings the Python version the model needs.",
+    ],
+  },
+  {
     build: 130,
     items: [
       "A picture can become a real mesh, made free on your Mac: drop a photo in the AI panel and choose Mesh. Pare 3D uses TRELLIS.2, Microsoft's open image-to-3D model, through its Apple Silicon version (24 GB of memory or more; set it up once from the panel). What you type with the picture, such as a size, goes to the AI once the mesh is in.",
