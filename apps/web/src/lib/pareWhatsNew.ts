@@ -4,6 +4,13 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 133,
+    items: [
+      "Mesh from a picture is about 14% quicker (8 steps instead of 12) and may use more of the Mac's memory before stopping, so a large picture is less likely to run out of memory.",
+      "When mesh making stops, the panel shows the reason it gave, and the full log is kept beside the picture.",
+    ],
+  },
+  {
     build: 132,
     items: [
       "No more dashed frame or Drop to import card while dragging files in. Build 131 could leave them stuck on screen after a picture was dropped on the AI panel.",

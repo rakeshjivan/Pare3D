@@ -724,16 +724,21 @@ async function runMesh(job, { image }) {
   note(job, "tool", "Starting on this Mac");
   let lastStep = "";
   let errors = "";
+  const log = [];
   await new Promise((resolve, reject) => {
-    const child = spawn(bin, [input, "--output", join(folder, "model"), "--no-texture"], {
+    // --steps 8: about 14% faster than the default 12, with the surface staying close (trellis-silicon's own
+    // measurement). The watermark ratio 0 lets PyTorch use the Mac's memory as macOS allows, instead of
+    // stopping early at its own cap (build 133, after an out-of-memory stop on a 48 GB Mac mini).
+    const child = spawn(bin, [input, "--output", join(folder, "model"), "--no-texture", "--steps", "8"], {
       cwd: folder,
-      env: { ...process.env, PATH: searchPath().join(":"), BAKE_MAX_FACES: "300000", PYTORCH_ENABLE_MPS_FALLBACK: "1", NO_COLOR: "1" },
+      env: { ...process.env, PATH: searchPath().join(":"), BAKE_MAX_FACES: "300000", PYTORCH_ENABLE_MPS_FALLBACK: "1", PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.0", NO_COLOR: "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     job.stop = () => child.kill();
     const watch = (chunk) => {
       const text = chunk.toString("utf8");
       errors = (errors + text).slice(-4000);
+      log.push(text);
       for (const line of text.split(/[\r\n]+/)) {
         const step = MESH_STEPS.find(([pattern]) => pattern.test(line))?.[1];
         if (step && step !== lastStep) {
@@ -746,9 +751,14 @@ async function runMesh(job, { image }) {
     child.stderr.on("data", watch);
     child.on("error", reject);
     child.on("close", (code) => {
+      // The whole run's output stays beside the picture, for looking into a failure.
+      void writeFile(join(folder, "log.txt"), log.join("")).catch(() => undefined);
       if (code === 0) resolve();
       else if (/gated|401|403|access to model|restricted/i.test(errors)) reject(new Error("Hugging Face has not given access to the DINOv3 model yet. Request it on its page (see Set up), sign in with hf auth login, and try again."));
-      else if (/out of memory|MPS backend out of memory|Killed/i.test(errors)) reject(new Error("This Mac ran out of memory making the mesh. It needs 24 GB or more; close other apps and try again."));
+      else if (/out of memory|Killed/i.test(errors) || code === 137 || code === null) {
+        const detail = errors.split("\n").reverse().find((line) => /out of memory/i.test(line));
+        reject(new Error(`This Mac ran out of memory making the mesh. Close other apps and try again; a photo of one object on a plain background needs least.${detail ? ` (${clip(detail.trim(), 200)})` : ""}`));
+      }
       else reject(new Error(clip(errors.trim().split("\n").filter(Boolean).pop() || `Mesh making stopped (${code}).`, 300)));
     });
   });
