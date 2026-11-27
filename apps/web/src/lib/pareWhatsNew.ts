@@ -4,6 +4,14 @@
  */
 export const WHATS_NEW: ReadonlyArray<{ build: number; items: readonly string[] }> = [
   {
+    build: 130,
+    items: [
+      "A picture can become a real mesh, made free on your Mac: drop a photo in the AI panel and choose Mesh. Pare 3D uses TRELLIS.2, Microsoft's open image-to-3D model, through its Apple Silicon version (24 GB of memory or more; set it up once from the panel). What you type with the picture, such as a size, goes to the AI once the mesh is in.",
+      "Or choose From shapes, and the AI builds a simpler model from Pare's shapes.",
+      "GLB files import as meshes, standing up as they should.",
+    ],
+  },
+  {
     build: 129,
     items: [
       "AI design: after Pare 3D updates itself while open, the AI panel now says to quit and reopen before sending a picture. Build 128 could send it to AI code that was still the older one, which left the picture out.",

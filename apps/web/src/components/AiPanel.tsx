@@ -5,7 +5,7 @@
  * or Gemini (through Google's Gemini CLI) builds it in the open design with the editor's own tools.
  * Every change lands in the undo history like a change made by hand.
  */
-import { Bot, ImagePlus, Loader2, LogOut, Mic, MicOff, Send, Sparkles, Square, X } from "lucide-react";
+import { Box, Bot, ImagePlus, Loader2, LogOut, Mic, MicOff, Send, Sparkles, Square, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "@/lib/i18n";
 import {
@@ -16,6 +16,9 @@ import {
   aiStatus,
   inDesktopApp,
   OPEN_AI_EVENT,
+  IMPORT_FILES_EVENT,
+  meshFile,
+  startMeshRun,
   pictureForAi,
   readAiEngine,
   signInChatgpt,
@@ -101,6 +104,11 @@ export function AiPanel() {
   const [picture, setPicture] = useState("");
   const [dragging, setDragging] = useState(false);
   const [meshName, setMeshName] = useState("");
+  const [pendingFollowUp, setPendingFollowUp] = useState("");
+  // Build 129: what a picture becomes - a mesh made on this Mac, or a model the AI builds from shapes.
+  const [pictureMode, setPictureMode] = useState<"mesh" | "shapes">("mesh");
+  const [meshSetupOpen, setMeshSetupOpen] = useState(false);
+  const jobKindRef = useRef<{ kind: "ai" | "mesh"; followUp: string }>({ kind: "ai", followUp: "" });
   const fileRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -163,6 +171,17 @@ export function AiPanel() {
           for (const entry of job.log) if (entry.kind === "tool" && collected[collected.length - 1] !== entry.text) collected.push(entry.text);
           setSteps([...collected]);
           if (job.status !== "running") {
+            const finished = jobKindRef.current;
+            if (finished.kind === "mesh" && job.status === "done") {
+              try {
+                const file = await meshFile(jobId);
+                window.dispatchEvent(new CustomEvent(IMPORT_FILES_EVENT, { detail: { files: [file] } }));
+                setMeshName(file.name);
+                if (finished.followUp) window.setTimeout(() => setPendingFollowUp(finished.followUp), 2500);
+              } catch (error) {
+                job.answer = error instanceof Error ? error.message : String(error);
+              }
+            }
             setTurns((list) => [
               ...list,
               job.status === "done"
@@ -206,15 +225,31 @@ export function AiPanel() {
 
   const send = async () => {
     const text = prompt.trim() || (picture ? t("ai.pictureDefault") : "");
-    if (!text || jobId || !ready) return;
+    const meshing = Boolean(picture) && pictureMode === "mesh" && Boolean(status?.meshMaker?.installed);
+    if (!text || jobId || (!ready && !meshing)) return;
     // The page updated but the app's server still runs older AI code, which would drop the picture.
-    if (picture && !status?.features?.includes("picture")) {
+    if (picture && !status?.features?.includes(meshing ? "mesh-from-picture" : "picture")) {
       setNotice(t("ai.restartForPictures"));
       return;
     }
     recognitionRef.current?.stop();
     const history = turns.filter((turn) => !turn.error).map((turn) => ({ role: turn.role, text: turn.text }));
     const image = picture;
+    // Build 129: a picture as a mesh, made on this Mac; what was typed with it goes to the AI afterwards.
+    if (image && pictureMode === "mesh" && status?.meshMaker?.installed) {
+      setTurns((list) => [...list, { role: "user", text: prompt.trim() || t("ai.meshFromPicture"), image }]);
+      setPrompt("");
+      setPicture("");
+      try {
+        const { id } = await startMeshRun(image);
+        jobKindRef.current = { kind: "mesh", followUp: status.chatgpt.signedIn || engine === "gemini" ? prompt.trim() : "" };
+        setJobId(id);
+      } catch (error) {
+        setTurns((list) => [...list, { role: "assistant", text: error instanceof Error ? error.message : String(error), error: true }]);
+      }
+      return;
+    }
+    jobKindRef.current = { kind: "ai", followUp: "" };
     setTurns((list) => [...list, { role: "user", text, image: image || undefined }]);
     setPrompt("");
     setPicture("");
@@ -227,6 +262,15 @@ export function AiPanel() {
       setTurns((list) => [...list, { role: "assistant", text: error instanceof Error ? error.message : String(error), error: true }]);
     }
   };
+
+  // After a mesh from a picture is in the design, what was typed with the picture goes to the AI.
+  useEffect(() => {
+    if (!pendingFollowUp || jobId) return;
+    const text = pendingFollowUp;
+    setPendingFollowUp("");
+    setPrompt(text);
+    window.setTimeout(() => document.querySelector<HTMLButtonElement>(".ai-panel .ai-send-button[type=submit]")?.click(), 50);
+  }, [pendingFollowUp, jobId]);
 
   const toggleListening = () => {
     if (listening) {
@@ -377,6 +421,23 @@ export function AiPanel() {
         </div>
       ) : null}
       <div className="ai-conversation" ref={listRef}>
+        {meshSetupOpen ? (
+          <div className="ai-setup">
+            <p><strong>{t("ai.meshSetupTitle")}</strong> {t("ai.meshSetupIntro")}</p>
+            <ol>
+              <li>{t("ai.meshSetupStep1")} <a href="https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m" target="_blank" rel="noreferrer">huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m</a></li>
+              <li>{t("ai.meshSetupStep2")}
+                <pre>{"cd ~ && git clone https://github.com/sanchez-kim/trellis-silicon.git && cd trellis-silicon\nxcodebuild -downloadComponent MetalToolchain\nbash setup.sh && source .venv/bin/activate\nhf auth login"}</pre>
+              </li>
+              <li>{t("ai.meshSetupStep3")}</li>
+            </ol>
+            <div className="ai-setup-actions">
+              <button type="button" className="ai-small-button" onClick={() => void refresh()}>{t("ai.checkAgain")}</button>
+              <button type="button" className="ai-small-button" onClick={() => setMeshSetupOpen(false)}>{t("ai.close")}</button>
+            </div>
+            {status?.meshMaker?.installed ? <p className="ai-ok">{t("ai.meshSetupDone")}</p> : null}
+          </div>
+        ) : null}
         {setup}
         {!setup && turns.length === 0 && !jobId ? <p className="ai-empty">{t("ai.empty")}</p> : null}
         {turns.map((turn, index) => (
@@ -389,7 +450,7 @@ export function AiPanel() {
         {jobId ? (
           <div className="ai-turn is-assistant is-working">
             <p className="ai-steps">
-              <Loader2 className="ai-spin" aria-hidden="true" /> {steps.length ? steps[steps.length - 1] : t("ai.thinking", { engine: ENGINE_NAMES[engine] })}
+              <Loader2 className="ai-spin" aria-hidden="true" /> {steps.length ? steps[steps.length - 1] : jobKindRef.current.kind === "mesh" ? t("ai.meshWorking") : t("ai.thinking", { engine: ENGINE_NAMES[engine] })}
             </p>
           </div>
         ) : null}
@@ -405,7 +466,21 @@ export function AiPanel() {
         {picture ? (
           <div className="ai-picture">
             <img src={picture} alt={t("ai.pictureAlt")} />
-            <span>{t("ai.pictureReady")}</span>
+            <span className="ai-picture-text">
+              <span className="ai-picture-modes" role="radiogroup" aria-label={t("ai.pictureMode")}>
+                <button type="button" role="radio" aria-checked={pictureMode === "mesh"} className={pictureMode === "mesh" ? "is-active" : ""} onClick={() => setPictureMode("mesh")} title={t("ai.pictureMeshHint")}>
+                  {t("ai.pictureMesh")}
+                </button>
+                <button type="button" role="radio" aria-checked={pictureMode === "shapes"} className={pictureMode === "shapes" ? "is-active" : ""} onClick={() => setPictureMode("shapes")} title={t("ai.pictureShapesHint")}>
+                  {t("ai.pictureShapes")}
+                </button>
+              </span>
+              {pictureMode === "mesh" && !status?.meshMaker?.installed ? (
+                <button type="button" className="ai-link-button" onClick={() => setMeshSetupOpen(true)}>{t("ai.meshSetupLink")}</button>
+              ) : (
+                <span>{pictureMode === "mesh" ? t("ai.pictureMeshReady") : t("ai.pictureReady")}</span>
+              )}
+            </span>
             <button type="button" className="ai-icon-button" aria-label={t("ai.pictureRemove")} title={t("ai.pictureRemove")} onClick={() => setPicture("")}>
               <X aria-hidden="true" />
             </button>
@@ -456,7 +531,7 @@ export function AiPanel() {
               <Square aria-hidden="true" /> {t("ai.stop")}
             </button>
           ) : (
-            <button type="submit" className="ai-send-button" disabled={!ready || (!prompt.trim() && !picture)}>
+            <button type="submit" className="ai-send-button" disabled={(!ready && !(picture && pictureMode === "mesh" && status?.meshMaker?.installed)) || (!prompt.trim() && !picture)}>
               <Send aria-hidden="true" /> {t("ai.send")}
             </button>
           )}

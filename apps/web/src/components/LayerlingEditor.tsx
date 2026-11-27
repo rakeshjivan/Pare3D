@@ -77,6 +77,8 @@ import { beginBusy, setBusyCount, whileBusy } from "@/lib/busy";
 import { WhatsNew } from "./WhatsNew";
 import { FastModeHint } from "./FastModeHint";
 import { AiPanel } from "./AiPanel";
+import { IMPORT_FILES_EVENT } from "@/lib/pareAi";
+import { withGlbAsStl } from "@/lib/glbImport";
 import { checkBeforeSending, CUT_BELOW_BED_EVENT, PRINT_CHECK_EVENT, PrintCheckPanel as ReadyCheckPanel, SPLIT_TO_FIT_EVENT } from "./PrintCheckPanel";
 import { belowBedCutter } from "@/lib/cutBelowBed";
 import { fillHoleAt, isManifoldSolid, makeSolidPositions, meshHealth, pendingMeshChecks, shapeWithWorldPositions } from "@/lib/meshRepair";
@@ -3218,7 +3220,7 @@ export function LayerlingEditor({
   // Left open on an iPad, which greys out files of types it does not know (#219).
   const projectFileAccept = useFileAccept(".lyl,.skf");
   const myShapesFileAccept = useFileAccept(".zip,.lyl,.skf");
-  const importFileAccept = useFileAccept(`.stl,.ply,.obj,.mtl,.zip,.3mf,.step,.stp,.svg,.dxf,image/svg+xml,${PICTURE_FILE_ACCEPT}`);
+  const importFileAccept = useFileAccept(`.stl,.glb,.ply,.obj,.mtl,.zip,.3mf,.step,.stp,.svg,.dxf,image/svg+xml,${PICTURE_FILE_ACCEPT}`);
   const projectFileInputRef = useRef<HTMLInputElement | null>(null);
   const insertProjectFileInputRef = useRef<HTMLInputElement | null>(null);
   const sketchImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -22568,9 +22570,11 @@ export function LayerlingEditor({
     if (await insertDesignFile(file)) setTopPanel(null);
   }, [insertDesignFile]);
 
-  const importFiles = useCallback(async (selected: File[], fileHandle?: LylFileHandle, importOptions?: { keepSvgPage?: boolean; svgWidth?: number | null; keepMeshPosition?: boolean }): Promise<{ importedIds: string[]; failures: Array<{ fileName: string; reason: string }>; warning?: string }> => {
+  const importFiles = useCallback(async (given: File[], fileHandle?: LylFileHandle, importOptions?: { keepSvgPage?: boolean; svgWidth?: number | null; keepMeshPosition?: boolean }): Promise<{ importedIds: string[]; failures: Array<{ fileName: string; reason: string }>; warning?: string }> => {
     const none = { importedIds: [] as string[], failures: [] as Array<{ fileName: string; reason: string }> };
-    if (!selected.length) return none;
+    if (!given.length) return none;
+    // Build 129: a GLB (from an image-to-3D tool) comes in as its mesh.
+    const selected = await withGlbAsStl(given);
     const projectFiles = selected.filter((file) => /\.(lyl|skf)$/i.test(file.name));
     if (projectFiles.length) {
       if (selected.length !== 1) {
@@ -22657,6 +22661,15 @@ export function LayerlingEditor({
     return { importedIds: importedShapes.map((shape) => shape.id), failures, warning };
   }, [commitShapes, onOpenLylProjectFile, ontoActivePlate]);
   importFilesRef.current = importFiles;
+  // Build 129: the AI panel hands over meshes it made (image to 3D) for the usual import.
+  useEffect(() => {
+    const take = (event: Event) => {
+      const files = (event as CustomEvent<{ files: File[] }>).detail?.files ?? [];
+      if (files.length) void importFilesRef.current?.(files);
+    };
+    window.addEventListener(IMPORT_FILES_EVENT, take);
+    return () => window.removeEventListener(IMPORT_FILES_EVENT, take);
+  }, []);
 
   const selectFiles = useCallback(
     (files: FileList | File[]) => {

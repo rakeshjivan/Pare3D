@@ -9,6 +9,8 @@ export type AiStatus = {
   ok: boolean;
   /** Build 128 on: what the AI code running in the app's server can do (absent before). */
   features?: string[];
+  /** Build 129: TRELLIS.2 on this computer, for a mesh from a picture. */
+  meshMaker?: { installed: boolean; huggingFace: boolean };
   editors: number;
   chatgpt: { signedIn: boolean; email: string; signingIn: boolean; error: string };
   gemini: { installed: boolean; signedIn: boolean };
@@ -27,6 +29,8 @@ export const AI_ENGINE_KEY = "pare.aiEngine";
 export const AI_MODEL_KEY = "pare.aiModel";
 export const AI_ENGINE_EVENT = "pare3d:ai-engine";
 export const OPEN_AI_EVENT = "pare3d:open-ai";
+/** Build 129: files for the editor to import as usual (detail: { files: File[] }). */
+export const IMPORT_FILES_EVENT = "pare3d:import-files";
 const HEADERS = { "content-type": "application/json", "x-pare3d-send": "1" };
 
 /** The desktop app serves Pare from this computer; the web version never has AI design. */
@@ -74,6 +78,16 @@ export const signInChatgpt = () => post<{ ok: boolean }>("/chatgpt/signin");
 export const signOutChatgpt = () => post<{ ok: boolean; revoked: boolean }>("/chatgpt/signout");
 export const startAiRun = (body: { engine: AiEngine; prompt: string; history: { role: "user" | "assistant"; text: string }[]; model?: string; image?: string }) =>
   post<{ id: string }>("/run", body);
+export const startMeshRun = (image: string) => post<{ id: string }>("/mesh", { image });
+
+/** The mesh a finished picture-to-mesh request made, as a file to import. */
+export async function meshFile(id: string): Promise<File> {
+  const response = await fetch(`/__ai/mesh-file?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+  if (!response.ok) throw new Error("The mesh could not be fetched.");
+  const name = response.headers.get("x-file-name") || "model.glb";
+  return new File([await response.blob()], `from-picture${name.slice(name.lastIndexOf("."))}`);
+}
+
 export const stopAiRun = (id: string) => post<{ ok: boolean }>("/stop", { id });
 
 export async function aiModels(): Promise<AiModel[]> {

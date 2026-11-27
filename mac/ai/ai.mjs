@@ -16,7 +16,8 @@ export const AI_PROTOCOL = 1;
 import { spawn } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import { createServer } from "node:http";
 import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
@@ -682,6 +683,81 @@ async function runGemini(job, { prompt, history = [], image }) {
   });
 }
 
+
+// ---------- Build 129: a mesh from a picture, on this computer, with TRELLIS.2 ----------
+// Microsoft's open image-to-3D model (MIT), through the Apple Silicon port trellis-silicon
+// (github.com/sanchez-kim/trellis-silicon, MIT), which the person installs once. Free and offline after the
+// first run, which downloads its weights (about 15 GB) from Hugging Face.
+
+function findTrellis() {
+  const home = homedir();
+  const folders = [join(home, "trellis-silicon"), join(home, "Documents", "trellis-silicon"), join(home, "Developer", "trellis-silicon"), join(home, "Projects", "trellis-silicon")];
+  for (const folder of folders) {
+    const bin = join(folder, ".venv", "bin", "trellis-silicon");
+    if (existsSync(bin)) return bin;
+  }
+  for (const folder of searchPath()) if (existsSync(join(folder, "trellis-silicon"))) return join(folder, "trellis-silicon");
+  return null;
+}
+
+const huggingFaceSignedIn = () =>
+  Boolean(process.env.HF_TOKEN) || existsSync(join(process.env.HF_HOME || join(homedir(), ".cache", "huggingface"), "token"));
+
+const MESH_STEPS = [
+  [/download/i, "Downloading the model (first time only, about 15 GB)"],
+  [/background|birefnet|rembg/i, "Separating the object from its background"],
+  [/load/i, "Loading the model"],
+  [/sampl|generat|diffus|flow/i, "Shaping the mesh"],
+  [/decod|mesh|remesh|decimat/i, "Building the mesh"],
+  [/export|glb|bak/i, "Saving the mesh"],
+];
+
+async function runMesh(job, { image }) {
+  const bin = findTrellis();
+  if (!bin) throw new Error("Mesh making is not set up on this Mac yet. See Set up in the AI panel.");
+  const [, type, data] = /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(image) ?? [];
+  if (!data) throw new Error("The picture could not be read.");
+  const folder = join(dataDir, "mesh", job.id);
+  await mkdir(folder, { recursive: true });
+  const input = join(folder, `picture.${type === "jpeg" ? "jpg" : type}`);
+  await writeFile(input, Buffer.from(data, "base64"));
+  note(job, "tool", "Starting on this Mac");
+  let lastStep = "";
+  let errors = "";
+  await new Promise((resolve, reject) => {
+    const child = spawn(bin, [input, "--output", join(folder, "model"), "--no-texture"], {
+      cwd: folder,
+      env: { ...process.env, PATH: searchPath().join(":"), BAKE_MAX_FACES: "300000", PYTORCH_ENABLE_MPS_FALLBACK: "1", NO_COLOR: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    job.stop = () => child.kill();
+    const watch = (chunk) => {
+      const text = chunk.toString("utf8");
+      errors = (errors + text).slice(-4000);
+      for (const line of text.split(/[\r\n]+/)) {
+        const step = MESH_STEPS.find(([pattern]) => pattern.test(line))?.[1];
+        if (step && step !== lastStep) {
+          lastStep = step;
+          note(job, "tool", step);
+        }
+      }
+    };
+    child.stdout.on("data", watch);
+    child.stderr.on("data", watch);
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else if (/gated|401|403|access to model|restricted/i.test(errors)) reject(new Error("Hugging Face has not given access to the DINOv3 model yet. Request it on its page (see Set up), sign in with hf auth login, and try again."));
+      else if (/out of memory|MPS backend out of memory|Killed/i.test(errors)) reject(new Error("This Mac ran out of memory making the mesh. It needs 24 GB or more; close other apps and try again."));
+      else reject(new Error(clip(errors.trim().split("\n").filter(Boolean).pop() || `Mesh making stopped (${code}).`, 300)));
+    });
+  });
+  const made = (await readdir(folder)).filter((name) => /\.(glb|obj)$/i.test(name)).sort((a, b) => (a.endsWith(".glb") ? -1 : 1) - (b.endsWith(".glb") ? -1 : 1));
+  if (!made.length) throw new Error("Mesh making finished but left no mesh file.");
+  job.meshFile = join(folder, made[0]);
+  job.answer = "The mesh is in your design. Tell me how big it should be, or what to change.";
+}
+
 // ---------- HTTP ----------
 
 async function readBody(req) {
@@ -705,7 +781,8 @@ async function status() {
   return {
     ok: true,
     // What this AI code can do; the panel asks for a restart when the page is newer than the code running.
-    features: ["picture", "mesh"],
+    features: ["picture", "mesh", "mesh-from-picture"],
+    meshMaker: { installed: Boolean(findTrellis()), huggingFace: huggingFaceSignedIn() },
     editors: listEditors().length,
     chatgpt: { signedIn: Boolean(saved?.access_token), email: saved?.access_token ? saved.email || "" : "", signingIn: Boolean(signIn.pending), error: signIn.error },
     gemini: { installed: Boolean(gemini), signedIn: geminiSignedIn() },
@@ -718,7 +795,7 @@ export async function handleAi(req, res, url) {
   const path = url.pathname.slice("/__ai".length) || "/";
   try {
     if (path === "/" || path === "/status") return send(res, 200, await status()), true;
-    if (req.method !== "POST" && path !== "/job" && path !== "/models") return send(res, 405, { error: "POST only" }), true;
+    if (req.method !== "POST" && path !== "/job" && path !== "/models" && path !== "/mesh-file") return send(res, 405, { error: "POST only" }), true;
     if (path === "/chatgpt/signin") {
       await startChatgptSignIn();
       return send(res, 200, { ok: true }), true;
@@ -745,6 +822,31 @@ export async function handleAi(req, res, url) {
           job.error = error?.name === "AbortError" ? "Stopped." : error instanceof Error ? error.message : String(error);
         });
       return send(res, 200, { id: job.id }), true;
+    }
+    if (path === "/mesh") {
+      const body = await readBody(req);
+      const image = typeof body.image === "string" && body.image.startsWith("data:image/") && body.image.length < 12_000_000 ? body.image : "";
+      if (!image) return send(res, 400, { error: "Add a picture first." }), true;
+      if (jobs.size && [...jobs.values()].some((job) => job.engine === "mesh" && job.status === "running")) return send(res, 409, { error: "A mesh is already being made." }), true;
+      const job = newJob("mesh");
+      runMesh(job, { image })
+        .then(() => {
+          if (job.status === "running") job.status = "done";
+        })
+        .catch((error) => {
+          if (job.status !== "running") return;
+          job.status = "error";
+          job.error = error instanceof Error ? error.message : String(error);
+        });
+      return send(res, 200, { id: job.id }), true;
+    }
+    if (path === "/mesh-file") {
+      const job = jobs.get(url.searchParams.get("id") || "");
+      if (!job?.meshFile) return send(res, 404, { error: "No such mesh." }), true;
+      const info = await stat(job.meshFile);
+      res.writeHead(200, { "content-type": "application/octet-stream", "content-length": info.size, "cache-control": "no-store", "x-file-name": job.meshFile.split(/[\\/]/).pop() });
+      createReadStream(job.meshFile).pipe(res);
+      return true;
     }
     if (path === "/job") {
       const job = jobs.get(url.searchParams.get("id") || "");
