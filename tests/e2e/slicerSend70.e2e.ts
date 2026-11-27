@@ -54,7 +54,8 @@ describe("the app server's send to a slicer", () => {
     const file = join(home, "Documents", "Pare 3D Exports", "Upper model.stl");
     expect(answer.path).toBe(file);
     expect(new Uint8Array(readFileSync(file))).toEqual(stl);
-    for (let attempt = 0; attempt < 50 && !existsSync(opened); attempt += 1) await new Promise((done) => setTimeout(done, 50));
+    // The stand-in slicer may have made the file but not yet written to it: wait for its line.
+    for (let attempt = 0; attempt < 100 && !(existsSync(opened) && readFileSync(opened, "utf8").trim()); attempt += 1) await new Promise((done) => setTimeout(done, 50));
     expect(readFileSync(opened, "utf8").trim()).toBe(`chitubox ${file}`);
   });
 
